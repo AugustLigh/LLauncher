@@ -83,6 +83,9 @@ Settings are stored in `~/.config/llauncher/settings.json` and can be edited thr
 | Launch    | Gamemode, MangoHUD, Vulkan, Wayland, DXVK Async, on-launch action |
 | Downloads | Speed limit, concurrent connections, custom env vars, launch args  |
 
+<img width="1282" height="715" alt="изображение" src="https://github.com/user-attachments/assets/e9262948-b29a-4b93-bb2c-8e0438db8a6f" />
+
+
 Default paths:
 
 ```
