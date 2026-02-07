@@ -20,7 +20,7 @@ Built with Tauri v2, React, and Rust
 
 LLauncher is a lightweight, native Linux launcher for **Arknights: Endfield**. It handles game installation, updates, and launching through Proton — no Steam or Lutris required.
 
-<!-- Add a screenshot here: ![Screenshot](docs/screenshot.png) -->
+Download: https://github.com/AugustLigh/LLauncher/releases/tag/LLauncher
 
 ## Features
 
