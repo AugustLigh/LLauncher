@@ -24,5 +24,6 @@ thiserror = "2"
 md-5 = "0.10"
 futures-util = "0.3"
 dirs = "6"
+zip = { version = "2", default-features = false, features = ["deflate", "deflate64"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"

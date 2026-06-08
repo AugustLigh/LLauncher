@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tauri::Emitter;
@@ -119,8 +119,10 @@ pub async fn start_download(
         }
     }
 
-    let first_file_name = packs[0].url.split('/').last().unwrap_or("unknown");
-    let first_part = download_path.join(first_file_name);
+    let parts: Vec<PathBuf> = packs
+        .iter()
+        .map(|p| download_path.join(p.url.split('/').last().unwrap_or("unknown")))
+        .collect();
 
     let marker = crate::game::state::incomplete_marker(game_path);
     std::fs::write(&marker, b"extracting").ok();
@@ -130,7 +132,7 @@ pub async fn start_download(
     let extract_result = tokio::task::spawn_blocking(move || {
         crate::download::extract::extract_split_zip(
             &extract_app,
-            &first_part,
+            &parts,
             &game_path_owned,
             total_size,
         )

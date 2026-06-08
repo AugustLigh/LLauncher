@@ -1,154 +1,228 @@
-use std::io::Read;
-use std::path::Path;
-use std::process::{Command, Stdio};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::io::{Read, Seek, Write};
+use std::path::{Path, PathBuf};
+use std::time::Instant;
 use tauri::Emitter;
+use zip::ZipArchive;
 
 use crate::api::types::ExtractProgress;
 use crate::error::AppError;
 
 pub fn extract_split_zip(
     app: &tauri::AppHandle,
-    first_part: &Path,
+    parts: &[PathBuf],
     extract_to: &Path,
     total_size: u64,
 ) -> Result<(), AppError> {
     std::fs::create_dir_all(extract_to)?;
 
-    let total = archive_uncompressed_size(first_part)
-        .filter(|t| *t > 0)
-        .unwrap_or(total_size);
+    let reader = MultiFileReader::new(parts).map_err(AppError::Io)?;
+    let mut archive =
+        ZipArchive::new(reader).map_err(|e| AppError::ExtractionFailed(e.to_string()))?;
 
-    let emit = |percent: u8, processed: u64, speed: u64| {
+    // Sum uncompressed entry sizes for accurate progress denominator.
+    let mut bytes_total = 0u64;
+    for i in 0..archive.len() {
+        if let Ok(f) = archive.by_index_raw(i) {
+            bytes_total += f.size();
+        }
+    }
+    if bytes_total == 0 {
+        bytes_total = total_size;
+    }
+
+    app.emit(
+        "download://extract-progress",
+        ExtractProgress {
+            percent: 0,
+            bytes_processed: 0,
+            bytes_total,
+            speed_bps: 0,
+        },
+    )
+    .ok();
+
+    let start = Instant::now();
+    let mut bytes_written = 0u64;
+    let mut last_emit = Instant::now();
+    let mut buf = vec![0u8; 256 * 1024];
+
+    let emit = |bytes_written: u64, bytes_total: u64| {
+        let elapsed = start.elapsed().as_secs_f64();
+        let speed = if elapsed > 0.1 {
+            (bytes_written as f64 / elapsed) as u64
+        } else {
+            0
+        };
+        let percent = if bytes_total > 0 {
+            ((bytes_written as f64 / bytes_total as f64) * 100.0).min(99.0) as u8
+        } else {
+            0
+        };
         app.emit(
             "download://extract-progress",
             ExtractProgress {
                 percent,
-                bytes_processed: processed,
-                bytes_total: total,
+                bytes_processed: bytes_written,
+                bytes_total,
                 speed_bps: speed,
             },
         )
         .ok();
     };
 
-    let baseline = dir_size(extract_to);
+    for i in 0..archive.len() {
+        let mut entry = archive
+            .by_index(i)
+            .map_err(|e| AppError::ExtractionFailed(e.to_string()))?;
 
-    emit(0, 0, 0);
+        let outpath = match entry.enclosed_name() {
+            Some(p) => extract_to.join(p),
+            None => continue,
+        };
 
-    let mut child = Command::new("7z")
-        .arg("x")
-        .arg("-y")
-        .arg(format!("-o{}", extract_to.display()))
-        .arg(first_part.to_string_lossy().to_string())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|_| AppError::SevenZipNotFound)?;
+        if entry.is_dir() {
+            std::fs::create_dir_all(&outpath)?;
+        } else {
+            if let Some(parent) = outpath.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let mut outfile = std::fs::File::create(&outpath)?;
+            loop {
+                let n = entry.read(&mut buf)?;
+                if n == 0 {
+                    break;
+                }
+                outfile.write_all(&buf[..n])?;
+                bytes_written += n as u64;
 
-    let stderr_handle = child.stderr.take().map(|mut e| {
-        thread::spawn(move || {
-            let mut s = String::new();
-            e.read_to_string(&mut s).ok();
-            s
-        })
-    });
-
-    let start = Instant::now();
-    let status = loop {
-        match child.try_wait() {
-            Ok(Some(status)) => break status,
-            Ok(None) => {}
-            Err(e) => return Err(AppError::Io(e)),
+                if last_emit.elapsed().as_millis() >= 500 {
+                    emit(bytes_written, bytes_total);
+                    last_emit = Instant::now();
+                }
+            }
         }
-
-        let written = dir_size(extract_to).saturating_sub(baseline);
-        let processed = if total > 0 { written.min(total) } else { written };
-        let elapsed = start.elapsed().as_secs_f64();
-        let speed = if elapsed > 0.1 {
-            (processed as f64 / elapsed) as u64
-        } else {
-            0
-        };
-        let percent = if total > 0 {
-            ((processed as f64 / total as f64) * 100.0).floor().min(99.0) as u8
-        } else {
-            0
-        };
-        emit(percent, processed, speed);
-
-        thread::sleep(Duration::from_millis(400));
-    };
-
-    if !status.success() {
-        let stderr = stderr_handle
-            .and_then(|h| h.join().ok())
-            .unwrap_or_default();
-        return Err(AppError::ExtractionFailed(stderr));
     }
 
-    let final_bytes = if total > 0 {
-        total
-    } else {
-        dir_size(extract_to).saturating_sub(baseline)
-    };
-    emit(100, final_bytes, 0);
+    app.emit(
+        "download://extract-progress",
+        ExtractProgress {
+            percent: 100,
+            bytes_processed: bytes_total,
+            bytes_total,
+            speed_bps: 0,
+        },
+    )
+    .ok();
 
     Ok(())
 }
 
-fn archive_uncompressed_size(first_part: &Path) -> Option<u64> {
-    let output = Command::new("7z")
-        .arg("l")
-        .arg("-slt")
-        .arg(first_part.to_string_lossy().to_string())
-        .output()
-        .ok()?;
-
-    if !output.status.success() {
-        return None;
-    }
-
-    let text = String::from_utf8_lossy(&output.stdout);
-    let mut total: u64 = 0;
-    let mut in_entries = false;
-    for line in text.lines() {
-        let trimmed = line.trim_start();
-        if !in_entries {
-            if trimmed.starts_with("----------") {
-                in_entries = true;
-            }
-            continue;
-        }
-        if let Some(rest) = trimmed.strip_prefix("Size = ") {
-            if let Ok(n) = rest.trim().parse::<u64>() {
-                total = total.saturating_add(n);
-            }
-        }
-    }
-
-    (total > 0).then_some(total)
+/// Chains multiple files into a single `Read + Seek` stream.
+/// Presents split ZIP parts as one contiguous archive to the ZIP reader.
+struct MultiFileReader {
+    parts: Vec<(PathBuf, u64)>,
+    total_size: u64,
+    current_pos: u64,
+    current_part_idx: usize,
+    current_file: Option<std::fs::File>,
 }
 
-fn dir_size(path: &Path) -> u64 {
-    let mut total = 0u64;
-    let mut stack = vec![path.to_path_buf()];
-    while let Some(dir) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            match entry.file_type() {
-                Ok(ft) if ft.is_dir() => stack.push(entry.path()),
-                Ok(ft) if ft.is_file() => {
-                    if let Ok(meta) = entry.metadata() {
-                        total = total.saturating_add(meta.len());
-                    }
-                }
-                _ => {}
+impl MultiFileReader {
+    fn new(paths: &[PathBuf]) -> std::io::Result<Self> {
+        let mut parts = Vec::with_capacity(paths.len());
+        let mut total_size = 0u64;
+        for path in paths {
+            let size = std::fs::metadata(path)?.len();
+            parts.push((path.clone(), size));
+            total_size += size;
+        }
+        let current_file = parts
+            .first()
+            .map(|(p, _)| std::fs::File::open(p))
+            .transpose()?;
+        Ok(MultiFileReader {
+            parts,
+            total_size,
+            current_pos: 0,
+            current_part_idx: 0,
+            current_file,
+        })
+    }
+
+    fn open_part(&mut self, idx: usize, offset: u64) -> std::io::Result<()> {
+        if idx >= self.parts.len() {
+            self.current_file = None;
+            self.current_part_idx = idx;
+            return Ok(());
+        }
+        let mut file = std::fs::File::open(&self.parts[idx].0)?;
+        if offset > 0 {
+            file.seek(std::io::SeekFrom::Start(offset))?;
+        }
+        self.current_file = Some(file);
+        self.current_part_idx = idx;
+        Ok(())
+    }
+}
+
+impl Read for MultiFileReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        loop {
+            if self.current_file.is_none() {
+                return Ok(0);
             }
+            let n = self.current_file.as_mut().unwrap().read(buf)?;
+            if n > 0 {
+                self.current_pos += n as u64;
+                return Ok(n);
+            }
+            // End of this part — advance to next
+            let next = self.current_part_idx + 1;
+            self.open_part(next, 0)?;
         }
     }
-    total
+}
+
+impl Seek for MultiFileReader {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        let new_pos = match pos {
+            std::io::SeekFrom::Start(n) => n,
+            std::io::SeekFrom::End(n) => {
+                if n >= 0 {
+                    self.total_size.saturating_add(n as u64)
+                } else {
+                    self.total_size.saturating_sub(n.unsigned_abs())
+                }
+            }
+            std::io::SeekFrom::Current(n) => {
+                if n >= 0 {
+                    self.current_pos.saturating_add(n as u64)
+                } else {
+                    self.current_pos.saturating_sub(n.unsigned_abs())
+                }
+            }
+        };
+
+        // Find the target part and offset within it
+        let mut remaining = new_pos;
+        let mut target_part = self.parts.len(); // sentinel: past end
+        let mut offset_in_part = 0u64;
+        for (idx, (_, size)) in self.parts.iter().enumerate() {
+            if remaining <= *size {
+                target_part = idx;
+                offset_in_part = remaining;
+                break;
+            }
+            remaining -= size;
+        }
+
+        if target_part != self.current_part_idx || self.current_file.is_none() {
+            self.open_part(target_part, offset_in_part)?;
+        } else if let Some(file) = &mut self.current_file {
+            file.seek(std::io::SeekFrom::Start(offset_in_part))?;
+        }
+
+        self.current_pos = new_pos;
+        Ok(new_pos)
+    }
 }

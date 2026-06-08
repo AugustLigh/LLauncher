@@ -23,9 +23,6 @@ pub enum AppError {
     #[error("Proton not found: {0}")]
     ProtonNotFound(String),
 
-    #[error("7z not found")]
-    SevenZipNotFound,
-
     #[error("tar not found")]
     TarNotFound,
 
