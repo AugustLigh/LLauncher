@@ -65,6 +65,8 @@ export default {
     downloadDirHint: 'Временная папка для скачанных архивов',
     language: 'Язык',
     activeProton: 'Активный DWProton',
+    prefixDir: 'Каталог префикса Proton',
+    prefixDirHint: 'Где хранится префикс Wine (compatdata). Держите его на разделе ext4/btrfs — NTFS не поддерживает символьные ссылки, нужные Proton.',
     statusPrefix: 'Статус:',
     availableVersions: 'Доступные версии',
     loadingReleases: 'Загрузка релизов...',

@@ -65,6 +65,8 @@ export default {
     downloadDirHint: 'Temporary directory for downloaded archives',
     language: 'Language',
     activeProton: 'Active DWProton',
+    prefixDir: 'Proton prefix directory',
+    prefixDirHint: 'Where the Wine prefix (compatdata) is stored. Keep it on an ext4/btrfs partition — NTFS cannot hold the symlinks Proton needs.',
     statusPrefix: 'Status:',
     availableVersions: 'Available versions',
     loadingReleases: 'Loading releases...',

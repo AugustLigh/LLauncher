@@ -28,6 +28,30 @@ pub fn run() {
         if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
             std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         }
+
+        // Point GIO at the system TLS backend module (glib-networking). The
+        // AppImage does not bundle libgio{gnutls,openssl}.so, so without this
+        // WebKit falls back to GDummyTlsBackend, every HTTPS request fails
+        // silently and the UI goes black ~1s after launch. We only set the
+        // variable when a TLS module is actually present, and never override an
+        // explicit user value.
+        if std::env::var_os("GIO_MODULE_DIR").is_none() {
+            const GIO_MODULE_DIRS: [&str; 4] = [
+                "/usr/lib/x86_64-linux-gnu/gio/modules",
+                "/usr/lib64/gio/modules",
+                "/usr/lib/gio/modules",
+                "/usr/lib/aarch64-linux-gnu/gio/modules",
+            ];
+            for dir in GIO_MODULE_DIRS {
+                let path = std::path::Path::new(dir);
+                if path.join("libgiognutls.so").exists()
+                    || path.join("libgioopenssl.so").exists()
+                {
+                    std::env::set_var("GIO_MODULE_DIR", dir);
+                    break;
+                }
+            }
+        }
     }
 
     let settings = AppSettings::load();

@@ -19,6 +19,8 @@ pub struct AppSettings {
     pub game_dir: String,
     pub download_dir: String,
     pub proton_dir: String,
+    #[serde(default)]
+    pub proton_prefix_dir: String,
     pub language: String,
     pub installed_version: String,
     #[serde(default)]
@@ -57,6 +59,9 @@ impl Default for AppSettings {
             game_dir: paths::default_game_dir().to_string_lossy().to_string(),
             download_dir: paths::default_download_dir().to_string_lossy().to_string(),
             proton_dir: paths::default_proton_dir().to_string_lossy().to_string(),
+            proton_prefix_dir: paths::default_proton_prefix_dir()
+                .to_string_lossy()
+                .to_string(),
             language: "en-us".to_string(),
             installed_version: String::new(),
             use_gamemode: false,

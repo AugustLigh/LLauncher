@@ -32,7 +32,7 @@ pub async fn determine_game_state(
     // Get latest version from API
     let version_info =
         crate::api::client::get_latest_game_version(client, installed_version).await?;
-    let latest_version = version_info.version;
+    let latest_version = version_info.version.clone();
 
     if incomplete_marker(game_path).exists() {
         return Ok(GameState::NotInstalled { latest_version });
@@ -43,8 +43,12 @@ pub async fn determine_game_state(
         return Ok(GameState::NotInstalled { latest_version });
     }
 
-    // Check if update is available
-    if installed_version != latest_version {
+    // An update is only available when the server actually returns packs to
+    // apply. When the install is current the pack list is empty, so we treat it
+    // as ready even if the reported version string differs from ours — this
+    // avoids the launcher getting stuck endlessly offering an "Update" that
+    // re-downloads and re-extracts nothing new.
+    if installed_version != latest_version && !version_info.pkg.packs.is_empty() {
         return Ok(GameState::UpdateAvailable {
             installed_version: installed_version.to_string(),
             latest_version,

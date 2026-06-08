@@ -220,6 +220,15 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
               </div>
 
               <div className="settings-modal__section">
+                <span className="settings-modal__label">{t('settings.prefixDir')}</span>
+                <PathSelector
+                  value={form.proton_prefix_dir}
+                  onChange={(v) => handleChange('proton_prefix_dir', v)}
+                />
+                <span className="settings-modal__hint">{t('settings.prefixDirHint')}</span>
+              </div>
+
+              <div className="settings-modal__section">
                 <div className="settings-proton__header">
                   <span className="settings-modal__label">{t('settings.availableVersions')}</span>
                   <button

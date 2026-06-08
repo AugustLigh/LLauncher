@@ -34,8 +34,8 @@ pub fn default_download_dir() -> PathBuf {
         .join("_download")
 }
 
-/// Default proton directory
-pub fn default_proton_dir() -> PathBuf {
+/// Base directory for launcher data on the user's home partition.
+fn data_base() -> PathBuf {
     dirs::data_dir()
         .unwrap_or_else(|| {
             dirs::home_dir()
@@ -44,5 +44,18 @@ pub fn default_proton_dir() -> PathBuf {
                 .join("share")
         })
         .join("llauncher")
-        .join("proton")
+}
+
+/// Default proton directory
+pub fn default_proton_dir() -> PathBuf {
+    data_base().join("proton")
+}
+
+/// Default Proton prefix (compatdata) base directory.
+///
+/// Kept under the launcher's data directory rather than inside the game
+/// folder, because the game may live on an NTFS partition that cannot hold the
+/// Unix symlinks Proton needs to create its prefix.
+pub fn default_proton_prefix_dir() -> PathBuf {
+    data_base().join("prefix")
 }

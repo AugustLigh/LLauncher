@@ -17,6 +17,24 @@ pub struct LaunchedGame {
     pub log_path: PathBuf,
 }
 
+/// Resolve the Proton prefix (STEAM_COMPAT_DATA_PATH) directory.
+///
+/// Historically the prefix lived at `<game_dir>/_proton`, which breaks when the
+/// game is installed on an NTFS partition (Proton cannot create the Unix
+/// symlinks it needs). We now keep it under the launcher data directory by
+/// default, while still honouring an existing in-game-dir prefix so current
+/// installs keep working.
+fn resolve_prefix_dir(settings: &AppSettings, game_path: &Path) -> PathBuf {
+    let legacy = game_path.join("_proton");
+    if legacy.join("pfx").exists() {
+        return legacy;
+    }
+    if !settings.proton_prefix_dir.trim().is_empty() {
+        return Path::new(settings.proton_prefix_dir.trim()).join("endfield");
+    }
+    paths::default_proton_prefix_dir().join("endfield")
+}
+
 pub fn launch_game(settings: &AppSettings) -> Result<LaunchedGame, AppError> {
     let game_path = Path::new(&settings.game_dir);
     let exe_path = game_path.join("Endfield.exe");
@@ -39,7 +57,7 @@ pub fn launch_game(settings: &AppSettings) -> Result<LaunchedGame, AppError> {
     // Convert Linux path to Wine Z: path
     let wine_path = format!("Z:{}", exe_path.to_string_lossy().replace('/', "\\"));
 
-    let compat_data = game_path.join("_proton");
+    let compat_data = resolve_prefix_dir(settings, game_path);
     std::fs::create_dir_all(&compat_data)?;
 
     let log_path = paths::launch_log_path();
