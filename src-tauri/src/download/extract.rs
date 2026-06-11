@@ -19,15 +19,34 @@ pub fn extract_split_zip(
     let mut archive =
         ZipArchive::new(reader).map_err(|e| AppError::ExtractionFailed(e.to_string()))?;
 
-    // Sum uncompressed entry sizes for accurate progress denominator.
+    // Sum uncompressed entry sizes for accurate progress denominator, and the
+    // sizes of already-extracted targets (overwritten in place, so they do not
+    // need free space again — important for repairs over an existing install).
     let mut bytes_total = 0u64;
+    let mut existing_bytes = 0u64;
     for i in 0..archive.len() {
         if let Ok(f) = archive.by_index_raw(i) {
             bytes_total += f.size();
+            if let Some(p) = f.enclosed_name() {
+                if let Ok(meta) = std::fs::metadata(extract_to.join(p)) {
+                    existing_bytes += meta.len();
+                }
+            }
         }
     }
     if bytes_total == 0 {
         bytes_total = total_size;
+    }
+
+    let needed = bytes_total.saturating_sub(existing_bytes);
+    if let Some(available) = crate::config::paths::available_space(extract_to) {
+        if available < needed {
+            return Err(AppError::DiskSpace {
+                path: extract_to.to_string_lossy().to_string(),
+                needed_mib: needed / (1024 * 1024),
+                available_mib: available / (1024 * 1024),
+            });
+        }
     }
 
     app.emit(

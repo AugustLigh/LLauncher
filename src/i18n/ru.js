@@ -13,6 +13,8 @@ export default {
   titlebar: {
     minimize: 'Свернуть',
     close: 'Закрыть',
+    update: 'Доступна v{version}',
+    updateTooltip: 'Вышла новая версия LLauncher — нажмите, чтобы открыть страницу релиза',
   },
   home: {
     gameSubtitle: 'Arknights: Endfield',
@@ -30,9 +32,9 @@ export default {
       verifying: 'Проверка...',
       extracting: 'Распаковка...',
       loading: 'Загрузка...',
+      running: 'Игра запущена',
     },
     warning: {
-      no7z: '7z не найден. Установите p7zip-full для распаковки архивов.',
       noProton: 'DWProton не настроен. Настройте его в Настройки > Proton.',
       noNtsync: 'ntsync недоступен. Производительность игры может быть снижена.',
     },

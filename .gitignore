@@ -26,3 +26,8 @@ dist-ssr
 # Rust / Tauri build artifacts
 src-tauri/target
 src-tauri/gen/schemas
+
+# Local tooling / private files
+.claude/
+*.key
+aur_key*

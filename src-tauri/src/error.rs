@@ -34,6 +34,13 @@ pub enum AppError {
 
     #[error("Download cancelled")]
     Cancelled,
+
+    #[error("Not enough free disk space in {path}: {needed_mib} MiB required, {available_mib} MiB available")]
+    DiskSpace {
+        path: String,
+        needed_mib: u64,
+        available_mib: u64,
+    },
 }
 
 impl Serialize for AppError {

@@ -20,7 +20,13 @@ Built with Tauri v2, React, and Rust
 
 LLauncher is a lightweight, native Linux launcher for **Arknights: Endfield**. It handles game installation, updates, and launching through Proton — no Steam or Lutris required.
 
-[Download the latest release](https://github.com/AugustLigh/LLauncher/releases/latest)
+[Download the latest release](https://github.com/AugustLigh/LLauncher/releases/latest) (AppImage / .deb / .rpm)
+
+On Arch Linux (and derivatives like CachyOS, Manjaro, EndeavourOS) install from the AUR — dependencies are handled automatically:
+
+```bash
+yay -S llauncher-bin   # or: paru -S llauncher-bin
+```
 
 ## Features
 
@@ -32,7 +38,7 @@ LLauncher is a lightweight, native Linux launcher for **Arknights: Endfield**. I
 - **System tray** — minimize to tray, launch from tray
 - **In-app news** — announcements and updates from the official API
 - **Configurable launch options** — Gamemode, MangoHUD, DXVK Async, Wayland, custom env vars and arguments
-- **System checks** — warns about missing dependencies (7z, Proton, ntsync)
+- **System checks** — warns about missing dependencies (Proton, ntsync)
 - **Custom UI** — glassmorphism-styled interface with no system decorations
 
 ## Prerequisites
@@ -41,7 +47,7 @@ LLauncher is a lightweight, native Linux launcher for **Arknights: Endfield**. I
 - **Node.js** >= 18 and **npm** (or yarn)
 - **Rust** toolchain ([rustup](https://rustup.rs))
 - **System libraries** for Tauri v2 — see the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/#linux)
-- **7z** (`p7zip-full`) — required for game extraction
+- **glib-networking** — its GIO TLS module is bundled into the AppImage at build time
 - A **Proton** build (DWProton can be downloaded from within the launcher)
 
 ## Getting Started
@@ -94,6 +100,25 @@ Proton: ~/.local/share/llauncher/proton
 Config: ~/.config/llauncher/settings.json
 Logs:   ~/.config/llauncher/launch.log
 ```
+
+## Troubleshooting
+
+**Black screen / blank window on launch (AppImage)**
+
+Recent AppImages bundle the GIO TLS module and disable the WebKit DMA-BUF renderer automatically. If you still hit a black screen (or are on an older release):
+
+```bash
+# Install glib-networking (Arch/CachyOS: pacman -S glib-networking)
+GIO_MODULE_DIR=/usr/lib/gio/modules WEBKIT_DISABLE_COMPOSITING_MODE=1 ./LLauncher_*.AppImage
+```
+
+**`libayatana-appindicator is deprecated` warning**
+
+Harmless — it comes from the system tray library and does not affect functionality.
+
+**Game on an NTFS partition**
+
+The Proton prefix is stored under `~/.local/share/llauncher/prefix/` (configurable via `proton_prefix_dir` in settings), so the game itself may live on NTFS. Note that running games from NTFS under Linux is generally discouraged — ext4/btrfs/ZFS are safer choices.
 
 ## Project Structure
 

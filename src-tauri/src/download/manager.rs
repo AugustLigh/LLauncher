@@ -15,7 +15,7 @@ pub async fn start_download(
     current_version: &str,
     speed_limit: u64,
     max_concurrent: u32,
-) -> Result<(), AppError> {
+) -> Result<String, AppError> {
     download_active.store(true, Ordering::SeqCst);
 
     let download_path = Path::new(download_dir);
@@ -47,6 +47,30 @@ pub async fn start_download(
         .iter()
         .map(|p| p.package_size.parse::<u64>().unwrap_or(0))
         .sum();
+
+    // Refuse early when the download clearly cannot fit, instead of failing
+    // 40 GB in. Already-downloaded pack files do not need space again.
+    let existing_parts: u64 = packs
+        .iter()
+        .filter_map(|p| {
+            let name = p.url.split('/').last().unwrap_or("unknown");
+            std::fs::metadata(download_path.join(name)).ok().map(|m| m.len())
+        })
+        .sum();
+    let needed = total_size.saturating_sub(existing_parts);
+    std::fs::create_dir_all(download_path)?;
+    if let Some(available) = crate::config::paths::available_space(download_path) {
+        if available < needed {
+            download_active.store(false, Ordering::SeqCst);
+            let err = AppError::DiskSpace {
+                path: download_dir.to_string(),
+                needed_mib: needed / (1024 * 1024),
+                available_mib: available / (1024 * 1024),
+            };
+            app.emit("download://error", DownloadError { message: err.to_string() }).ok();
+            return Err(err);
+        }
+    }
 
     let agg_downloaded = Arc::new(AtomicU64::new(0));
     let global_start = std::time::Instant::now();
@@ -119,6 +143,19 @@ pub async fn start_download(
         }
     }
 
+    // Cancellation may have broken out of the spawn loop after the in-flight
+    // workers finished cleanly; never proceed to extraction in that case.
+    if !download_active.load(Ordering::SeqCst) {
+        app.emit(
+            "download://error",
+            DownloadError {
+                message: AppError::Cancelled.to_string(),
+            },
+        )
+        .ok();
+        return Err(AppError::Cancelled);
+    }
+
     let parts: Vec<PathBuf> = packs
         .iter()
         .map(|p| download_path.join(p.url.split('/').last().unwrap_or("unknown")))
@@ -129,10 +166,11 @@ pub async fn start_download(
 
     let extract_app = app.clone();
     let game_path_owned = game_path.to_path_buf();
+    let extract_parts = parts.clone();
     let extract_result = tokio::task::spawn_blocking(move || {
         crate::download::extract::extract_split_zip(
             &extract_app,
-            &parts,
+            &extract_parts,
             &game_path_owned,
             total_size,
         )
@@ -158,9 +196,16 @@ pub async fn start_download(
 
     std::fs::remove_file(&marker).ok();
 
+    // The pack archives are no longer needed once extracted; leaving them
+    // around wastes tens of GB and forces a pointless re-verify on the next
+    // repair/update pass.
+    for part in &parts {
+        std::fs::remove_file(part).ok();
+    }
+
     download_active.store(false, Ordering::SeqCst);
 
-    app.emit("download://complete", DownloadComplete { version }).ok();
+    app.emit("download://complete", DownloadComplete { version: version.clone() }).ok();
 
-    Ok(())
+    Ok(version)
 }

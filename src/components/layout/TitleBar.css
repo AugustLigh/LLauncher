@@ -27,6 +27,24 @@
   -webkit-app-region: no-drag;
 }
 
+.titlebar__update {
+  -webkit-app-region: no-drag;
+  margin-right: var(--space-sm);
+  padding: 2px 10px;
+  font-size: var(--font-size-xs, 11px);
+  font-weight: 500;
+  color: #9be29b;
+  background: rgba(110, 220, 110, 0.12);
+  border: 1px solid rgba(110, 220, 110, 0.35);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.titlebar__update:hover {
+  background: rgba(110, 220, 110, 0.25);
+}
+
 .titlebar__btn {
   display: flex;
   align-items: center;

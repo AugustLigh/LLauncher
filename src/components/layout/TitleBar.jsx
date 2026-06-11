@@ -1,15 +1,27 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { useTranslation } from '../../i18n';
+import useLauncherUpdate from '../../hooks/useLauncherUpdate';
 import './TitleBar.css';
 
 const appWindow = getCurrentWindow();
 
 export default function TitleBar() {
   const { t } = useTranslation();
+  const update = useLauncherUpdate();
   return (
     <div className="titlebar" data-tauri-drag-region>
       <span className="titlebar__title">LLauncher</span>
       <div className="titlebar__controls">
+        {update && (
+          <button
+            className="titlebar__update"
+            onClick={() => openUrl(update.url)}
+            title={t('titlebar.updateTooltip')}
+          >
+            {t('titlebar.update', { version: update.version })}
+          </button>
+        )}
         <button
           className="titlebar__btn"
           onClick={() => appWindow.minimize()}

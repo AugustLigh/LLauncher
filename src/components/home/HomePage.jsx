@@ -10,12 +10,14 @@ import SocialSidebar from './SocialSidebar';
 import ProtonPrompt from './ProtonPrompt';
 import useGameState from '../../hooks/useGameState';
 import useDownload from '../../hooks/useDownload';
+import useGameRunning from '../../hooks/useGameRunning';
 import { useTranslation } from '../../i18n';
 import './HomePage.css';
 
 export default function HomePage({ content, settings, systemCheck, onOpenSettings }) {
   const { t } = useTranslation();
   const { gameState, loading: gameLoading, refresh } = useGameState();
+  const { running: gameRunning, markRunning } = useGameRunning();
   const [showProtonPrompt, setShowProtonPrompt] = useState(false);
 
   const onDownloadComplete = useCallback(async (version) => {
@@ -44,6 +46,7 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
         }
         try {
           await invoke('launch_game');
+          markRunning();
           const action = settings?.on_launch_action || 'hide';
           if (action === 'hide') getCurrentWindow().hide();
           else if (action === 'close') getCurrentWindow().close();
@@ -65,9 +68,6 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
           <SingleEntCard singleEnt={content.single_ent} />
         )}
         <div className="home-page__warnings">
-          {systemCheck && !systemCheck.has_7z && (
-            <SystemWarning message={t('home.warning.no7z')} type="error" />
-          )}
           {systemCheck && !systemCheck.has_proton && (
             <SystemWarning message={t('home.warning.noProton')} type="warn" />
           )}
@@ -101,6 +101,7 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
             downloading={downloading}
             extracting={progress?.stage === 'extracting'}
             verifying={progress?.stage === 'verifying'}
+            running={gameRunning}
             onAction={handleAction}
             disabled={gameLoading}
           />

@@ -3,7 +3,6 @@ use std::path::Path;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SystemCheck {
-    pub has_7z: bool,
     pub has_proton: bool,
     pub has_ntsync: bool,
     pub has_gamemode: bool,
@@ -19,7 +18,6 @@ pub fn check_system(proton_dir: &str) -> SystemCheck {
     };
 
     SystemCheck {
-        has_7z: check_7z(),
         has_proton,
         has_ntsync: check_ntsync(),
         has_gamemode: check_command("gamemoderun"),
@@ -33,15 +31,6 @@ pub fn check_system(proton_dir: &str) -> SystemCheck {
             String::new()
         },
     }
-}
-
-fn check_7z() -> bool {
-    std::process::Command::new("7z")
-        .arg("--help")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok()
 }
 
 fn check_ntsync() -> bool {

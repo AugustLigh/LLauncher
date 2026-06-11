@@ -1,4 +1,25 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+/// Free disk space (in bytes) available to the current user on the filesystem
+/// holding `path`. Walks up to the nearest existing ancestor so it also works
+/// for directories that have not been created yet. `None` if it cannot be
+/// determined.
+pub fn available_space(path: &Path) -> Option<u64> {
+    use std::os::unix::ffi::OsStrExt;
+
+    let mut probe = path;
+    while !probe.exists() {
+        probe = probe.parent()?;
+    }
+
+    let c_path = std::ffi::CString::new(probe.as_os_str().as_bytes()).ok()?;
+    let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
+    if unsafe { libc::statvfs(c_path.as_ptr(), &mut stat) } == 0 {
+        Some(stat.f_bavail as u64 * stat.f_frsize as u64)
+    } else {
+        None
+    }
+}
 
 /// Config directory: ~/.config/llauncher/
 pub fn config_dir() -> PathBuf {

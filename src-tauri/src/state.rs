@@ -8,6 +8,7 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     pub download_active: Arc<AtomicBool>,
     pub proton_download_active: Arc<AtomicBool>,
+    pub game_running: Arc<AtomicBool>,
 }
 
 impl AppState {
@@ -21,6 +22,7 @@ impl AppState {
                 .unwrap_or_else(|_| reqwest::Client::new()),
             download_active: Arc::new(AtomicBool::new(false)),
             proton_download_active: Arc::new(AtomicBool::new(false)),
+            game_running: Arc::new(AtomicBool::new(false)),
         }
     }
 }

@@ -13,6 +13,8 @@ export default {
   titlebar: {
     minimize: 'Minimize',
     close: 'Close',
+    update: 'v{version} available',
+    updateTooltip: 'A new LLauncher version is available — click to open the release page',
   },
   home: {
     gameSubtitle: 'Arknights: Endfield',
@@ -30,9 +32,9 @@ export default {
       verifying: 'Verifying...',
       extracting: 'Extracting...',
       loading: 'Loading...',
+      running: 'Running',
     },
     warning: {
-      no7z: '7z not found. Install p7zip-full for archive extraction.',
       noProton: 'DWProton not configured. Set it up in Settings > Proton.',
       noNtsync: 'ntsync not available. Game performance may be reduced.',
     },

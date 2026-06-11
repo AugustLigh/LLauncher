@@ -1,6 +1,6 @@
 [package]
 name = "llauncher"
-version = "0.2.1"
+version = "0.2.2"
 description = "Linux Launcher for Arknights: Endfield"
 authors = ["you"]
 edition = "2021"
@@ -27,3 +27,4 @@ dirs = "6"
 zip = { version = "2", default-features = false, features = ["deflate", "deflate64"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
+libc = "0.2"

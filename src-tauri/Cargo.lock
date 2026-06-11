@@ -2007,10 +2007,11 @@ checksum = "6373607a59f0be73a39b6fe456b8192fcc3585f602af20751600e974dd455e77"
 
 [[package]]
 name = "llauncher"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "dirs 6.0.0",
  "futures-util",
+ "libc",
  "md-5",
  "reqwest 0.12.28",
  "serde",

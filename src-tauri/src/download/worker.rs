@@ -30,7 +30,15 @@ pub async fn download_file(
         .unwrap_or("unknown")
         .to_string();
 
-    if dest.exists() {
+    let expected_size: u64 = pack.package_size.parse().unwrap_or(0);
+    let existing_size = std::fs::metadata(dest).map(|m| m.len()).unwrap_or(0);
+
+    // How many bytes of an interrupted download we can keep (resume point),
+    // and the MD5 state covering them.
+    let mut resume_from: u64 = 0;
+    let mut hasher = Md5::new();
+
+    if existing_size > 0 && (expected_size == 0 || existing_size >= expected_size) {
         let dest_owned = dest.to_path_buf();
         let expected_md5 = pack.md5.clone();
         let cancel2 = cancel_flag.clone();
@@ -115,18 +123,92 @@ pub async fn download_file(
         }
 
         agg_downloaded.fetch_sub(verified_local, Ordering::Relaxed);
+        std::fs::remove_file(dest).ok();
+    } else if existing_size > 0 && existing_size < expected_size {
+        // Partial file from an interrupted download: hash what we already have
+        // so the final MD5 check still covers the whole file, then resume from
+        // that offset instead of re-downloading from scratch.
+        let dest_owned = dest.to_path_buf();
+        let cancel2 = cancel_flag.clone();
+        let agg2 = agg_downloaded.clone();
+        let app2 = app.clone();
+        let fn2 = file_name.clone();
+
+        hasher = tokio::task::spawn_blocking(move || -> Result<Md5, AppError> {
+            use std::io::Read;
+            let mut file = std::fs::File::open(&dest_owned)?;
+            let mut hasher = Md5::new();
+            let mut buf = vec![0u8; 4 * 1024 * 1024];
+            let mut last_emit = std::time::Instant::now();
+            loop {
+                if !cancel2.load(Ordering::SeqCst) {
+                    return Err(AppError::Cancelled);
+                }
+                let n = file.read(&mut buf)?;
+                if n == 0 {
+                    break;
+                }
+                hasher.update(&buf[..n]);
+                agg2.fetch_add(n as u64, Ordering::Relaxed);
+                if last_emit.elapsed().as_millis() >= 150 {
+                    let total_dl = agg2.load(Ordering::Relaxed);
+                    let elapsed = global_start.elapsed().as_secs_f64();
+                    let speed = if elapsed > 0.1 {
+                        (total_dl as f64 / elapsed) as u64
+                    } else {
+                        0
+                    };
+                    app2.emit(
+                        "download://verify-progress",
+                        DownloadProgress {
+                            file_index,
+                            total_files,
+                            file_name: fn2.clone(),
+                            bytes_downloaded: total_dl,
+                            bytes_total: agg_total,
+                            speed_bps: speed,
+                        },
+                    )
+                    .ok();
+                    last_emit = std::time::Instant::now();
+                }
+            }
+            Ok(hasher)
+        })
+        .await
+        .map_err(|e| AppError::Api(format!("resume hash task panicked: {}", e)))??;
+
+        resume_from = existing_size;
     }
 
     if let Some(parent) = dest.parent() {
         std::fs::create_dir_all(parent)?;
     }
 
-    let response = client.get(&pack.url).send().await?.error_for_status()?;
+    let mut request = client.get(&pack.url);
+    if resume_from > 0 {
+        request = request.header(reqwest::header::RANGE, format!("bytes={}-", resume_from));
+    }
+    let response = request.send().await?.error_for_status()?;
+
+    let file = if resume_from > 0 && response.status() == reqwest::StatusCode::PARTIAL_CONTENT {
+        tokio::fs::OpenOptions::new()
+            .append(true)
+            .open(dest)
+            .await
+            .map_err(AppError::Io)?
+    } else {
+        // Either a fresh download or the server ignored our Range request and
+        // sent the whole file; in the latter case drop the resume state.
+        if resume_from > 0 {
+            agg_downloaded.fetch_sub(resume_from, Ordering::Relaxed);
+            hasher = Md5::new();
+        }
+        tokio::fs::File::create(dest).await.map_err(AppError::Io)?
+    };
 
     let mut stream = response.bytes_stream();
-    let file = tokio::fs::File::create(dest).await.map_err(AppError::Io)?;
     let mut writer = BufWriter::with_capacity(4 * 1024 * 1024, file);
-    let mut hasher = Md5::new();
     let mut last_emit = std::time::Instant::now();
 
     let mut rate_bytes: u64 = 0;

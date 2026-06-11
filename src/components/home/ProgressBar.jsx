@@ -10,7 +10,7 @@ export default function ProgressBar({ progress, onCancel }) {
   const verifying = progress.stage === 'verifying';
 
   const percent = extracting
-    ? progress.percent
+    ? progress.percent ?? 0
     : progress.bytes_total > 0
       ? Math.round((progress.bytes_downloaded / progress.bytes_total) * 100)
       : 0;

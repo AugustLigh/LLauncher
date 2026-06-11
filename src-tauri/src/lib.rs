@@ -42,12 +42,20 @@ pub fn run() {
                 "/usr/lib/gio/modules",
                 "/usr/lib/aarch64-linux-gnu/gio/modules",
             ];
-            for dir in GIO_MODULE_DIRS {
-                let path = std::path::Path::new(dir);
-                if path.join("libgiognutls.so").exists()
-                    || path.join("libgioopenssl.so").exists()
+
+            // Prefer the module bundled inside the AppImage (APPDIR is set by
+            // the AppImage runtime), then fall back to system locations.
+            let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+            if let Some(appdir) = std::env::var_os("APPDIR") {
+                candidates.push(std::path::Path::new(&appdir).join("usr/lib/gio/modules"));
+            }
+            candidates.extend(GIO_MODULE_DIRS.iter().map(std::path::PathBuf::from));
+
+            for dir in candidates {
+                if dir.join("libgiognutls.so").exists()
+                    || dir.join("libgioopenssl.so").exists()
                 {
-                    std::env::set_var("GIO_MODULE_DIR", dir);
+                    std::env::set_var("GIO_MODULE_DIR", &dir);
                     break;
                 }
             }
@@ -129,6 +137,7 @@ pub fn run() {
             commands::start_download,
             commands::cancel_download,
             commands::launch_game,
+            commands::is_game_running,
             commands::read_launch_log,
             commands::repair_game,
             commands::update_installed_version,

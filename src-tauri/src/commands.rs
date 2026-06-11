@@ -74,7 +74,7 @@ pub async fn start_download(
     let client = state.http_client.clone();
     let download_active = state.download_active.clone();
 
-    crate::download::manager::start_download(
+    let version = crate::download::manager::start_download(
         app,
         client,
         download_active,
@@ -84,7 +84,16 @@ pub async fn start_download(
         speed_limit,
         max_concurrent,
     )
-    .await
+    .await?;
+
+    // Persist the installed version in the backend right away. Relying on the
+    // frontend to call `update_installed_version` loses the version if the
+    // window is closed or the webview dies before the event is handled, which
+    // left the launcher stuck offering "Install"/"Update" on the next start.
+    let mut settings = state.settings.lock().await;
+    settings.installed_version = version;
+    settings.save()?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -100,46 +109,70 @@ pub async fn launch_game(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
+    if state.game_running.load(std::sync::atomic::Ordering::SeqCst) {
+        return Err(AppError::Api("Game is already running".to_string()));
+    }
+
     let settings = state.settings.lock().await;
     let settings_clone = settings.clone();
     drop(settings);
 
     let mut launched = crate::game::launcher::launch_game(&settings_clone)?;
+    let game_running = state.game_running.clone();
+    game_running.store(true, std::sync::atomic::Ordering::SeqCst);
 
-    // Watch the spawned process for ~3.5s. If it exits within that window,
-    // emit `launch://failed` with the exit code and a tail of the log so the
-    // UI can surface the failure (otherwise the game window would just never
-    // appear and the user would be left wondering).
+    // Watch the spawned process until it exits. A quick exit (< 3.5s) is
+    // reported as a launch failure with a tail of the log; in every case we
+    // reap the child (no zombie), clear the running flag and emit
+    // `game://exited` so the UI can update / bring the window back.
     let log_path = launched.log_path.clone();
     tokio::task::spawn_blocking(move || {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(3500);
-        loop {
+        let started = std::time::Instant::now();
+        let status = loop {
             match launched.child.try_wait() {
-                Ok(Some(status)) => {
-                    // Give the game a moment to flush its stderr/stdout.
-                    std::thread::sleep(std::time::Duration::from_millis(200));
-                    let log_tail = crate::game::launcher::read_log_tail(&log_path, 60);
-                    let _ = app.emit(
-                        "launch://failed",
-                        crate::api::types::LaunchFailed {
-                            exit_code: status.code(),
-                            log_tail,
-                        },
-                    );
-                    break;
-                }
-                Ok(None) => {
-                    if std::time::Instant::now() >= deadline {
-                        break;
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(200));
-                }
-                Err(_) => break,
+                Ok(Some(status)) => break Some(status),
+                Ok(None) => std::thread::sleep(std::time::Duration::from_millis(500)),
+                Err(_) => break None,
             }
+        };
+
+        game_running.store(false, std::sync::atomic::Ordering::SeqCst);
+
+        if let Some(status) = status {
+            if started.elapsed() < std::time::Duration::from_millis(3500) {
+                // Give the game a moment to flush its stderr/stdout.
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                let log_tail = crate::game::launcher::read_log_tail(&log_path, 60);
+                let _ = app.emit(
+                    "launch://failed",
+                    crate::api::types::LaunchFailed {
+                        exit_code: status.code(),
+                        log_tail,
+                    },
+                );
+            }
+            let _ = app.emit(
+                "game://exited",
+                crate::api::types::GameExited {
+                    exit_code: status.code(),
+                },
+            );
+        } else {
+            let _ = app.emit(
+                "game://exited",
+                crate::api::types::GameExited { exit_code: None },
+            );
         }
     });
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn is_game_running(state: State<'_, AppState>) -> Result<bool, AppError> {
+    Ok(state
+        .game_running
+        .load(std::sync::atomic::Ordering::SeqCst))
 }
 
 #[tauri::command]
@@ -169,7 +202,7 @@ pub async fn repair_game(
     let client = state.http_client.clone();
     let download_active = state.download_active.clone();
 
-    crate::download::manager::start_download(
+    let version = crate::download::manager::start_download(
         app,
         client,
         download_active,
@@ -179,7 +212,12 @@ pub async fn repair_game(
         speed_limit,
         max_concurrent,
     )
-    .await
+    .await?;
+
+    let mut settings = state.settings.lock().await;
+    settings.installed_version = version;
+    settings.save()?;
+    Ok(())
 }
 
 #[tauri::command]

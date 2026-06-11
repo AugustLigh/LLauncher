@@ -237,3 +237,8 @@ pub struct LaunchFailed {
     pub exit_code: Option<i32>,
     pub log_tail: String,
 }
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GameExited {
+    pub exit_code: Option<i32>,
+}
