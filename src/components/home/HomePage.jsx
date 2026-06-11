@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import SystemWarning from '../common/SystemWarning';
@@ -12,6 +12,7 @@ import useGameState from '../../hooks/useGameState';
 import useDownload from '../../hooks/useDownload';
 import useGameRunning from '../../hooks/useGameRunning';
 import { useTranslation } from '../../i18n';
+import { notify } from '../../utils/notify';
 import './HomePage.css';
 
 export default function HomePage({ content, settings, systemCheck, onOpenSettings }) {
@@ -21,16 +22,21 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
   const [showProtonPrompt, setShowProtonPrompt] = useState(false);
 
   const onDownloadComplete = useCallback(async (version) => {
+    notify('LLauncher', t('notify.downloadComplete'));
     try {
       await invoke('update_installed_version', { version });
       refresh();
     } catch (e) {
       console.error('Failed to update version:', e);
     }
-  }, [refresh]);
+  }, [refresh, t]);
 
   const { downloading, progress, error: dlError, startDownload, cancelDownload } =
     useDownload(onDownloadComplete);
+
+  useEffect(() => {
+    if (dlError) notify('LLauncher', t('notify.downloadError', { message: dlError }));
+  }, [dlError, t]);
 
   const handleAction = async () => {
     if (!gameState) return;

@@ -28,3 +28,4 @@ zip = { version = "2", default-features = false, features = ["deflate", "deflate
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
 libc = "0.2"
+tauri-plugin-notification = "2"

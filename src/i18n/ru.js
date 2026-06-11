@@ -44,6 +44,11 @@ export default {
     fileLabel: 'Файл {current}/{total}: {name}',
     verifyLabel: 'Проверка {current}/{total}: {name}',
     extractLabel: 'Распаковка архива...',
+    pause: 'Пауза',
+  },
+  notify: {
+    downloadComplete: 'Загрузка завершена — игра готова к запуску',
+    downloadError: 'Ошибка загрузки: {message}',
   },
   protonPrompt: {
     title: 'Требуется DWProton',

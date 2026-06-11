@@ -44,6 +44,11 @@ export default {
     fileLabel: 'File {current}/{total}: {name}',
     verifyLabel: 'Verifying {current}/{total}: {name}',
     extractLabel: 'Extracting archive...',
+    pause: 'Pause',
+  },
+  notify: {
+    downloadComplete: 'Download complete — the game is ready to play',
+    downloadError: 'Download failed: {message}',
   },
   protonPrompt: {
     title: 'DWProton Required',

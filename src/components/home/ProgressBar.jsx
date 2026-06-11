@@ -62,7 +62,7 @@ export default function ProgressBar({ progress, onCancel }) {
                   })}
             </span>
             <button className="progress-bar__cancel" onClick={onCancel}>
-              {t('common.cancel')}
+              {t('progress.pause')}
             </button>
           </>
         )}

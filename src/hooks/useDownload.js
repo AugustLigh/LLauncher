@@ -36,7 +36,13 @@ export default function useDownload(onComplete) {
 
     listen('download://error', (event) => {
       setDownloading(false);
-      setError(event.payload.message);
+      // Cancellation is user-initiated (pause): partial files are kept and
+      // the next start resumes via HTTP Range, so it is not an error.
+      if (/cancelled/i.test(event.payload.message)) {
+        setProgress(null);
+      } else {
+        setError(event.payload.message);
+      }
     }).then((u) => unlisteners.push(u));
 
     return () => {
