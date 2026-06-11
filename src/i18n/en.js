@@ -39,6 +39,13 @@ export default {
       noNtsync: 'ntsync not available. Game performance may be reduced.',
     },
     settingsTooltip: 'Settings',
+    stopGame: 'Stop game',
+    stopConfirm: 'Force stop the game? Unsaved progress may be lost.',
+    importLink: 'Already installed? Locate the game folder',
+    stats: {
+      playtime: 'Played {time}',
+      lastPlayed: 'last played {date}',
+    },
   },
   progress: {
     fileLabel: 'File {current}/{total}: {name}',
@@ -120,6 +127,14 @@ export default {
       name: 'MangoHud',
       desc: 'Show FPS / frame time overlay',
     },
+    prime: {
+      name: 'Dedicated GPU (PRIME)',
+      desc: 'Render on the discrete GPU on hybrid-graphics laptops (PRIME offload)',
+    },
+    discord: {
+      name: 'Discord Rich Presence',
+      desc: 'Show "Playing Arknights: Endfield" in your Discord status',
+    },
     canonicalHole: {
       name: 'Canonical Hole (skip_volatile_check)',
       desc: 'WINE_CANONICAL_HOLE=skip_volatile_check — may improve performance up to 200% (DWProton)',
@@ -141,6 +156,18 @@ export default {
       name: 'Last launch log',
       desc: 'Inspect stdout/stderr from the last game launch.',
       button: 'View log',
+    },
+    debugInfo: {
+      name: 'Bug report info',
+      desc: 'Copy system and configuration details for a GitHub issue.',
+      button: 'Copy',
+      copied: 'Copied!',
+    },
+    uninstall: {
+      name: 'Uninstall game',
+      desc: 'Delete the game files and the download cache. Settings and the Proton prefix are kept.',
+      button: 'Uninstall',
+      confirm: 'Delete the game installation? This cannot be undone.',
     },
   },
   launchFailed: {

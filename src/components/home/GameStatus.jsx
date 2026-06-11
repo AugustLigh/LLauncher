@@ -1,7 +1,8 @@
 import { useTranslation } from '../../i18n';
+import { formatPlaytime, formatDate } from '../../utils/format';
 import './GameStatus.css';
 
-export default function GameStatus({ gameState }) {
+export default function GameStatus({ gameState, stats }) {
   const { t } = useTranslation();
 
   if (!gameState) {
@@ -58,6 +59,13 @@ export default function GameStatus({ gameState }) {
         </div>
         {renderVersion()}
       </div>
+      {stats?.lastPlayed > 0 && (
+        <div className="game-info__stats">
+          {t('home.stats.playtime', { time: formatPlaytime(stats.totalPlaytimeSecs) })}
+          {' · '}
+          {t('home.stats.lastPlayed', { date: formatDate(stats.lastPlayed) })}
+        </div>
+      )}
     </div>
   );
 }

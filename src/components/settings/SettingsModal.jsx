@@ -20,6 +20,8 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
   const [autostart, setAutostart] = useState(false);
   const [showLog, setShowLog] = useState(false);
   const [repairing, setRepairing] = useState(false);
+  const [uninstalling, setUninstalling] = useState(false);
+  const [debugCopied, setDebugCopied] = useState(false);
 
   const TABS = [
     { id: 'paths', label: t('settings.tab.paths') },
@@ -133,6 +135,33 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
       console.error('Failed to repair:', e);
     } finally {
       setRepairing(false);
+    }
+  };
+
+  const handleUninstall = async () => {
+    if (uninstalling) return;
+    if (!confirm(t('settings.uninstall.confirm'))) return;
+    setUninstalling(true);
+    try {
+      await invoke('uninstall_game');
+      // Reload so every view picks up the now-empty installation state.
+      window.location.reload();
+    } catch (e) {
+      console.error('Failed to uninstall:', e);
+      alert(typeof e === 'string' ? e : e.message || 'Uninstall failed');
+    } finally {
+      setUninstalling(false);
+    }
+  };
+
+  const handleCopyDebugInfo = async () => {
+    try {
+      const info = await invoke('get_debug_info');
+      await navigator.clipboard.writeText(info);
+      setDebugCopied(true);
+      setTimeout(() => setDebugCopied(false), 2000);
+    } catch (e) {
+      console.error('Failed to copy debug info:', e);
     }
   };
 
@@ -452,6 +481,32 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
 
               <div className="settings-toggle">
                 <div className="settings-toggle__info">
+                  <span className="settings-toggle__name">{t('settings.prime.name')}</span>
+                  <span className="settings-toggle__desc">
+                    {t('settings.prime.desc')}
+                  </span>
+                </div>
+                <button
+                  className={`settings-toggle__switch ${form.use_prime_offload ? 'settings-toggle__switch--on' : ''}`}
+                  onClick={() => handleChange('use_prime_offload', !form.use_prime_offload)}
+                />
+              </div>
+
+              <div className="settings-toggle">
+                <div className="settings-toggle__info">
+                  <span className="settings-toggle__name">{t('settings.discord.name')}</span>
+                  <span className="settings-toggle__desc">
+                    {t('settings.discord.desc')}
+                  </span>
+                </div>
+                <button
+                  className={`settings-toggle__switch ${form.use_discord_rpc ? 'settings-toggle__switch--on' : ''}`}
+                  onClick={() => handleChange('use_discord_rpc', !form.use_discord_rpc)}
+                />
+              </div>
+
+              <div className="settings-toggle">
+                <div className="settings-toggle__info">
                   <span className="settings-toggle__name">
                     {t('settings.canonicalHole.name')}
                     <span className="settings-toggle__experimental">{t('settings.experimental')}</span>
@@ -583,6 +638,33 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
                   onClick={() => setShowLog(true)}
                 >
                   {t('settings.viewLog.button')}
+                </button>
+              </div>
+
+              <div className="settings-action-row">
+                <div className="settings-action-row__info">
+                  <span className="settings-action-row__name">{t('settings.debugInfo.name')}</span>
+                  <span className="settings-action-row__desc">{t('settings.debugInfo.desc')}</span>
+                </div>
+                <button
+                  className="settings-modal__btn settings-modal__btn--secondary"
+                  onClick={handleCopyDebugInfo}
+                >
+                  {debugCopied ? t('settings.debugInfo.copied') : t('settings.debugInfo.button')}
+                </button>
+              </div>
+
+              <div className="settings-action-row">
+                <div className="settings-action-row__info">
+                  <span className="settings-action-row__name">{t('settings.uninstall.name')}</span>
+                  <span className="settings-action-row__desc">{t('settings.uninstall.desc')}</span>
+                </div>
+                <button
+                  className="settings-modal__btn settings-modal__btn--danger"
+                  onClick={handleUninstall}
+                  disabled={uninstalling}
+                >
+                  {uninstalling ? t('common.loading') : t('settings.uninstall.button')}
                 </button>
               </div>
             </>

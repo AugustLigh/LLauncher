@@ -28,3 +28,16 @@ export function formatPercent(current, total) {
   if (total === 0) return '0%';
   return `${Math.round((current / total) * 100)}%`;
 }
+
+export function formatPlaytime(totalSecs) {
+  if (!totalSecs || totalSecs <= 0) return '0m';
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+export function formatDate(unixSecs) {
+  if (!unixSecs) return '';
+  return new Date(unixSecs * 1000).toLocaleDateString();
+}

@@ -75,3 +75,9 @@
   color: var(--color-accent);
   margin: 0 4px;
 }
+
+.game-info__stats {
+  margin-top: 6px;
+  font-size: var(--font-size-xs, 11px);
+  color: var(--color-text-muted);
+}

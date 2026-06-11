@@ -80,3 +80,42 @@
   border: 1px solid rgba(239, 68, 68, 0.2);
   animation: fadeIn var(--transition-base) ease;
 }
+
+.home-page__news {
+  max-width: 540px;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 240px;
+  background: rgba(10, 10, 15, 0.55);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.home-page__stop-btn {
+  padding: 6px 18px;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: #f0a0a0;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.home-page__stop-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.home-page__import-link {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color var(--transition-fast);
+}
+
+.home-page__import-link:hover {
+  color: var(--color-text-primary);
+}

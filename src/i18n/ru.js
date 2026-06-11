@@ -39,6 +39,13 @@ export default {
       noNtsync: 'ntsync недоступен. Производительность игры может быть снижена.',
     },
     settingsTooltip: 'Настройки',
+    stopGame: 'Остановить игру',
+    stopConfirm: 'Принудительно завершить игру? Несохранённый прогресс может быть потерян.',
+    importLink: 'Уже установлена? Указать папку с игрой',
+    stats: {
+      playtime: 'В игре {time}',
+      lastPlayed: 'последний запуск {date}',
+    },
   },
   progress: {
     fileLabel: 'Файл {current}/{total}: {name}',
@@ -120,6 +127,14 @@ export default {
       name: 'MangoHud',
       desc: 'Показывать оверлей FPS / времени кадра',
     },
+    prime: {
+      name: 'Дискретная GPU (PRIME)',
+      desc: 'Рендерить на дискретной видеокарте на ноутбуках с гибридной графикой (PRIME offload)',
+    },
+    discord: {
+      name: 'Discord Rich Presence',
+      desc: 'Показывать «Playing Arknights: Endfield» в статусе Discord',
+    },
     canonicalHole: {
       name: 'Canonical Hole (skip_volatile_check)',
       desc: 'WINE_CANONICAL_HOLE=skip_volatile_check — может ускорить игру до 200% (DWProton)',
@@ -141,6 +156,18 @@ export default {
       name: 'Лог последнего запуска',
       desc: 'Просмотр stdout/stderr последнего запуска игры.',
       button: 'Открыть лог',
+    },
+    debugInfo: {
+      name: 'Данные для баг-репорта',
+      desc: 'Скопировать сведения о системе и настройках для GitHub issue.',
+      button: 'Скопировать',
+      copied: 'Скопировано!',
+    },
+    uninstall: {
+      name: 'Удалить игру',
+      desc: 'Удалить файлы игры и кэш загрузок. Настройки и Proton-префикс сохраняются.',
+      button: 'Удалить',
+      confirm: 'Удалить установленную игру? Это действие необратимо.',
     },
   },
   launchFailed: {

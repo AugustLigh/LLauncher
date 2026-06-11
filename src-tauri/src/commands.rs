@@ -104,30 +104,44 @@ pub async fn cancel_download(state: State<'_, AppState>) -> Result<(), AppError>
     Ok(())
 }
 
-#[tauri::command]
-pub async fn launch_game(
-    app: tauri::AppHandle,
-    state: State<'_, AppState>,
-) -> Result<(), AppError> {
+/// Shared launch path used by the `launch_game` command and the tray menu.
+///
+/// Watches the spawned process until it exits. A quick exit (< 3.5s) is
+/// reported as a launch failure with a tail of the log; in every case we reap
+/// the child (no zombie), clear the running flag, record playtime and emit
+/// `game://exited` so the UI can update / bring the window back.
+pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
+    use tauri::Manager;
+
+    let state = app.state::<AppState>();
     if state.game_running.load(std::sync::atomic::Ordering::SeqCst) {
         return Err(AppError::Api("Game is already running".to_string()));
     }
 
-    let settings = state.settings.lock().await;
-    let settings_clone = settings.clone();
-    drop(settings);
+    let settings_clone = state.settings.lock().await.clone();
 
     let mut launched = crate::game::launcher::launch_game(&settings_clone)?;
     let game_running = state.game_running.clone();
+    let game_pid = state.game_pid.clone();
     game_running.store(true, std::sync::atomic::Ordering::SeqCst);
+    *game_pid.lock().unwrap() = Some(launched.child.id());
+    let _ = app.emit("game://started", ());
 
-    // Watch the spawned process until it exits. A quick exit (< 3.5s) is
-    // reported as a launch failure with a tail of the log; in every case we
-    // reap the child (no zombie), clear the running flag and emit
-    // `game://exited` so the UI can update / bring the window back.
+    let discord = if settings_clone.use_discord_rpc {
+        Some(crate::game::discord::start_presence())
+    } else {
+        None
+    };
+
     let log_path = launched.log_path.clone();
+    let app2 = app.clone();
     tokio::task::spawn_blocking(move || {
         let started = std::time::Instant::now();
+        let session_start_unix = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+
         let status = loop {
             match launched.child.try_wait() {
                 Ok(Some(status)) => break Some(status),
@@ -137,13 +151,26 @@ pub async fn launch_game(
         };
 
         game_running.store(false, std::sync::atomic::Ordering::SeqCst);
+        *game_pid.lock().unwrap() = None;
+        if let Some(discord) = discord {
+            discord.store(false, std::sync::atomic::Ordering::SeqCst);
+        }
+
+        // Record playtime and last-played timestamp.
+        {
+            let state = app2.state::<AppState>();
+            let mut settings = state.settings.blocking_lock();
+            settings.total_playtime_secs += started.elapsed().as_secs();
+            settings.last_played = session_start_unix;
+            let _ = settings.save();
+        }
 
         if let Some(status) = status {
             if started.elapsed() < std::time::Duration::from_millis(3500) {
                 // Give the game a moment to flush its stderr/stdout.
                 std::thread::sleep(std::time::Duration::from_millis(200));
                 let log_tail = crate::game::launcher::read_log_tail(&log_path, 60);
-                let _ = app.emit(
+                let _ = app2.emit(
                     "launch://failed",
                     crate::api::types::LaunchFailed {
                         exit_code: status.code(),
@@ -151,17 +178,51 @@ pub async fn launch_game(
                     },
                 );
             }
-            let _ = app.emit(
+            let _ = app2.emit(
                 "game://exited",
                 crate::api::types::GameExited {
                     exit_code: status.code(),
                 },
             );
         } else {
-            let _ = app.emit(
+            let _ = app2.emit(
                 "game://exited",
                 crate::api::types::GameExited { exit_code: None },
             );
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn launch_game(app: tauri::AppHandle) -> Result<(), AppError> {
+    launch_and_watch(app).await
+}
+
+#[tauri::command]
+pub async fn stop_game(state: State<'_, AppState>) -> Result<(), AppError> {
+    let pid = *state.game_pid.lock().unwrap();
+    let Some(pid) = pid else {
+        return Ok(());
+    };
+
+    // Ask the whole process group (bash -> proton -> game) to terminate, then
+    // escalate to SIGKILL if it is still alive a few seconds later.
+    unsafe {
+        libc::killpg(pid as i32, libc::SIGTERM);
+    }
+
+    let game_running = state.game_running.clone();
+    let game_pid = state.game_pid.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        if game_running.load(std::sync::atomic::Ordering::SeqCst) {
+            if let Some(pid) = *game_pid.lock().unwrap() {
+                unsafe {
+                    libc::killpg(pid as i32, libc::SIGKILL);
+                }
+            }
         }
     });
 
@@ -173,6 +234,141 @@ pub async fn is_game_running(state: State<'_, AppState>) -> Result<bool, AppErro
     Ok(state
         .game_running
         .load(std::sync::atomic::Ordering::SeqCst))
+}
+
+/// Point the launcher at an already existing game installation (e.g. one made
+/// by the official launcher under Bottles/Lutris). The folder must contain
+/// Endfield.exe. The install is assumed to be up to date; if it is not, the
+/// user can run Repair. Returns the version recorded.
+#[tauri::command]
+pub async fn import_existing_game(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<String, AppError> {
+    let game_path = std::path::Path::new(&path);
+    if !game_path.join("Endfield.exe").exists() {
+        return Err(AppError::GameNotFound(format!(
+            "Endfield.exe not found in {}",
+            path
+        )));
+    }
+
+    let version_info =
+        crate::api::client::get_latest_game_version(&state.http_client, "").await?;
+    let version = version_info.version.clone();
+
+    let mut settings = state.settings.lock().await;
+    settings.game_dir = path.clone();
+    settings.download_dir = game_path.join("_download").to_string_lossy().to_string();
+    settings.installed_version = version.clone();
+    settings.save()?;
+
+    Ok(version)
+}
+
+/// Delete the game installation (game directory + its _download cache) and
+/// reset the installed version. Refuses while the game is running, and only
+/// acts when the directory actually contains the game.
+#[tauri::command]
+pub async fn uninstall_game(state: State<'_, AppState>) -> Result<(), AppError> {
+    if state.game_running.load(std::sync::atomic::Ordering::SeqCst) {
+        return Err(AppError::Api("Cannot uninstall while the game is running".to_string()));
+    }
+
+    let settings = state.settings.lock().await;
+    let game_dir = settings.game_dir.clone();
+    let download_dir = settings.download_dir.clone();
+    drop(settings);
+
+    let game_path = std::path::PathBuf::from(&game_dir);
+    if !game_path.join("Endfield.exe").exists()
+        && !crate::game::state::incomplete_marker(&game_path).exists()
+    {
+        return Err(AppError::GameNotFound(format!(
+            "No game installation found in {}",
+            game_dir
+        )));
+    }
+
+    let download_path = std::path::PathBuf::from(&download_dir);
+    tokio::task::spawn_blocking(move || {
+        std::fs::remove_dir_all(&game_path).ok();
+        // Only remove the download cache if it follows the _download naming —
+        // the user may have pointed it at a shared folder.
+        if download_path.file_name().is_some_and(|n| n == "_download") {
+            std::fs::remove_dir_all(&download_path).ok();
+        }
+    })
+    .await
+    .map_err(|e| AppError::Api(format!("Uninstall task failed: {}", e)))?;
+
+    let mut settings = state.settings.lock().await;
+    settings.installed_version = String::new();
+    settings.save()?;
+    Ok(())
+}
+
+/// Collect system / configuration info for bug reports.
+#[tauri::command]
+pub async fn get_debug_info(state: State<'_, AppState>) -> Result<String, AppError> {
+    let settings = state.settings.lock().await.clone();
+
+    let os = std::fs::read_to_string("/etc/os-release")
+        .ok()
+        .and_then(|c| {
+            c.lines()
+                .find(|l| l.starts_with("PRETTY_NAME="))
+                .map(|l| l.trim_start_matches("PRETTY_NAME=").trim_matches('"').to_string())
+        })
+        .unwrap_or_else(|| "unknown".to_string());
+
+    let run = |cmd: &str, args: &[&str]| -> String {
+        std::process::Command::new(cmd)
+            .args(args)
+            .output()
+            .ok()
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .unwrap_or_default()
+    };
+
+    let kernel = run("uname", &["-r"]);
+    let gpu = run("sh", &["-c", "lspci -nn 2>/dev/null | grep -Ei 'vga|3d' | sed 's/^[0-9a-f:.]* //'"]);
+    let proton = std::path::Path::new(&settings.proton_dir)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| settings.proton_dir.clone());
+
+    let log_tail = crate::game::launcher::read_log_tail(&paths::launch_log_path(), 30);
+
+    Ok(format!(
+        "LLauncher {version}\n\
+         OS: {os} (kernel {kernel})\n\
+         Session: {desktop} / {session}\n\
+         GPU: {gpu}\n\
+         Proton: {proton}\n\
+         Game version: {game_version}\n\
+         ntsync: {ntsync}\n\
+         Flags: vulkan={vulkan} wayland={wayland} dxvk_async={dxvk} gamemode={gamemode} mangohud={mangohud} prime={prime} fsync_off={fsync} esync_off={esync}\n\
+         \n--- launch.log tail ---\n{log_tail}",
+        version = env!("CARGO_PKG_VERSION"),
+        os = os,
+        kernel = kernel,
+        desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_else(|_| "?".into()),
+        session = std::env::var("XDG_SESSION_TYPE").unwrap_or_else(|_| "?".into()),
+        gpu = if gpu.is_empty() { "unknown".to_string() } else { gpu },
+        proton = proton,
+        game_version = if settings.installed_version.is_empty() { "not installed" } else { &settings.installed_version },
+        ntsync = std::path::Path::new("/dev/ntsync").exists(),
+        vulkan = settings.use_native_vulkan,
+        wayland = settings.use_wayland,
+        dxvk = settings.use_dxvk_async,
+        gamemode = settings.use_gamemode,
+        mangohud = settings.use_mangohud,
+        prime = settings.use_prime_offload,
+        fsync = settings.disable_fsync,
+        esync = settings.disable_esync,
+        log_tail = log_tail,
+    ))
 }
 
 #[tauri::command]

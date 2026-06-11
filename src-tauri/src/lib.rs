@@ -81,9 +81,10 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .manage(app_state)
         .setup(|app| {
+            let launch = MenuItem::with_id(app, "launch", "Launch Game", true, None::<&str>)?;
             let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &quit])?;
+            let menu = Menu::with_items(app, &[&launch, &show, &quit])?;
 
             // Enable autostart on first launch
             {
@@ -100,6 +101,15 @@ pub fn run() {
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
+                    "launch" => {
+                        let app = app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            // Errors (already running, missing proton, ...) are
+                            // surfaced through the launch://failed flow or
+                            // silently ignored — there is no UI here.
+                            let _ = commands::launch_and_watch(app).await;
+                        });
+                    }
                     "show" => {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
@@ -138,7 +148,11 @@ pub fn run() {
             commands::start_download,
             commands::cancel_download,
             commands::launch_game,
+            commands::stop_game,
             commands::is_game_running,
+            commands::import_existing_game,
+            commands::uninstall_game,
+            commands::get_debug_info,
             commands::read_launch_log,
             commands::repair_game,
             commands::update_installed_version,

@@ -19,7 +19,7 @@ export default function App() {
 
   return (
     <I18nProvider language={settings?.language}>
-      <MainLayout backgroundUrl={content?.background?.url}>
+      <MainLayout background={content?.background}>
         <TitleBar />
         <HomePage
           content={content}

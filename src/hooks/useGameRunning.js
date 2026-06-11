@@ -9,7 +9,9 @@ export default function useGameRunning() {
   useEffect(() => {
     invoke('is_game_running').then(setRunning).catch(() => {});
 
-    let unlisten;
+    const unlisteners = [];
+    // Launches can also start from the tray menu.
+    listen('game://started', () => setRunning(true)).then((u) => unlisteners.push(u));
     listen('game://exited', () => {
       setRunning(false);
       // Bring the launcher back when the game ends (it may have been hidden
@@ -17,11 +19,9 @@ export default function useGameRunning() {
       const win = getCurrentWindow();
       win.show().catch(() => {});
       win.setFocus().catch(() => {});
-    }).then((u) => {
-      unlisten = u;
-    });
+    }).then((u) => unlisteners.push(u));
     return () => {
-      if (unlisten) unlisten();
+      unlisteners.forEach((u) => u());
     };
   }, []);
 

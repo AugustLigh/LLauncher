@@ -1,16 +1,19 @@
 import { useState, useCallback, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { open } from '@tauri-apps/plugin-dialog';
 import SystemWarning from '../common/SystemWarning';
 import ActionButton from './ActionButton';
 import ProgressBar from './ProgressBar';
 import GameStatus from './GameStatus';
+import NewsPanel from './NewsPanel';
 import SingleEntCard from './SingleEntCard';
 import SocialSidebar from './SocialSidebar';
 import ProtonPrompt from './ProtonPrompt';
 import useGameState from '../../hooks/useGameState';
 import useDownload from '../../hooks/useDownload';
 import useGameRunning from '../../hooks/useGameRunning';
+import useGameStats from '../../hooks/useGameStats';
 import { useTranslation } from '../../i18n';
 import { notify } from '../../utils/notify';
 import './HomePage.css';
@@ -19,7 +22,30 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
   const { t } = useTranslation();
   const { gameState, loading: gameLoading, refresh } = useGameState();
   const { running: gameRunning, markRunning } = useGameRunning();
+  const stats = useGameStats();
   const [showProtonPrompt, setShowProtonPrompt] = useState(false);
+  const [importError, setImportError] = useState(null);
+
+  const handleImport = async () => {
+    setImportError(null);
+    try {
+      const dir = await open({ directory: true });
+      if (!dir) return;
+      await invoke('import_existing_game', { path: dir });
+      refresh();
+    } catch (e) {
+      setImportError(typeof e === 'string' ? e : e.message || 'Import failed');
+    }
+  };
+
+  const handleStopGame = async () => {
+    if (!confirm(t('home.stopConfirm'))) return;
+    try {
+      await invoke('stop_game');
+    } catch (e) {
+      console.error('Failed to stop game:', e);
+    }
+  };
 
   const onDownloadComplete = useCallback(async (version) => {
     notify('LLauncher', t('notify.downloadComplete'));
@@ -73,6 +99,11 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
         {content?.single_ent && (
           <SingleEntCard singleEnt={content.single_ent} />
         )}
+        {content?.news_tabs?.length > 0 && (
+          <div className="home-page__news">
+            <NewsPanel tabs={content.news_tabs} />
+          </div>
+        )}
         <div className="home-page__warnings">
           {systemCheck && !systemCheck.has_proton && (
             <SystemWarning message={t('home.warning.noProton')} type="warn" />
@@ -87,7 +118,7 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
 
       <div className="home-page__bottom">
         <div className="home-page__bottom-left">
-          <GameStatus gameState={gameState} />
+          <GameStatus gameState={gameState} stats={stats} />
           <button
             className="home-page__settings-btn"
             onClick={onOpenSettings}
@@ -102,6 +133,7 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
             <ProgressBar progress={progress} onCancel={cancelDownload} />
           )}
           {dlError && <div className="home-page__error">{dlError}</div>}
+          {importError && <div className="home-page__error">{importError}</div>}
           <ActionButton
             gameState={gameState}
             downloading={downloading}
@@ -111,6 +143,16 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
             onAction={handleAction}
             disabled={gameLoading}
           />
+          {gameRunning && (
+            <button className="home-page__stop-btn" onClick={handleStopGame}>
+              {t('home.stopGame')}
+            </button>
+          )}
+          {!downloading && !gameRunning && gameState?.status === 'not_installed' && (
+            <button className="home-page__import-link" onClick={handleImport}>
+              {t('home.importLink')}
+            </button>
+          )}
         </div>
       </div>
 

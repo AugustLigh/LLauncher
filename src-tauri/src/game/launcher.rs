@@ -105,6 +105,17 @@ pub fn launch_game(settings: &AppSettings) -> Result<LaunchedGame, AppError> {
         script.push_str("export WINE_CANONICAL_HOLE='skip_volatile_check'\n");
     }
 
+    // Hybrid graphics: render on the dedicated GPU (PRIME offload). The NV
+    // vars are ignored on non-NVIDIA systems, DRI_PRIME covers AMD/Intel.
+    if settings.use_prime_offload {
+        script.push_str(
+            "export DRI_PRIME=1\n\
+             export __NV_PRIME_RENDER_OFFLOAD=1\n\
+             export __VK_LAYER_NV_optimus=NVIDIA_only\n\
+             export __GLX_VENDOR_LIBRARY_NAME=nvidia\n",
+        );
+    }
+
     // Custom env vars (KEY=VALUE per line)
     if !settings.custom_env_vars.is_empty() {
         for line in settings.custom_env_vars.lines() {

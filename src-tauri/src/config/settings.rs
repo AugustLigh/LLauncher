@@ -51,6 +51,16 @@ pub struct AppSettings {
     pub custom_launch_args: String,
     #[serde(default)]
     pub autostart_initialized: bool,
+    #[serde(default)]
+    pub use_prime_offload: bool,
+    #[serde(default)]
+    pub use_discord_rpc: bool,
+    /// Accumulated in-game time in seconds.
+    #[serde(default)]
+    pub total_playtime_secs: u64,
+    /// Unix timestamp (seconds) of the last game launch, 0 = never.
+    #[serde(default)]
+    pub last_played: u64,
 }
 
 impl Default for AppSettings {
@@ -78,6 +88,10 @@ impl Default for AppSettings {
             custom_env_vars: String::new(),
             custom_launch_args: String::new(),
             autostart_initialized: false,
+            use_prime_offload: false,
+            use_discord_rpc: false,
+            total_playtime_secs: 0,
+            last_played: 0,
         }
     }
 }

@@ -9,6 +9,8 @@ pub struct AppState {
     pub download_active: Arc<AtomicBool>,
     pub proton_download_active: Arc<AtomicBool>,
     pub game_running: Arc<AtomicBool>,
+    /// PID of the spawned game process group leader, if running.
+    pub game_pid: Arc<std::sync::Mutex<Option<u32>>>,
 }
 
 impl AppState {
@@ -23,6 +25,7 @@ impl AppState {
             download_active: Arc::new(AtomicBool::new(false)),
             proton_download_active: Arc::new(AtomicBool::new(false)),
             game_running: Arc::new(AtomicBool::new(false)),
+            game_pid: Arc::new(std::sync::Mutex::new(None)),
         }
     }
 }

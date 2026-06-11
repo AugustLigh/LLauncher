@@ -553,3 +553,17 @@
   color: var(--color-text-muted);
   line-height: 1.4;
 }
+
+.settings-modal__btn--danger {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #f0a0a0;
+}
+
+.settings-modal__btn--danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.settings-modal__btn--danger:disabled {
+  opacity: 0.5;
+}

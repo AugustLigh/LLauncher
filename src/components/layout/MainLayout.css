@@ -18,7 +18,8 @@
   overflow: hidden;
 }
 
-.main-layout__background img {
+.main-layout__background img,
+.main-layout__background video {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -26,7 +27,8 @@
   transition: opacity 0.8s ease;
 }
 
-.main-layout__background img.loaded {
+.main-layout__background img.loaded,
+.main-layout__background video.loaded {
   opacity: 1;
 }
 
