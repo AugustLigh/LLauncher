@@ -23,6 +23,7 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
   const [repairing, setRepairing] = useState(false);
   const [uninstalling, setUninstalling] = useState(false);
   const [debugCopied, setDebugCopied] = useState(false);
+  const [latestVersion, setLatestVersion] = useState('');
 
   const TABS = [
     { id: 'paths', label: t('settings.tab.paths') },
@@ -63,7 +64,9 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
 
   const handleIntegrity = () => {
     if (integrityChecking) return;
-    if (!confirm(t('settings.integrity.confirm'))) return;
+    const installed = form?.installed_version || '—';
+    const latest = latestVersion || '—';
+    if (!confirm(t('settings.integrity.confirm', { installed, latest }))) return;
     startIntegrity();
   };
 
@@ -110,6 +113,16 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
       fetchInstalled();
     }
   }, [activeTab, fetchReleases, fetchInstalled]);
+
+  // The integrity check can only compare against the latest version's manifest
+  // (the API exposes no older one), so surface the latest version up front.
+  useEffect(() => {
+    if (activeTab === 'game') {
+      invoke('get_game_version')
+        .then((r) => setLatestVersion(r?.version || ''))
+        .catch(() => {});
+    }
+  }, [activeTab]);
 
   if (!form) return null;
 
@@ -231,7 +244,7 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
           ))}
         </div>
 
-        <div className="settings-modal__body">
+        <div className="settings-modal__body" key={activeTab}>
           {activeTab === 'paths' && (
             <>
               <div className="settings-modal__section">
@@ -653,6 +666,17 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
                   {integrityChecking ? t('common.loading') : t('settings.integrity.button')}
                 </button>
               </div>
+
+              {!integrityChecking && latestVersion && form.installed_version && form.installed_version !== latestVersion && (
+                <div className="settings-integrity-warning">
+                  {t('settings.integrity.behindNote', { installed: form.installed_version, latest: latestVersion })}
+                </div>
+              )}
+              {!integrityChecking && latestVersion && (
+                <span className="settings-modal__hint">
+                  {t('settings.integrity.compareNote', { latest: latestVersion })}
+                </span>
+              )}
 
               {integrityChecking && integrityProgress && (
                 <div className="settings-proton__progress">

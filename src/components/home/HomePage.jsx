@@ -57,7 +57,7 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
     }
   }, [refresh, t]);
 
-  const { downloading, progress, error: dlError, startDownload, cancelDownload } =
+  const { downloading, progress, error: dlError, startDownload, startUpdate, pauseDownload, cancelDownload } =
     useDownload(onDownloadComplete);
 
   useEffect(() => {
@@ -68,8 +68,12 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
     if (!gameState) return;
     switch (gameState.status) {
       case 'not_installed':
-      case 'update_available':
         startDownload();
+        break;
+      case 'update_available':
+        // Smart update: backend downloads only changed files when safe,
+        // otherwise the full packs.
+        startUpdate();
         break;
       case 'ready':
         if (systemCheck && !systemCheck.has_proton) {
@@ -130,7 +134,7 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
 
         <div className="home-page__action-area">
           {downloading && progress && (
-            <ProgressBar progress={progress} onCancel={cancelDownload} />
+            <ProgressBar progress={progress} onPause={pauseDownload} onCancel={cancelDownload} />
           )}
           {dlError && <div className="home-page__error">{dlError}</div>}
           {importError && <div className="home-page__error">{importError}</div>}

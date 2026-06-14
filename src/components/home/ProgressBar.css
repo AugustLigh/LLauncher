@@ -60,16 +60,25 @@
   min-width: 0;
 }
 
-.progress-bar__cancel {
+.progress-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
   flex-shrink: 0;
 }
 
+.progress-bar__pause,
 .progress-bar__cancel {
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-sm);
   transition: all var(--transition-fast);
+}
+
+.progress-bar__pause:hover {
+  color: var(--color-text-primary);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .progress-bar__cancel:hover {

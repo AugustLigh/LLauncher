@@ -2,7 +2,7 @@ import { formatSize, formatSpeed, formatEta } from '../../utils/format';
 import { useTranslation } from '../../i18n';
 import './ProgressBar.css';
 
-export default function ProgressBar({ progress, onCancel }) {
+export default function ProgressBar({ progress, onPause, onCancel }) {
   const { t } = useTranslation();
   if (!progress) return null;
 
@@ -61,9 +61,18 @@ export default function ProgressBar({ progress, onCancel }) {
                     name: progress.file_name,
                   })}
             </span>
-            <button className="progress-bar__cancel" onClick={onCancel}>
-              {t('progress.pause')}
-            </button>
+            <div className="progress-bar__actions">
+              {onPause && (
+                <button className="progress-bar__pause" onClick={onPause}>
+                  {t('progress.pause')}
+                </button>
+              )}
+              {onCancel && (
+                <button className="progress-bar__cancel" onClick={onCancel}>
+                  {t('common.cancel')}
+                </button>
+              )}
+            </div>
           </>
         )}
       </div>

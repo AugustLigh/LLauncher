@@ -215,8 +215,10 @@ async fn build_manifest(
     Ok(out)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn emit_progress(
     app: &tauri::AppHandle,
+    channel: &str,
     stage: &str,
     files_done: usize,
     total_files: usize,
@@ -225,7 +227,7 @@ fn emit_progress(
     speed_bps: u64,
 ) {
     app.emit(
-        "integrity://progress",
+        &format!("{}://progress", channel),
         IntegrityProgress {
             stage: stage.to_string(),
             files_done,
@@ -248,12 +250,13 @@ pub async fn verify_and_repair(
     cancel_flag: Arc<AtomicBool>,
     game_dir: String,
     max_concurrent: u32,
+    channel: String,
 ) -> Result<IntegrityComplete, AppError> {
     cancel_flag.store(true, Ordering::SeqCst);
     let max_concurrent = max_concurrent.clamp(1, 8) as usize;
 
     // 1–3. Resolve the manifest.
-    emit_progress(&app, "fetching", 0, 0, 0, 0, 0);
+    emit_progress(&app, &channel, "fetching", 0, 0, 0, 0, 0);
     let vinfo = crate::api::client::get_latest_game_version(&client, "").await?;
     let version = vinfo.version.clone();
     let rand_str = extract_rand_str(&vinfo.pkg.file_path)
@@ -286,6 +289,7 @@ pub async fn verify_and_repair(
         let checked = checked.clone();
         let app = app.clone();
         let cancel_flag = cancel_flag.clone();
+        let channel = channel.clone();
 
         verify_handles.push(tokio::task::spawn_blocking(move || -> Option<usize> {
             let _permit = permit;
@@ -304,7 +308,7 @@ pub async fn verify_and_repair(
 
             let done = checked.fetch_add(1, Ordering::Relaxed) + 1;
             if done % 32 == 0 || done == manifest.len() {
-                emit_progress(&app, "verifying", done, manifest.len(), 0, 0, 0);
+                emit_progress(&app, &channel, "verifying", done, manifest.len(), 0, 0, 0);
             }
             if needs_download {
                 Some(idx)
@@ -323,7 +327,7 @@ pub async fn verify_and_repair(
     if !cancel_flag.load(Ordering::SeqCst) {
         return Err(AppError::Cancelled);
     }
-    emit_progress(&app, "verifying", total_files, total_files, 0, 0, 0);
+    emit_progress(&app, &channel, "verifying", total_files, total_files, 0, 0, 0);
 
     // 5. Download the mismatched / missing files.
     let repaired = to_download.len();
@@ -363,6 +367,7 @@ pub async fn verify_and_repair(
             let downloaded = downloaded.clone();
             let done_files = done_files.clone();
             let app = app.clone();
+            let channel = channel.clone();
 
             dl_handles.push(tokio::spawn(async move {
                 let _permit = permit;
@@ -373,6 +378,7 @@ pub async fn verify_and_repair(
                     &cancel_flag,
                     &downloaded,
                     &app,
+                    &channel,
                     bytes_total,
                     repaired,
                     &done_files,
@@ -392,7 +398,7 @@ pub async fn verify_and_repair(
             }
         }
         let total_dl = downloaded.load(Ordering::Relaxed);
-        emit_progress(&app, "downloading", repaired, repaired, total_dl, bytes_total, 0);
+        emit_progress(&app, &channel, "downloading", repaired, repaired, total_dl, bytes_total, 0);
     }
 
     let report = IntegrityComplete {
@@ -400,7 +406,7 @@ pub async fn verify_and_repair(
         repaired,
         bytes_downloaded: bytes_total,
     };
-    app.emit("integrity://complete", report.clone()).ok();
+    app.emit(&format!("{}://complete", channel), report.clone()).ok();
     Ok(report)
 }
 
@@ -412,6 +418,7 @@ async fn download_one(
     cancel_flag: &Arc<AtomicBool>,
     downloaded: &Arc<AtomicU64>,
     app: &tauri::AppHandle,
+    channel: &str,
     bytes_total: u64,
     total_files: usize,
     done_files: &Arc<AtomicUsize>,
@@ -453,6 +460,7 @@ async fn download_one(
             };
             emit_progress(
                 app,
+                channel,
                 "downloading",
                 done_files.load(Ordering::Relaxed),
                 total_files,

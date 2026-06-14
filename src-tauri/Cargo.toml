@@ -1,6 +1,6 @@
 [package]
 name = "llauncher"
-version = "0.2.2"
+version = "0.2.3"
 description = "Linux Launcher for Arknights: Endfield"
 authors = ["you"]
 edition = "2021"
@@ -23,6 +23,7 @@ tokio = { version = "1", features = ["full"] }
 thiserror = "2"
 md-5 = "0.10"
 base64 = "0.22"
+crc32fast = "1"
 futures-util = "0.3"
 dirs = "6"
 zip = { version = "2", default-features = false, features = ["deflate", "deflate64"] }

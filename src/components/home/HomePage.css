@@ -17,6 +17,10 @@
   flex-direction: column;
   gap: var(--space-md);
   padding-top: 16%;
+  /* Keep this 1fr grid row from growing past its track when its content (the
+     news panel) is tall — without this it expands and pushes the bottom row
+     (the action button) down and off-screen. */
+  min-height: 0;
 }
 
 .home-page__bottom {
@@ -84,9 +88,9 @@
 
 .home-page__news {
   max-width: 540px;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 0;
-  max-height: 240px;
+  max-height: 200px;
   background: rgba(10, 10, 15, 0.55);
   backdrop-filter: blur(10px);
   border: 1px solid var(--color-border);

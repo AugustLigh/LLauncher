@@ -47,7 +47,13 @@ export default function useIntegrityCheck() {
       await invoke('verify_game_integrity');
     } catch (e) {
       setChecking(false);
-      setError(typeof e === 'string' ? e : e.message || 'Integrity check failed');
+      const message = typeof e === 'string' ? e : e.message || 'Integrity check failed';
+      // Cancellation is user-initiated, not a failure.
+      if (!/cancelled/i.test(message)) {
+        setError(message);
+      } else {
+        setProgress(null);
+      }
     }
   }, []);
 

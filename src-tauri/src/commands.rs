@@ -104,6 +104,31 @@ pub async fn cancel_download(state: State<'_, AppState>) -> Result<(), AppError>
     Ok(())
 }
 
+/// Discard a paused/cancelled download: stop it and delete the partial pack
+/// files so they do not linger on disk. Used by the "Cancel" control (as
+/// opposed to "Pause", which keeps the partial files for a later resume). Only
+/// touches a launcher-managed `_download` cache, never a user-pointed folder.
+#[tauri::command]
+pub async fn clear_download_cache(state: State<'_, AppState>) -> Result<(), AppError> {
+    state
+        .download_active
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+
+    let settings = state.settings.lock().await;
+    let download_dir = settings.download_dir.clone();
+    drop(settings);
+
+    let path = std::path::PathBuf::from(&download_dir);
+    if path.file_name().is_some_and(|n| n == "_download") {
+        tokio::task::spawn_blocking(move || {
+            std::fs::remove_dir_all(&path).ok();
+        })
+        .await
+        .ok();
+    }
+    Ok(())
+}
+
 /// Verify the installed game's VFS assets against the official per-file resource
 /// manifest and re-download only the files that are missing or corrupt.
 ///
@@ -139,6 +164,7 @@ pub async fn verify_game_integrity(
         cancel_flag.clone(),
         game_dir,
         max_concurrent,
+        "integrity".to_string(),
     )
     .await;
 
@@ -154,6 +180,108 @@ pub async fn verify_game_integrity(
         .ok();
     }
     result
+}
+
+/// Update an installed game to the latest version, picking the cheaper safe
+/// path. The resource manifest only covers VFS assets; the engine/executable
+/// files live solely in the packs. So we first check (via the latest packs'
+/// ZIP central directory) whether any non-VFS file changed:
+///   - engine unchanged → per-file VFS delta (download only changed assets);
+///   - engine changed, or the check is inconclusive → full pack download.
+/// Either way the resulting install is complete. Progress for the delta path is
+/// emitted on the `update://` channel; the pack path uses `download://`.
+#[tauri::command]
+pub async fn start_update(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    let settings = state.settings.lock().await;
+    let game_dir = settings.game_dir.clone();
+    let download_dir = settings.download_dir.clone();
+    let installed_version = settings.installed_version.clone();
+    let speed_limit = settings.download_speed_limit;
+    let max_concurrent = settings.download_max_concurrent.clamp(1, 8);
+    drop(settings);
+
+    let client = state.http_client.clone();
+    let download_active = state.download_active.clone();
+    download_active.store(true, std::sync::atomic::Ordering::SeqCst);
+
+    // Decide engine vs assets: is every non-VFS file already current?
+    crate::download::packindex::emit_checking(&app);
+    let version_info =
+        crate::api::client::get_latest_game_version(&client, "").await?;
+    let cd = crate::download::packindex::fetch_central_directory(&client, &version_info.pkg.packs)
+        .await;
+    let engine_current = match cd {
+        Ok(entries) => {
+            // CRC-checking the non-VFS files reads ~1.4 GB; keep it off the async runtime.
+            let game_dir_for_check = game_dir.clone();
+            tokio::task::spawn_blocking(move || {
+                crate::download::packindex::engine_is_current(&entries, &game_dir_for_check)
+            })
+            .await
+            .unwrap_or(false)
+        }
+        Err(_) => false, // inconclusive → safe full update
+    };
+
+    let result: Result<String, AppError> = if engine_current {
+        crate::download::resources::verify_and_repair(
+            app.clone(),
+            client,
+            download_active.clone(),
+            game_dir,
+            max_concurrent,
+            "update".to_string(),
+        )
+        .await
+        .map(|_| version_info.version.clone())
+    } else {
+        crate::download::manager::start_download(
+            app.clone(),
+            client,
+            download_active.clone(),
+            &download_dir,
+            &game_dir,
+            &installed_version,
+            speed_limit,
+            max_concurrent,
+        )
+        .await
+    };
+
+    download_active.store(false, std::sync::atomic::Ordering::SeqCst);
+
+    match result {
+        Ok(version) => {
+            // The delta path emits update://complete; the pack path already
+            // emitted download://complete. Emit a uniform completion so the UI
+            // updates regardless of which path ran.
+            if engine_current {
+                app.emit(
+                    "update://complete",
+                    crate::api::types::DownloadComplete {
+                        version: version.clone(),
+                    },
+                )
+                .ok();
+            }
+            let mut settings = state.settings.lock().await;
+            settings.installed_version = version;
+            settings.save()?;
+            Ok(())
+        }
+        Err(e) => {
+            // Surface on both channels so whichever path was active is covered;
+            // cancellation is filtered on the frontend.
+            let msg = crate::api::types::DownloadError {
+                message: e.to_string(),
+            };
+            app.emit("update://error", msg.clone()).ok();
+            Err(e)
+        }
+    }
 }
 
 /// Shared launch path used by the `launch_game` command and the tray menu.

@@ -424,6 +424,16 @@
   border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
+.settings-integrity-warning {
+  font-size: var(--font-size-sm);
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+  line-height: 1.4;
+}
+
 /* Speed limit */
 .settings-speed-limit {
   display: flex;
