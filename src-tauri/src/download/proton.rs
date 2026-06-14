@@ -136,13 +136,16 @@ pub async fn download_and_extract_dwproton(
     // Extract
     emit_progress(app, downloaded, total_size, 0, "extracting");
 
-    let output = std::process::Command::new("tar")
+    let mut tar_cmd = std::process::Command::new("tar");
+    tar_cmd
         .arg("-xJf")
         .arg(archive_path.to_string_lossy().to_string())
         .arg("-C")
-        .arg(dest_path.to_string_lossy().to_string())
-        .output()
-        .map_err(|_| AppError::TarNotFound)?;
+        .arg(dest_path.to_string_lossy().to_string());
+    // Without this, the bundled (older) liblzma leaks into the system `xz`
+    // that `tar` execs and extraction dies with a version-mismatch (issue #19).
+    crate::util::strip_appimage_libs(&mut tar_cmd);
+    let output = tar_cmd.output().map_err(|_| AppError::TarNotFound)?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

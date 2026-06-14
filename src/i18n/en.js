@@ -152,6 +152,17 @@ export default {
       button: 'Repair',
       confirm: 'Start repair? This may re-download missing or corrupted files.',
     },
+    integrity: {
+      name: 'Check file integrity',
+      desc: 'Hash every installed asset against the official manifest and re-download only the files that are missing or corrupt — no full re-download.',
+      button: 'Check files',
+      confirm: 'Check file integrity now? This reads all installed game files and may take a while.',
+      fetching: 'Fetching manifest',
+      verifying: 'Verifying files',
+      downloading: 'Downloading changed files',
+      resultOk: 'All {checked} files are intact.',
+      resultRepaired: 'Checked {checked} files, repaired {repaired}.',
+    },
     viewLog: {
       name: 'Last launch log',
       desc: 'Inspect stdout/stderr from the last game launch.',

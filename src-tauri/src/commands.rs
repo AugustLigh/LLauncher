@@ -104,6 +104,58 @@ pub async fn cancel_download(state: State<'_, AppState>) -> Result<(), AppError>
     Ok(())
 }
 
+/// Verify the installed game's VFS assets against the official per-file resource
+/// manifest and re-download only the files that are missing or corrupt.
+///
+/// Unlike `repair_game` (which re-fetches the full multi-GB pack set), this
+/// hashes what is already on disk and pulls just the deltas — the same
+/// mechanism the official launcher uses for updates. Reuses `download_active`
+/// for cancellation, so `cancel_download` stops it too.
+#[tauri::command]
+pub async fn verify_game_integrity(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<crate::download::resources::IntegrityComplete, AppError> {
+    let settings = state.settings.lock().await;
+    let game_dir = settings.game_dir.clone();
+    let installed_version = settings.installed_version.clone();
+    let max_concurrent = settings.download_max_concurrent;
+    drop(settings);
+
+    if installed_version.is_empty()
+        || !std::path::Path::new(&game_dir).join("Endfield.exe").exists()
+    {
+        return Err(AppError::GameNotFound(
+            "Game is not installed; nothing to verify".to_string(),
+        ));
+    }
+
+    let client = state.http_client.clone();
+    let cancel_flag = state.download_active.clone();
+
+    let result = crate::download::resources::verify_and_repair(
+        app.clone(),
+        client,
+        cancel_flag.clone(),
+        game_dir,
+        max_concurrent,
+    )
+    .await;
+
+    cancel_flag.store(false, std::sync::atomic::Ordering::SeqCst);
+
+    if let Err(ref e) = result {
+        app.emit(
+            "integrity://error",
+            crate::api::types::DownloadError {
+                message: e.to_string(),
+            },
+        )
+        .ok();
+    }
+    result
+}
+
 /// Shared launch path used by the `launch_game` command and the tray menu.
 ///
 /// Watches the spawned process until it exits. A quick exit (< 3.5s) is
@@ -323,8 +375,10 @@ pub async fn get_debug_info(state: State<'_, AppState>) -> Result<String, AppErr
         .unwrap_or_else(|| "unknown".to_string());
 
     let run = |cmd: &str, args: &[&str]| -> String {
-        std::process::Command::new(cmd)
-            .args(args)
+        let mut command = std::process::Command::new(cmd);
+        command.args(args);
+        crate::util::strip_appimage_libs(&mut command);
+        command
             .output()
             .ok()
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())

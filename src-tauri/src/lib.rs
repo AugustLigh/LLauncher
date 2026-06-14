@@ -5,6 +5,7 @@ mod download;
 mod error;
 mod game;
 mod state;
+mod util;
 
 use config::settings::AppSettings;
 use state::AppState;
@@ -147,6 +148,7 @@ pub fn run() {
             commands::check_game_state,
             commands::start_download,
             commands::cancel_download,
+            commands::verify_game_integrity,
             commands::launch_game,
             commands::stop_game,
             commands::is_game_running,

@@ -170,6 +170,11 @@ pub fn launch_game(settings: &AppSettings) -> Result<LaunchedGame, AppError> {
     let mut cmd = Command::new("bash");
     cmd.arg("-c").arg(&script);
 
+    // When packaged as an AppImage, keep the bundle's older bundled libraries
+    // out of Proton/Wine and their child processes — they must use the host's
+    // system libraries (same root cause as issue #19's tar/xz failure).
+    crate::util::strip_appimage_libs(&mut cmd);
+
     // Detach into a new process group so closing the launcher (or the
     // launcher hiding/closing tray) does not propagate signals to the game.
     cmd.process_group(0);

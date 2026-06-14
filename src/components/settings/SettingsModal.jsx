@@ -4,6 +4,7 @@ import PathSelector from './PathSelector';
 import LanguageSelector from './LanguageSelector';
 import LogViewer from '../common/LogViewer';
 import useProtonDownload from '../../hooks/useProtonDownload';
+import useIntegrityCheck from '../../hooks/useIntegrityCheck';
 import { formatSize, formatSpeed, formatPercent } from '../../utils/format';
 import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 import { useTranslation } from '../../i18n';
@@ -50,6 +51,31 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
 
   const { downloading: protonDownloading, progress: protonProgress, error: protonError, startDownload: startProtonDownload, cancelDownload: cancelProtonDownload } =
     useProtonDownload(onProtonComplete);
+
+  const {
+    checking: integrityChecking,
+    progress: integrityProgress,
+    result: integrityResult,
+    error: integrityError,
+    start: startIntegrity,
+    cancel: cancelIntegrity,
+  } = useIntegrityCheck();
+
+  const handleIntegrity = () => {
+    if (integrityChecking) return;
+    if (!confirm(t('settings.integrity.confirm'))) return;
+    startIntegrity();
+  };
+
+  const integrityPct = integrityProgress
+    ? integrityProgress.stage === 'downloading'
+      ? integrityProgress.bytes_total > 0
+        ? (integrityProgress.bytes_done / integrityProgress.bytes_total) * 100
+        : 0
+      : integrityProgress.total_files > 0
+        ? (integrityProgress.files_done / integrityProgress.total_files) * 100
+        : 0
+    : 0;
 
   useEffect(() => {
     if (settings) {
@@ -614,6 +640,64 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
 
           {activeTab === 'game' && (
             <>
+              <div className="settings-action-row">
+                <div className="settings-action-row__info">
+                  <span className="settings-action-row__name">{t('settings.integrity.name')}</span>
+                  <span className="settings-action-row__desc">{t('settings.integrity.desc')}</span>
+                </div>
+                <button
+                  className="settings-modal__btn settings-modal__btn--secondary"
+                  onClick={handleIntegrity}
+                  disabled={integrityChecking}
+                >
+                  {integrityChecking ? t('common.loading') : t('settings.integrity.button')}
+                </button>
+              </div>
+
+              {integrityChecking && integrityProgress && (
+                <div className="settings-proton__progress">
+                  <div className="settings-proton__progress-info">
+                    <span>{t(`settings.integrity.${integrityProgress.stage}`)}</span>
+                    <span>
+                      {integrityProgress.stage === 'downloading'
+                        ? `${formatPercent(integrityProgress.bytes_done, integrityProgress.bytes_total)}${integrityProgress.speed_bps > 0 ? ` • ${formatSpeed(integrityProgress.speed_bps)}` : ''}`
+                        : integrityProgress.total_files > 0
+                          ? `${integrityProgress.files_done} / ${integrityProgress.total_files}`
+                          : ''}
+                    </span>
+                  </div>
+                  <div className="settings-proton__progress-bar">
+                    <div
+                      className="settings-proton__progress-fill"
+                      style={{ width: `${integrityPct}%` }}
+                    />
+                  </div>
+                  {integrityProgress.stage === 'downloading' && integrityProgress.bytes_total > 0 && (
+                    <div className="settings-proton__progress-detail">
+                      {formatSize(integrityProgress.bytes_done)} / {formatSize(integrityProgress.bytes_total)}
+                    </div>
+                  )}
+                  <button
+                    className="settings-modal__btn settings-modal__btn--cancel"
+                    onClick={cancelIntegrity}
+                  >
+                    {t('common.cancel')}
+                  </button>
+                </div>
+              )}
+
+              {!integrityChecking && integrityResult && (
+                <div className="settings-modal__hint">
+                  {integrityResult.repaired > 0
+                    ? t('settings.integrity.resultRepaired', { checked: integrityResult.checked, repaired: integrityResult.repaired })
+                    : t('settings.integrity.resultOk', { checked: integrityResult.checked })}
+                </div>
+              )}
+
+              {integrityError && (
+                <div className="settings-proton__error">{integrityError}</div>
+              )}
+
               <div className="settings-action-row">
                 <div className="settings-action-row__info">
                   <span className="settings-action-row__name">{t('settings.repair.name')}</span>
