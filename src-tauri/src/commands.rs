@@ -520,7 +520,10 @@ pub async fn get_debug_info(state: State<'_, AppState>) -> Result<String, AppErr
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| settings.proton_dir.clone());
 
-    let log_tail = crate::game::launcher::read_log_tail(&paths::launch_log_path(), 30);
+    // A wider tail than the launch-failure path: in-game crashes (e.g. issue
+    // #21) abort long after the startup banner, so 30 lines often miss the
+    // actual backtrace.
+    let log_tail = crate::game::launcher::read_log_tail(&paths::launch_log_path(), 200);
 
     Ok(format!(
         "LLauncher {version}\n\
@@ -631,6 +634,12 @@ pub async fn list_dwproton_releases(
     state: State<'_, AppState>,
 ) -> Result<Vec<crate::api::types::ProtonReleaseInfo>, AppError> {
     crate::download::proton::list_dwproton_releases(&state.http_client).await
+}
+
+/// The DWProton tag we install by default and flag as recommended in the picker.
+#[tauri::command]
+pub fn recommended_proton_tag() -> &'static str {
+    crate::download::proton::RECOMMENDED_DWPROTON_TAG
 }
 
 #[tauri::command]

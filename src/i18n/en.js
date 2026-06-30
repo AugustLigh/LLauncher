@@ -89,6 +89,8 @@ export default {
     download: 'Download',
     badgeActive: 'Active',
     badgeInstalled: 'Installed',
+    badgeRecommended: 'Recommended',
+    protonRiskyWarn: 'The 11.x series may break rendering or crash Endfield (issue #20). Prefer the recommended build.',
     experimental: 'Experimental',
     unavailable: 'Not installed',
     autostart: {

@@ -89,6 +89,8 @@ export default {
     download: 'Скачать',
     badgeActive: 'Активен',
     badgeInstalled: 'Установлен',
+    badgeRecommended: 'Рекомендуется',
+    protonRiskyWarn: 'Серия 11.x может ломать рендер или крашить Endfield (issue #20). Лучше выбрать рекомендованную сборку.',
     experimental: 'Эксперимент',
     unavailable: 'Не установлено',
     autostart: {

@@ -163,6 +163,7 @@ pub fn run() {
             commands::check_system_requirements,
             commands::get_dwproton_latest,
             commands::list_dwproton_releases,
+            commands::recommended_proton_tag,
             commands::list_installed_protons,
             commands::set_active_proton,
             commands::download_dwproton,

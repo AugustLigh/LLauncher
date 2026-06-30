@@ -31,7 +31,9 @@ pub struct AppSettings {
     pub use_native_vulkan: bool,
     #[serde(default = "default_true")]
     pub use_wayland: bool,
-    #[serde(default = "default_true")]
+    // Off by default: a no-op under the native Vulkan renderer and a known
+    // source of sporadic in-game crashes when DXVK is in play (issue #21).
+    #[serde(default)]
     pub use_dxvk_async: bool,
     #[serde(default = "default_on_launch_action")]
     pub on_launch_action: String,
@@ -78,7 +80,7 @@ impl Default for AppSettings {
             use_mangohud: false,
             use_native_vulkan: true,
             use_wayland: true,
-            use_dxvk_async: true,
+            use_dxvk_async: false,
             on_launch_action: "hide".to_string(),
             disable_fsync: false,
             disable_esync: false,

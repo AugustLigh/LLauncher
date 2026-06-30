@@ -24,6 +24,7 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
   const [uninstalling, setUninstalling] = useState(false);
   const [debugCopied, setDebugCopied] = useState(false);
   const [latestVersion, setLatestVersion] = useState('');
+  const [recommendedTag, setRecommendedTag] = useState('');
 
   const TABS = [
     { id: 'paths', label: t('settings.tab.paths') },
@@ -111,6 +112,7 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
     if (activeTab === 'proton') {
       fetchReleases();
       fetchInstalled();
+      invoke('recommended_proton_tag').then(setRecommendedTag).catch(() => {});
     }
   }, [activeTab, fetchReleases, fetchInstalled]);
 
@@ -315,17 +317,22 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
                     {releases.map((r) => {
                       const installed = isInstalled(r.tag_name);
                       const active = isActive(r.tag_name);
+                      const recommended = recommendedTag && r.tag_name === recommendedTag;
+                      const majorMatch = r.tag_name.match(/dwproton-(\d+)/);
+                      const risky = majorMatch ? parseInt(majorMatch[1], 10) >= 11 : false;
                       return (
                         <div key={r.tag_name} className={`settings-proton__item ${active ? 'settings-proton__item--active' : ''}`}>
                           <div className="settings-proton__item-info">
                             <span className="settings-proton__item-name">
                               {r.tag_name}
+                              {recommended && <span className="settings-proton__badge settings-proton__badge--recommended">{t('settings.badgeRecommended')}</span>}
                               {active && <span className="settings-proton__badge settings-proton__badge--active">{t('settings.badgeActive')}</span>}
                               {installed && !active && <span className="settings-proton__badge settings-proton__badge--installed">{t('settings.badgeInstalled')}</span>}
                             </span>
                             <span className="settings-proton__item-meta">
                               {r.published_at || 'unknown'} &middot; {formatSize(r.size)}
                             </span>
+                            {risky && <span className="settings-proton__warn">{t('settings.protonRiskyWarn')}</span>}
                           </div>
                           <div className="settings-proton__item-actions">
                             {installed ? (

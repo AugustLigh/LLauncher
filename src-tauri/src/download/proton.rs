@@ -10,6 +10,15 @@ use crate::error::AppError;
 const DWPROTON_RELEASES_URL: &str =
     "https://dawn.wine/api/v1/repos/dawn-winery/dwproton/releases";
 
+/// The DWProton release we install by default and flag as recommended.
+///
+/// We deliberately do **not** track upstream `/latest`. The 11.x series (built
+/// on wine-11) regressed badly for Endfield: a hard abort on the unimplemented
+/// `ntoskrnl.exe.PsGetProcessExitStatus` stub plus a rendering collapse to
+/// single-digit FPS with missing textures (GitHub issue #20). 10.0-26 is the
+/// last stable 10.x build and is what a first-run user should get.
+pub const RECOMMENDED_DWPROTON_TAG: &str = "dwproton-10.0-26";
+
 fn parse_release(release: &serde_json::Value) -> Option<ProtonReleaseInfo> {
     let tag_name = release["tag_name"].as_str()?.to_string();
     let assets = release["assets"].as_array()?;
@@ -58,6 +67,28 @@ pub async fn get_latest_dwproton_info(
         .ok_or_else(|| AppError::ProtonDownloadFailed("No x86_64.tar.xz asset found".into()))
 }
 
+/// Resolve the release info for the recommended (pinned) DWProton build.
+///
+/// Falls back to the newest available release if the pinned tag ever vanishes
+/// upstream, so a removed tag can never break first-run setup.
+pub async fn get_recommended_dwproton_info(
+    client: &reqwest::Client,
+) -> Result<ProtonReleaseInfo, AppError> {
+    let releases = list_dwproton_releases(client).await?;
+    if let Some(found) = releases
+        .iter()
+        .find(|r| r.tag_name == RECOMMENDED_DWPROTON_TAG)
+    {
+        return Ok(found.clone());
+    }
+    // Pinned tag not in the window — fall back to the newest build rather than
+    // failing setup outright (list is returned newest-first).
+    releases
+        .into_iter()
+        .next()
+        .ok_or_else(|| AppError::ProtonDownloadFailed("No DWProton releases found".into()))
+}
+
 pub async fn list_dwproton_releases(
     client: &reqwest::Client,
 ) -> Result<Vec<ProtonReleaseInfo>, AppError> {
@@ -80,9 +111,11 @@ pub async fn download_and_extract_dwproton(
     dest_dir: &str,
     release: Option<ProtonReleaseInfo>,
 ) -> Result<(String, String), AppError> {
+    // No explicit release → install the pinned recommended build, not `/latest`
+    // (see RECOMMENDED_DWPROTON_TAG and issue #20).
     let info = match release {
         Some(r) => r,
-        None => get_latest_dwproton_info(client).await?,
+        None => get_recommended_dwproton_info(client).await?,
     };
 
     let dest_path = Path::new(dest_dir);
