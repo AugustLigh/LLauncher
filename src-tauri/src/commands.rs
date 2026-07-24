@@ -336,7 +336,11 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
             discord.store(false, std::sync::atomic::Ordering::SeqCst);
         }
 
-        // Record playtime and last-played timestamp.
+        let quick_exit = status.is_some()
+            && started.elapsed() < std::time::Duration::from_millis(3500);
+
+        // Record playtime and last-played timestamp. Quick exits are failed
+        // launches, not sessions — keep them out of the journal.
         {
             let state = app2.state::<AppState>();
             let mut settings = state.settings.blocking_lock();
@@ -344,12 +348,24 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
             settings.last_played = session_start_unix;
             let _ = settings.save();
         }
+        if !quick_exit {
+            crate::config::sessions::append(crate::config::sessions::GameSession {
+                start: session_start_unix,
+                duration_secs: started.elapsed().as_secs(),
+            });
+        }
 
         if let Some(status) = status {
-            if started.elapsed() < std::time::Duration::from_millis(3500) {
+            if quick_exit {
                 // Give the game a moment to flush its stderr/stdout.
                 std::thread::sleep(std::time::Duration::from_millis(200));
                 let log_tail = crate::game::launcher::read_log_tail(&log_path, 60);
+                // The window may be hidden (tray launch, --play, "hide after
+                // launch") — bring it back so the failure dialog is seen.
+                if let Some(window) = app2.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
                 let _ = app2.emit(
                     "launch://failed",
                     crate::api::types::LaunchFailed {
@@ -533,7 +549,7 @@ pub async fn get_debug_info(state: State<'_, AppState>) -> Result<String, AppErr
          Proton: {proton}\n\
          Game version: {game_version}\n\
          ntsync: {ntsync}\n\
-         Flags: vulkan={vulkan} wayland={wayland} dxvk_async={dxvk} gamemode={gamemode} mangohud={mangohud} prime={prime} fsync_off={fsync} esync_off={esync}\n\
+         Flags: vulkan={vulkan} wayland={wayland} dxvk_async={dxvk} gamemode={gamemode} mangohud={mangohud} gamescope={gamescope} prime={prime} fsync_off={fsync} esync_off={esync}\n\
          \n--- launch.log tail ---\n{log_tail}",
         version = env!("CARGO_PKG_VERSION"),
         os = os,
@@ -549,6 +565,7 @@ pub async fn get_debug_info(state: State<'_, AppState>) -> Result<String, AppErr
         dxvk = settings.use_dxvk_async,
         gamemode = settings.use_gamemode,
         mangohud = settings.use_mangohud,
+        gamescope = settings.use_gamescope,
         prime = settings.use_prime_offload,
         fsync = settings.disable_fsync,
         esync = settings.disable_esync,
@@ -726,4 +743,116 @@ pub async fn cancel_proton_download(state: State<'_, AppState>) -> Result<(), Ap
         .proton_download_active
         .store(false, std::sync::atomic::Ordering::SeqCst);
     Ok(())
+}
+
+/// Full play-session journal (oldest first) for the stats card.
+#[tauri::command]
+pub async fn get_game_sessions() -> Result<Vec<crate::config::sessions::GameSession>, AppError> {
+    Ok(crate::config::sessions::load())
+}
+
+/// Resolve the game's Proton prefix directory as the launch path would.
+async fn prefix_dir(state: &State<'_, AppState>) -> std::path::PathBuf {
+    let settings = state.settings.lock().await;
+    let dir = crate::game::launcher::resolve_prefix_dir(
+        &settings,
+        std::path::Path::new(&settings.game_dir),
+    );
+    dir
+}
+
+#[derive(serde::Serialize)]
+pub struct PrefixInfo {
+    pub path: String,
+    pub exists: bool,
+}
+
+#[tauri::command]
+pub async fn get_prefix_info(state: State<'_, AppState>) -> Result<PrefixInfo, AppError> {
+    let dir = prefix_dir(&state).await;
+    Ok(PrefixInfo {
+        exists: dir.join("pfx").exists(),
+        path: dir.to_string_lossy().to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn open_prefix_folder(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    use tauri_plugin_opener::OpenerExt;
+    let dir = prefix_dir(&state).await;
+    if !dir.exists() {
+        return Err(AppError::Api(
+            "No Proton prefix exists yet — launch the game once first".to_string(),
+        ));
+    }
+    app.opener()
+        .open_path(dir.to_string_lossy(), None::<&str>)
+        .map_err(|e| AppError::Api(format!("Failed to open folder: {}", e)))
+}
+
+/// Run a whitelisted Wine tool inside the game prefix (winecfg / regedit).
+#[tauri::command]
+pub async fn run_prefix_tool(state: State<'_, AppState>, tool: String) -> Result<(), AppError> {
+    if !matches!(tool.as_str(), "winecfg" | "regedit") {
+        return Err(AppError::Api(format!("Unknown prefix tool: {}", tool)));
+    }
+    let settings = state.settings.lock().await.clone();
+    crate::game::launcher::run_prefix_tool(&settings, &tool)
+}
+
+#[tauri::command]
+pub async fn clear_shader_cache(
+    state: State<'_, AppState>,
+) -> Result<crate::game::prefix::ShaderCacheResult, AppError> {
+    let settings = state.settings.lock().await;
+    let game_dir = std::path::PathBuf::from(&settings.game_dir);
+    let compat_data = crate::game::launcher::resolve_prefix_dir(&settings, &game_dir);
+    drop(settings);
+
+    tokio::task::spawn_blocking(move || {
+        crate::game::prefix::clear_shader_cache(&game_dir, &compat_data)
+    })
+    .await
+    .map_err(|e| AppError::Api(format!("Shader cache task failed: {}", e)))
+}
+
+#[tauri::command]
+pub async fn backup_prefix(state: State<'_, AppState>, dest: String) -> Result<(), AppError> {
+    let dir = prefix_dir(&state).await;
+    tokio::task::spawn_blocking(move || {
+        crate::game::prefix::backup(&dir, std::path::Path::new(&dest))
+    })
+    .await
+    .map_err(|e| AppError::Api(format!("Backup task failed: {}", e)))?
+}
+
+#[tauri::command]
+pub async fn restore_prefix(state: State<'_, AppState>, archive: String) -> Result<(), AppError> {
+    if state.game_running.load(std::sync::atomic::Ordering::SeqCst) {
+        return Err(AppError::Api(
+            "Cannot restore the prefix while the game is running".to_string(),
+        ));
+    }
+    let dir = prefix_dir(&state).await;
+    tokio::task::spawn_blocking(move || {
+        crate::game::prefix::restore(&dir, std::path::Path::new(&archive))
+    })
+    .await
+    .map_err(|e| AppError::Api(format!("Restore task failed: {}", e)))?
+}
+
+#[tauri::command]
+pub async fn reset_prefix(state: State<'_, AppState>) -> Result<(), AppError> {
+    if state.game_running.load(std::sync::atomic::Ordering::SeqCst) {
+        return Err(AppError::Api(
+            "Cannot reset the prefix while the game is running".to_string(),
+        ));
+    }
+    let dir = prefix_dir(&state).await;
+    tokio::task::spawn_blocking(move || crate::game::prefix::reset(&dir))
+        .await
+        .map_err(|e| AppError::Api(format!("Reset task failed: {}", e)))?
 }

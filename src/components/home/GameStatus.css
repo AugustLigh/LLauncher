@@ -80,4 +80,32 @@
   margin-top: 6px;
   font-size: var(--font-size-xs, 11px);
   color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.game-info__stats-week {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.game-info__spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 16px;
+}
+
+.game-info__spark-bar {
+  width: 5px;
+  border-radius: 2px;
+  background: var(--color-border);
+  transition: height var(--transition-fast, 0.15s) ease;
+}
+
+.game-info__spark-bar--active {
+  background: var(--color-accent);
+  opacity: 0.75;
 }

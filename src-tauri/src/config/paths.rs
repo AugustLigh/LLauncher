@@ -38,6 +38,11 @@ pub fn launch_log_path() -> PathBuf {
     config_dir().join("launch.log")
 }
 
+/// Play-session journal path: ~/.config/llauncher/sessions.json
+pub fn sessions_path() -> PathBuf {
+    config_dir().join("sessions.json")
+}
+
 /// Default game install directory
 pub fn default_game_dir() -> PathBuf {
     dirs::home_dir()

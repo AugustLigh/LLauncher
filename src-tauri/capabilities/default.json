@@ -13,6 +13,7 @@
     "opener:default",
     "dialog:default",
     "dialog:allow-open",
+    "dialog:allow-save",
     "core:window:allow-hide",
     "core:window:allow-show",
     "autostart:allow-enable",

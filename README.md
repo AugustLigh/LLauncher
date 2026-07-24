@@ -37,6 +37,10 @@ yay -S llauncher-bin   # or: paru -S llauncher-bin
 - **File verification** — MD5 checksum validation for every downloaded file, with smart skip for already verified files
 - **System tray** — minimize to tray, launch from tray
 - **In-app news** — announcements and updates from the official API
+- **Gamescope integration** — run the game in Valve's micro-compositor with FSR/NIS upscaling, FPS cap, HDR and window-mode control
+- **Prefix toolbox** — open the Wine prefix, run winecfg, clear shader caches, back up / restore / reset the prefix from Settings
+- **Play statistics** — session journal with weekly playtime, average session length and a 7-day activity chart
+- **Quick launch** — `llauncher --play` and a desktop-menu "Launch Arknights: Endfield" action start the game straight from your app menu
 - **Configurable launch options** — Gamemode, MangoHUD, DXVK Async, Wayland, custom env vars and arguments
 - **System checks** — warns about missing dependencies (Proton, ntsync)
 - **Custom UI** — glassmorphism-styled interface with no system decorations

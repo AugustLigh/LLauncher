@@ -66,8 +66,28 @@ pub fn run() {
     let settings = AppSettings::load();
     let app_state = AppState::new(settings);
 
+    // `llauncher --play` (desktop-file "Play" action, scripts): start the game
+    // straight away and stay in the tray instead of showing the window.
+    let play_requested = std::env::args().any(|a| a == "--play");
+
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // A second `--play` invocation launches the game in the running
+            // instance; anything else brings the window up as before.
+            if args.iter().any(|a| a == "--play") {
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    // Immediate failures (not installed, no Proton) have no
+                    // dialog of their own — fall back to showing the window.
+                    if commands::launch_and_watch(app.clone()).await.is_err() {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                });
+                return;
+            }
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();
@@ -81,7 +101,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .manage(app_state)
-        .setup(|app| {
+        .setup(move |app| {
             let launch = MenuItem::with_id(app, "launch", "Launch Game", true, None::<&str>)?;
             let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -138,6 +158,24 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            if play_requested {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.hide();
+                }
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    // Crashes after spawn reopen the window via launch://failed;
+                    // immediate failures (not installed, no Proton) get no
+                    // dialog, so bring the window back for those.
+                    if commands::launch_and_watch(app_handle.clone()).await.is_err() {
+                        if let Some(window) = app_handle.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -168,6 +206,14 @@ pub fn run() {
             commands::set_active_proton,
             commands::download_dwproton,
             commands::cancel_proton_download,
+            commands::get_game_sessions,
+            commands::get_prefix_info,
+            commands::open_prefix_folder,
+            commands::run_prefix_tool,
+            commands::clear_shader_cache,
+            commands::backup_prefix,
+            commands::restore_prefix,
+            commands::reset_prefix,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
 import PathSelector from './PathSelector';
 import LanguageSelector from './LanguageSelector';
 import LogViewer from '../common/LogViewer';
@@ -25,6 +26,9 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
   const [debugCopied, setDebugCopied] = useState(false);
   const [latestVersion, setLatestVersion] = useState('');
   const [recommendedTag, setRecommendedTag] = useState('');
+  const [prefixInfo, setPrefixInfo] = useState(null);
+  const [prefixBusy, setPrefixBusy] = useState(null);
+  const [prefixMsg, setPrefixMsg] = useState(null);
 
   const TABS = [
     { id: 'paths', label: t('settings.tab.paths') },
@@ -113,6 +117,7 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
       fetchReleases();
       fetchInstalled();
       invoke('recommended_proton_tag').then(setRecommendedTag).catch(() => {});
+      invoke('get_prefix_info').then(setPrefixInfo).catch(() => {});
     }
   }, [activeTab, fetchReleases, fetchInstalled]);
 
@@ -206,6 +211,59 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
     }
   };
 
+  const runPrefixAction = async (kind, action, doneMsg) => {
+    if (prefixBusy) return;
+    setPrefixBusy(kind);
+    setPrefixMsg(null);
+    try {
+      const result = await action();
+      if (doneMsg) setPrefixMsg({ ok: true, text: doneMsg(result) });
+      invoke('get_prefix_info').then(setPrefixInfo).catch(() => {});
+    } catch (e) {
+      setPrefixMsg({ ok: false, text: typeof e === 'string' ? e : e.message || String(e) });
+    } finally {
+      setPrefixBusy(null);
+    }
+  };
+
+  const handleClearShaderCache = () =>
+    runPrefixAction('cache', () => invoke('clear_shader_cache'), (r) =>
+      t('settings.prefixTools.cacheDone', { files: r.files_removed, size: formatSize(r.bytes_freed) })
+    );
+
+  const handleBackupPrefix = async () => {
+    if (prefixBusy) return;
+    const stamp = new Date().toISOString().slice(0, 10);
+    const dest = await saveDialog({
+      defaultPath: `endfield-prefix-${stamp}.tar.gz`,
+      filters: [{ name: 'Prefix backup', extensions: ['tar.gz', 'gz'] }],
+    });
+    if (!dest) return;
+    await runPrefixAction('backup', () => invoke('backup_prefix', { dest }), () =>
+      t('settings.prefixTools.backupDone')
+    );
+  };
+
+  const handleRestorePrefix = async () => {
+    if (prefixBusy) return;
+    const archive = await openDialog({
+      filters: [{ name: 'Prefix backup', extensions: ['gz'] }],
+    });
+    if (!archive) return;
+    if (!confirm(t('settings.prefixTools.restoreConfirm'))) return;
+    await runPrefixAction('restore', () => invoke('restore_prefix', { archive }), () =>
+      t('settings.prefixTools.restoreDone')
+    );
+  };
+
+  const handleResetPrefix = async () => {
+    if (prefixBusy) return;
+    if (!confirm(t('settings.prefixTools.resetConfirm'))) return;
+    await runPrefixAction('reset', () => invoke('reset_prefix'), () =>
+      t('settings.prefixTools.resetDone')
+    );
+  };
+
   const findInstalled = (tagName) => {
     return installedProtons.find((p) => p.name === tagName || p.name.startsWith(tagName + '-'));
   };
@@ -296,6 +354,64 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
                   onChange={(v) => handleChange('proton_prefix_dir', v)}
                 />
                 <span className="settings-modal__hint">{t('settings.prefixDirHint')}</span>
+              </div>
+
+              <div className="settings-modal__section">
+                <span className="settings-modal__label">{t('settings.prefixTools.title')}</span>
+                <span className="settings-modal__hint">
+                  {prefixInfo?.exists
+                    ? prefixInfo.path
+                    : t('settings.prefixTools.noPrefix')}
+                </span>
+                <div className="settings-prefix-tools">
+                  <button
+                    className="settings-modal__btn settings-modal__btn--secondary"
+                    onClick={() => runPrefixAction('open', () => invoke('open_prefix_folder'))}
+                    disabled={!!prefixBusy || !prefixInfo?.exists}
+                  >
+                    {t('settings.prefixTools.open')}
+                  </button>
+                  <button
+                    className="settings-modal__btn settings-modal__btn--secondary"
+                    onClick={() => runPrefixAction('winecfg', () => invoke('run_prefix_tool', { tool: 'winecfg' }))}
+                    disabled={!!prefixBusy}
+                  >
+                    {t('settings.prefixTools.winecfg')}
+                  </button>
+                  <button
+                    className="settings-modal__btn settings-modal__btn--secondary"
+                    onClick={handleClearShaderCache}
+                    disabled={!!prefixBusy}
+                  >
+                    {prefixBusy === 'cache' ? t('common.loading') : t('settings.prefixTools.clearCache')}
+                  </button>
+                  <button
+                    className="settings-modal__btn settings-modal__btn--secondary"
+                    onClick={handleBackupPrefix}
+                    disabled={!!prefixBusy || !prefixInfo?.exists}
+                  >
+                    {prefixBusy === 'backup' ? t('common.loading') : t('settings.prefixTools.backup')}
+                  </button>
+                  <button
+                    className="settings-modal__btn settings-modal__btn--secondary"
+                    onClick={handleRestorePrefix}
+                    disabled={!!prefixBusy}
+                  >
+                    {prefixBusy === 'restore' ? t('common.loading') : t('settings.prefixTools.restore')}
+                  </button>
+                  <button
+                    className="settings-modal__btn settings-modal__btn--danger"
+                    onClick={handleResetPrefix}
+                    disabled={!!prefixBusy || !prefixInfo?.exists}
+                  >
+                    {prefixBusy === 'reset' ? t('common.loading') : t('settings.prefixTools.reset')}
+                  </button>
+                </div>
+                {prefixMsg && (
+                  <span className={prefixMsg.ok ? 'settings-modal__hint' : 'settings-proton__error'}>
+                    {prefixMsg.text}
+                  </span>
+                )}
               </div>
 
               <div className="settings-modal__section">
@@ -524,6 +640,109 @@ export default function SettingsModal({ settings, systemCheck, onRefreshSystemCh
                   onClick={() => handleChange('use_mangohud', !form.use_mangohud)}
                 />
               </div>
+
+              <div className="settings-toggle">
+                <div className="settings-toggle__info">
+                  <span className="settings-toggle__name">{t('settings.gamescope.name')}</span>
+                  <span className="settings-toggle__desc">
+                    {t('settings.gamescope.desc')}
+                  </span>
+                  {systemCheck && !systemCheck.has_gamescope && (
+                    <span className="settings-toggle__unavailable">{t('settings.unavailable')}</span>
+                  )}
+                </div>
+                <button
+                  className={`settings-toggle__switch ${form.use_gamescope ? 'settings-toggle__switch--on' : ''}`}
+                  onClick={() => handleChange('use_gamescope', !form.use_gamescope)}
+                />
+              </div>
+
+              {form.use_gamescope && (
+                <div className="settings-gamescope">
+                  <div className="settings-gamescope__row">
+                    <div className="settings-gamescope__field">
+                      <span className="settings-modal__label">{t('settings.gamescope.mode')}</span>
+                      <select
+                        className="settings-proton__select"
+                        value={form.gamescope_mode || 'fullscreen'}
+                        onChange={(e) => handleChange('gamescope_mode', e.target.value)}
+                      >
+                        <option value="fullscreen">{t('settings.gamescope.modeFullscreen')}</option>
+                        <option value="borderless">{t('settings.gamescope.modeBorderless')}</option>
+                        <option value="windowed">{t('settings.gamescope.modeWindowed')}</option>
+                      </select>
+                    </div>
+                    <div className="settings-gamescope__field">
+                      <span className="settings-modal__label">{t('settings.gamescope.upscaler')}</span>
+                      <select
+                        className="settings-proton__select"
+                        value={form.gamescope_upscaler || 'auto'}
+                        onChange={(e) => handleChange('gamescope_upscaler', e.target.value)}
+                      >
+                        <option value="auto">{t('settings.gamescope.upscalerAuto')}</option>
+                        <option value="fsr">AMD FSR</option>
+                        <option value="nis">NVIDIA NIS</option>
+                        <option value="integer">{t('settings.gamescope.upscalerInteger')}</option>
+                        <option value="stretch">{t('settings.gamescope.upscalerStretch')}</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="settings-gamescope__row">
+                    <div className="settings-gamescope__field">
+                      <span className="settings-modal__label">{t('settings.gamescope.renderRes')}</span>
+                      <input
+                        value={form.gamescope_render_res || ''}
+                        onChange={(e) => handleChange('gamescope_render_res', e.target.value)}
+                        placeholder={t('settings.gamescope.resNative')}
+                        spellCheck={false}
+                      />
+                    </div>
+                    <div className="settings-gamescope__field">
+                      <span className="settings-modal__label">{t('settings.gamescope.outputRes')}</span>
+                      <input
+                        value={form.gamescope_output_res || ''}
+                        onChange={(e) => handleChange('gamescope_output_res', e.target.value)}
+                        placeholder={t('settings.gamescope.resAuto')}
+                        spellCheck={false}
+                      />
+                    </div>
+                    <div className="settings-gamescope__field">
+                      <span className="settings-modal__label">{t('settings.gamescope.fps')}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={form.gamescope_fps_limit || ''}
+                        onChange={(e) => handleChange('gamescope_fps_limit', parseInt(e.target.value, 10) || 0)}
+                        placeholder={t('settings.gamescope.fpsOff')}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="settings-toggle settings-toggle--sub">
+                    <div className="settings-toggle__info">
+                      <span className="settings-toggle__name">{t('settings.gamescope.hdr.name')}</span>
+                      <span className="settings-toggle__desc">{t('settings.gamescope.hdr.desc')}</span>
+                    </div>
+                    <button
+                      className={`settings-toggle__switch ${form.gamescope_hdr ? 'settings-toggle__switch--on' : ''}`}
+                      onClick={() => handleChange('gamescope_hdr', !form.gamescope_hdr)}
+                    />
+                  </div>
+
+                  <div className="settings-gamescope__field">
+                    <span className="settings-modal__label">{t('settings.gamescope.extraArgs')}</span>
+                    <input
+                      value={form.gamescope_extra_args || ''}
+                      onChange={(e) => handleChange('gamescope_extra_args', e.target.value)}
+                      placeholder="--adaptive-sync --force-grab-cursor"
+                      spellCheck={false}
+                    />
+                  </div>
+
+                  <span className="settings-modal__hint">{t('settings.gamescope.hint')}</span>
+                </div>
+              )}
 
               <div className="settings-toggle">
                 <div className="settings-toggle__info">

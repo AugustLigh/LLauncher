@@ -14,6 +14,14 @@ fn default_max_concurrent() -> u32 {
     4
 }
 
+fn default_gamescope_mode() -> String {
+    "fullscreen".to_string()
+}
+
+fn default_gamescope_upscaler() -> String {
+    "auto".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     pub game_dir: String,
@@ -57,6 +65,30 @@ pub struct AppSettings {
     pub use_prime_offload: bool,
     #[serde(default)]
     pub use_discord_rpc: bool,
+    /// Run the game inside the gamescope micro-compositor.
+    #[serde(default)]
+    pub use_gamescope: bool,
+    /// gamescope window mode: "fullscreen" | "borderless" | "windowed".
+    #[serde(default = "default_gamescope_mode")]
+    pub gamescope_mode: String,
+    /// Game render resolution as "WIDTHxHEIGHT", empty = native.
+    #[serde(default)]
+    pub gamescope_render_res: String,
+    /// gamescope output resolution as "WIDTHxHEIGHT", empty = auto.
+    #[serde(default)]
+    pub gamescope_output_res: String,
+    /// Nested refresh rate / FPS cap for gamescope, 0 = off.
+    #[serde(default)]
+    pub gamescope_fps_limit: u32,
+    /// Upscaler: "auto" | "fsr" | "nis" | "integer" | "stretch".
+    #[serde(default = "default_gamescope_upscaler")]
+    pub gamescope_upscaler: String,
+    /// Enable HDR output in gamescope (--hdr-enabled).
+    #[serde(default)]
+    pub gamescope_hdr: bool,
+    /// Extra raw arguments appended to the gamescope invocation.
+    #[serde(default)]
+    pub gamescope_extra_args: String,
     /// Accumulated in-game time in seconds.
     #[serde(default)]
     pub total_playtime_secs: u64,
@@ -92,6 +124,14 @@ impl Default for AppSettings {
             autostart_initialized: false,
             use_prime_offload: false,
             use_discord_rpc: false,
+            use_gamescope: false,
+            gamescope_mode: default_gamescope_mode(),
+            gamescope_render_res: String::new(),
+            gamescope_output_res: String::new(),
+            gamescope_fps_limit: 0,
+            gamescope_upscaler: default_gamescope_upscaler(),
+            gamescope_hdr: false,
+            gamescope_extra_args: String::new(),
             total_playtime_secs: 0,
             last_played: 0,
         }

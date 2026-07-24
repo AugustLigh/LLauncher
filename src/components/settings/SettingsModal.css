@@ -588,3 +588,40 @@
 .settings-modal__btn--danger:disabled {
   opacity: 0.5;
 }
+
+/* Gamescope sub-panel */
+.settings-gamescope {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  margin: calc(-1 * var(--space-sm)) 0 var(--space-sm);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.settings-gamescope__row {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.settings-gamescope__field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.settings-toggle--sub {
+  padding: 0;
+}
+
+/* Prefix tools */
+.settings-prefix-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}

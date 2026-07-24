@@ -24,7 +24,7 @@ pub struct LaunchedGame {
 /// symlinks it needs). We now keep it under the launcher data directory by
 /// default, while still honouring an existing in-game-dir prefix so current
 /// installs keep working.
-fn resolve_prefix_dir(settings: &AppSettings, game_path: &Path) -> PathBuf {
+pub fn resolve_prefix_dir(settings: &AppSettings, game_path: &Path) -> PathBuf {
     let legacy = game_path.join("_proton");
     if legacy.join("pfx").exists() {
         return legacy;
@@ -35,35 +35,10 @@ fn resolve_prefix_dir(settings: &AppSettings, game_path: &Path) -> PathBuf {
     paths::default_proton_prefix_dir().join("endfield")
 }
 
-pub fn launch_game(settings: &AppSettings) -> Result<LaunchedGame, AppError> {
-    let game_path = Path::new(&settings.game_dir);
-    let exe_path = game_path.join("Endfield.exe");
-
-    if !exe_path.exists() {
-        return Err(AppError::GameNotFound(format!(
-            "Executable not found: {}",
-            exe_path.display()
-        )));
-    }
-
-    let proton_path = Path::new(&settings.proton_dir).join("proton");
-    if !proton_path.exists() {
-        return Err(AppError::ProtonNotFound(format!(
-            "Proton not found at: {}",
-            proton_path.display()
-        )));
-    }
-
-    // Convert Linux path to Wine Z: path
-    let wine_path = format!("Z:{}", exe_path.to_string_lossy().replace('/', "\\"));
-
-    let compat_data = resolve_prefix_dir(settings, game_path);
-    std::fs::create_dir_all(&compat_data)?;
-
-    let log_path = paths::launch_log_path();
-    std::fs::create_dir_all(log_path.parent().unwrap())?;
-
-    // Build shell script with exported env vars
+/// Shared preamble for anything run inside the game's Proton prefix: exports
+/// every configured env var. Used by the game launch and the prefix tools
+/// (winecfg etc.) so both see the exact same environment.
+fn build_env_script(settings: &AppSettings, compat_data: &Path) -> String {
     let mut script = String::new();
 
     // Unset Python vars that break Proton's bundled Python
@@ -133,6 +108,97 @@ pub fn launch_game(settings: &AppSettings) -> Result<LaunchedGame, AppError> {
         }
     }
 
+    script
+}
+
+/// Translate the gamescope settings into a command-line argument string.
+/// Returns None when the resolution strings are unparsable garbage is fine —
+/// unknown values are simply skipped, gamescope falls back to its defaults.
+fn build_gamescope_args(settings: &AppSettings) -> String {
+    let mut args: Vec<String> = Vec::new();
+
+    match settings.gamescope_mode.as_str() {
+        "borderless" => args.push("-b".into()),
+        "windowed" => {}
+        _ => args.push("-f".into()),
+    }
+
+    let parse_res = |s: &str| -> Option<(u32, u32)> {
+        let lower = s.trim().to_lowercase();
+        let (w, h) = lower.split_once('x')?;
+        match (w.trim().parse::<u32>(), h.trim().parse::<u32>()) {
+            (Ok(w), Ok(h)) if w > 0 && h > 0 => Some((w, h)),
+            _ => None,
+        }
+    };
+
+    if let Some((w, h)) = parse_res(&settings.gamescope_render_res) {
+        args.push(format!("-w {} -h {}", w, h));
+    }
+    if let Some((w, h)) = parse_res(&settings.gamescope_output_res) {
+        args.push(format!("-W {} -H {}", w, h));
+    }
+
+    if settings.gamescope_fps_limit > 0 {
+        args.push(format!("-r {}", settings.gamescope_fps_limit));
+    }
+
+    match settings.gamescope_upscaler.as_str() {
+        "fsr" => args.push("-F fsr".into()),
+        "nis" => args.push("-F nis".into()),
+        "integer" => args.push("-S integer".into()),
+        "stretch" => args.push("-S stretch".into()),
+        _ => {}
+    }
+
+    if settings.gamescope_hdr {
+        args.push("--hdr-enabled".into());
+    }
+
+    // MangoHud's Vulkan layer misbehaves inside gamescope; the supported way
+    // is gamescope's own --mangoapp overlay, so route the toggle through it.
+    if settings.use_mangohud {
+        args.push("--mangoapp".into());
+    }
+
+    let extra = settings.gamescope_extra_args.trim();
+    if !extra.is_empty() {
+        args.push(extra.to_string());
+    }
+
+    args.join(" ")
+}
+
+pub fn launch_game(settings: &AppSettings) -> Result<LaunchedGame, AppError> {
+    let game_path = Path::new(&settings.game_dir);
+    let exe_path = game_path.join("Endfield.exe");
+
+    if !exe_path.exists() {
+        return Err(AppError::GameNotFound(format!(
+            "Executable not found: {}",
+            exe_path.display()
+        )));
+    }
+
+    let proton_path = Path::new(&settings.proton_dir).join("proton");
+    if !proton_path.exists() {
+        return Err(AppError::ProtonNotFound(format!(
+            "Proton not found at: {}",
+            proton_path.display()
+        )));
+    }
+
+    // Convert Linux path to Wine Z: path
+    let wine_path = format!("Z:{}", exe_path.to_string_lossy().replace('/', "\\"));
+
+    let compat_data = resolve_prefix_dir(settings, game_path);
+    std::fs::create_dir_all(&compat_data)?;
+
+    let log_path = paths::launch_log_path();
+    std::fs::create_dir_all(log_path.parent().unwrap())?;
+
+    let mut script = build_env_script(settings, &compat_data);
+
     // cd into game directory
     script.push_str(&format!("cd {}\n", shell_escape(&game_path.to_string_lossy())));
 
@@ -144,7 +210,16 @@ pub fn launch_game(settings: &AppSettings) -> Result<LaunchedGame, AppError> {
     if settings.use_gamemode {
         launch_cmd.push_str("gamemoderun ");
     }
-    if settings.use_mangohud {
+    if settings.use_gamescope {
+        // gamescope hosts the game in its own compositor; MangoHud is folded
+        // into it via --mangoapp (see build_gamescope_args), not the wrapper.
+        let gs_args = build_gamescope_args(settings);
+        if gs_args.is_empty() {
+            launch_cmd.push_str("gamescope -- ");
+        } else {
+            launch_cmd.push_str(&format!("gamescope {} -- ", gs_args));
+        }
+    } else if settings.use_mangohud {
         launch_cmd.push_str("mangohud ");
     }
     launch_cmd.push_str(&format!("{} run {}", proton_escaped, wine_escaped));
@@ -184,6 +259,39 @@ pub fn launch_game(settings: &AppSettings) -> Result<LaunchedGame, AppError> {
         .map_err(|e| AppError::GameNotFound(format!("Failed to launch: {}", e)))?;
 
     Ok(LaunchedGame { child, log_path })
+}
+
+/// Run a Wine tool (winecfg, regedit, ...) inside the game's Proton prefix
+/// with the exact environment the game itself gets. Fire-and-forget: the tool
+/// opens its own window and the user closes it when done.
+pub fn run_prefix_tool(settings: &AppSettings, tool: &str) -> Result<(), AppError> {
+    let game_path = Path::new(&settings.game_dir);
+
+    let proton_path = Path::new(&settings.proton_dir).join("proton");
+    if !proton_path.exists() {
+        return Err(AppError::ProtonNotFound(format!(
+            "Proton not found at: {}",
+            proton_path.display()
+        )));
+    }
+
+    let compat_data = resolve_prefix_dir(settings, game_path);
+    std::fs::create_dir_all(&compat_data)?;
+
+    let mut script = build_env_script(settings, &compat_data);
+    script.push_str(&format!(
+        "exec {} run {} > /dev/null 2>&1\n",
+        shell_escape(&proton_path.to_string_lossy()),
+        shell_escape(tool)
+    ));
+
+    let mut cmd = Command::new("bash");
+    cmd.arg("-c").arg(&script);
+    crate::util::strip_appimage_libs(&mut cmd);
+    cmd.process_group(0);
+    cmd.spawn()
+        .map_err(|e| AppError::Api(format!("Failed to run {}: {}", tool, e)))?;
+    Ok(())
 }
 
 /// Read the tail of the launch log (last `max_lines` lines).

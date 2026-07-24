@@ -7,6 +7,7 @@ pub struct SystemCheck {
     pub has_ntsync: bool,
     pub has_gamemode: bool,
     pub has_mangohud: bool,
+    pub has_gamescope: bool,
     pub proton_path: String,
 }
 
@@ -22,6 +23,7 @@ pub fn check_system(proton_dir: &str) -> SystemCheck {
         has_ntsync: check_ntsync(),
         has_gamemode: check_command("gamemoderun"),
         has_mangohud: check_command("mangohud"),
+        has_gamescope: check_command("gamescope"),
         proton_path: if has_proton {
             Path::new(proton_dir)
                 .join("proton")
