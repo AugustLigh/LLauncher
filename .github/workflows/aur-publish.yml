@@ -42,3 +42,10 @@ jobs:
           commit_email: ${{ secrets.AUR_EMAIL }}
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           commit_message: "Update to ${{ steps.ver.outputs.version }}"
+
+  # Prove the published package actually installs: makepkg -si in a clean
+  # Arch container, the same path an AUR helper takes.
+  verify:
+    needs: aur-publish
+    uses: ./.github/workflows/aur-verify.yml
+

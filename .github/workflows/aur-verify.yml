@@ -1,0 +1,44 @@
+name: Verify AUR package
+
+# End-to-end check that `yay -S llauncher-bin` actually works: build and
+# install the package from AUR inside a real Arch Linux container, exactly the
+# way an AUR helper does (git clone -> makepkg -si). Runs after every AUR
+# publish and can be dispatched manually at any time.
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  install-test:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Build and install from AUR like an AUR helper would
+        run: |
+          pacman -Syu --noconfirm git
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          su - builder -c '
+            set -e
+            git clone https://aur.archlinux.org/llauncher-bin.git pkg
+            cd pkg
+            makepkg -si --noconfirm
+          '
+
+      - name: Verify installed files
+        run: |
+          set -e
+          pacman -Qi llauncher-bin
+          test -x /usr/bin/llauncher
+          desktop=/usr/share/applications/LLauncher.desktop
+          test -f "$desktop"
+          grep -q "Desktop Action play" "$desktop"
+          echo "OK: binary and desktop entry (with the Play action) are in place"
+
+      - name: Check AUR RPC visibility (non-fatal)
+        run: |
+          if curl -s 'https://aur.archlinux.org/rpc/v5/info?arg[]=llauncher-bin' | grep -q '"resultcount": *1'; then
+            echo "RPC: package is visible to yay search"
+          else
+            echo "RPC: not indexed yet (cache lag) — install by name still works"
+          fi
