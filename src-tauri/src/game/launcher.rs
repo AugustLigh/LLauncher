@@ -12,6 +12,16 @@ fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
+/// A POSIX environment variable name: letters, digits, underscore, not
+/// starting with a digit. `export NAME=value` requires `NAME` to be a bare
+/// identifier — quoting/escaping it the way we escape `value` would either do
+/// nothing useful or change the syntax, so invalid names are rejected instead.
+fn is_valid_env_var_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    matches!(chars.next(), Some(c) if c.is_ascii_alphabetic() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
 pub struct LaunchedGame {
     pub child: Child,
     pub log_path: PathBuf,
@@ -99,9 +109,13 @@ fn build_env_script(settings: &AppSettings, compat_data: &Path) -> String {
                 continue;
             }
             if let Some((key, value)) = line.split_once('=') {
+                let key = key.trim();
+                if !is_valid_env_var_name(key) {
+                    continue;
+                }
                 script.push_str(&format!(
                     "export {}={}\n",
-                    key.trim(),
+                    key,
                     shell_escape(value.trim())
                 ));
             }
@@ -304,4 +318,23 @@ pub fn read_log_tail(log_path: &Path, max_lines: usize) -> String {
     let lines: Vec<&str> = content.lines().collect();
     let start = lines.len().saturating_sub(max_lines);
     lines[start..].join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validates_env_var_names() {
+        // `export NAME=value` requires a bare identifier for NAME — a
+        // malformed custom env var line must be dropped, not turned into
+        // broken (or injectable) shell syntax.
+        assert!(is_valid_env_var_name("DXVK_HUD"));
+        assert!(is_valid_env_var_name("_FOO"));
+        assert!(is_valid_env_var_name("FOO_1"));
+        assert!(!is_valid_env_var_name(""));
+        assert!(!is_valid_env_var_name("1FOO"));
+        assert!(!is_valid_env_var_name("FOO BAR"));
+        assert!(!is_valid_env_var_name("FOO;rm -rf ~"));
+    }
 }

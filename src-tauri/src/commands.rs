@@ -304,7 +304,7 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
     let game_running = state.game_running.clone();
     let game_pid = state.game_pid.clone();
     game_running.store(true, std::sync::atomic::Ordering::SeqCst);
-    *game_pid.lock().unwrap() = Some(launched.child.id());
+    game_pid.store(launched.child.id(), std::sync::atomic::Ordering::SeqCst);
     let _ = app.emit("game://started", ());
 
     let discord = if settings_clone.use_discord_rpc {
@@ -331,7 +331,7 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
         };
 
         game_running.store(false, std::sync::atomic::Ordering::SeqCst);
-        *game_pid.lock().unwrap() = None;
+        game_pid.store(0, std::sync::atomic::Ordering::SeqCst);
         if let Some(discord) = discord {
             discord.store(false, std::sync::atomic::Ordering::SeqCst);
         }
@@ -398,10 +398,10 @@ pub async fn launch_game(app: tauri::AppHandle) -> Result<(), AppError> {
 
 #[tauri::command]
 pub async fn stop_game(state: State<'_, AppState>) -> Result<(), AppError> {
-    let pid = *state.game_pid.lock().unwrap();
-    let Some(pid) = pid else {
+    let pid = state.game_pid.load(std::sync::atomic::Ordering::SeqCst);
+    if pid == 0 {
         return Ok(());
-    };
+    }
 
     // Ask the whole process group (bash -> proton -> game) to terminate, then
     // escalate to SIGKILL if it is still alive a few seconds later.
@@ -414,7 +414,8 @@ pub async fn stop_game(state: State<'_, AppState>) -> Result<(), AppError> {
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         if game_running.load(std::sync::atomic::Ordering::SeqCst) {
-            if let Some(pid) = *game_pid.lock().unwrap() {
+            let pid = game_pid.load(std::sync::atomic::Ordering::SeqCst);
+            if pid != 0 {
                 unsafe {
                     libc::killpg(pid as i32, libc::SIGKILL);
                 }
