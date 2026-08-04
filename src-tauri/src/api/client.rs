@@ -30,6 +30,7 @@ pub async fn get_latest_game_version(
     let resp: BatchProxyResponse = client
         .post(BATCH_PROXY_URL)
         .json(&payload)
+        .timeout(API_REQUEST_TIMEOUT)
         .send()
         .await?
         .json()
@@ -96,6 +97,7 @@ pub async fn get_launcher_content(
     let resp: BatchProxyResponse = client
         .post(WEB_BATCH_PROXY_URL)
         .json(&payload)
+        .timeout(API_REQUEST_TIMEOUT)
         .send()
         .await?
         .json()

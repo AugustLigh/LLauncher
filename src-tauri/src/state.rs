@@ -20,6 +20,10 @@ impl AppState {
             http_client: reqwest::Client::builder()
                 .tcp_nodelay(true)
                 .pool_max_idle_per_host(10)
+                // Bounds only the TCP/TLS handshake, so it's safe to apply to
+                // every request including large downloads — a connect that
+                // hasn't succeeded within 10s is not going to.
+                .connect_timeout(std::time::Duration::from_secs(10))
                 .build()
                 .unwrap_or_else(|_| reqwest::Client::new()),
             download_active: Arc::new(AtomicBool::new(false)),
