@@ -16,7 +16,7 @@ pub async fn save_settings(
     state: State<'_, AppState>,
     settings: AppSettings,
 ) -> Result<(), AppError> {
-    settings.save()?;
+    settings.save_async().await?;
     let mut current = state.settings.lock().await;
     *current = settings;
     Ok(())
@@ -92,7 +92,7 @@ pub async fn start_download(
     // left the launcher stuck offering "Install"/"Update" on the next start.
     let mut settings = state.settings.lock().await;
     settings.installed_version = version;
-    settings.save()?;
+    settings.save_async().await?;
     Ok(())
 }
 
@@ -269,7 +269,7 @@ pub async fn start_update(
             }
             let mut settings = state.settings.lock().await;
             settings.installed_version = version;
-            settings.save()?;
+            settings.save_async().await?;
             Ok(())
         }
         Err(e) => {
@@ -457,7 +457,7 @@ pub async fn import_existing_game(
     settings.game_dir = path.clone();
     settings.download_dir = game_path.join("_download").to_string_lossy().to_string();
     settings.installed_version = version.clone();
-    settings.save()?;
+    settings.save_async().await?;
 
     Ok(version)
 }
@@ -500,7 +500,7 @@ pub async fn uninstall_game(state: State<'_, AppState>) -> Result<(), AppError> 
 
     let mut settings = state.settings.lock().await;
     settings.installed_version = String::new();
-    settings.save()?;
+    settings.save_async().await?;
     Ok(())
 }
 
@@ -509,6 +509,14 @@ pub async fn uninstall_game(state: State<'_, AppState>) -> Result<(), AppError> 
 pub async fn get_debug_info(state: State<'_, AppState>) -> Result<String, AppError> {
     let settings = state.settings.lock().await.clone();
 
+    // Shells out to uname/lspci and reads the log file — keep that off the
+    // async runtime thread.
+    tokio::task::spawn_blocking(move || build_debug_info(settings))
+        .await
+        .map_err(|e| AppError::Api(format!("debug info task failed: {}", e)))
+}
+
+fn build_debug_info(settings: AppSettings) -> String {
     let os = std::fs::read_to_string("/etc/os-release")
         .ok()
         .and_then(|c| {
@@ -541,7 +549,7 @@ pub async fn get_debug_info(state: State<'_, AppState>) -> Result<String, AppErr
     // actual backtrace.
     let log_tail = crate::game::launcher::read_log_tail(&paths::launch_log_path(), 200);
 
-    Ok(format!(
+    format!(
         "LLauncher {version}\n\
          OS: {os} (kernel {kernel})\n\
          Session: {desktop} / {session}\n\
@@ -570,16 +578,20 @@ pub async fn get_debug_info(state: State<'_, AppState>) -> Result<String, AppErr
         fsync = settings.disable_fsync,
         esync = settings.disable_esync,
         log_tail = log_tail,
-    ))
+    )
 }
 
 #[tauri::command]
 pub async fn read_launch_log() -> Result<String, AppError> {
-    let log_path = paths::launch_log_path();
-    if !log_path.exists() {
-        return Ok(String::new());
-    }
-    Ok(std::fs::read_to_string(&log_path)?)
+    tokio::task::spawn_blocking(|| {
+        let log_path = paths::launch_log_path();
+        if !log_path.exists() {
+            return Ok(String::new());
+        }
+        Ok(std::fs::read_to_string(&log_path)?)
+    })
+    .await
+    .map_err(|e| AppError::Api(format!("read log task failed: {}", e)))?
 }
 
 #[tauri::command]
@@ -614,7 +626,7 @@ pub async fn repair_game(
 
     let mut settings = state.settings.lock().await;
     settings.installed_version = version;
-    settings.save()?;
+    settings.save_async().await?;
     Ok(())
 }
 
@@ -625,7 +637,7 @@ pub async fn update_installed_version(
 ) -> Result<(), AppError> {
     let mut settings = state.settings.lock().await;
     settings.installed_version = version;
-    settings.save()?;
+    settings.save_async().await?;
     Ok(())
 }
 
@@ -636,7 +648,10 @@ pub async fn check_system_requirements(
     let settings = state.settings.lock().await;
     let proton_dir = settings.proton_dir.clone();
     drop(settings);
-    Ok(crate::game::proton::check_system(&proton_dir))
+    // Shells out to `which` a few times — keep that off the async runtime.
+    tokio::task::spawn_blocking(move || crate::game::proton::check_system(&proton_dir))
+        .await
+        .map_err(|e| AppError::Api(format!("system check task failed: {}", e)))
 }
 
 #[tauri::command]
@@ -692,7 +707,7 @@ pub async fn set_active_proton(
 ) -> Result<(), AppError> {
     let mut settings = state.settings.lock().await;
     settings.proton_dir = path;
-    settings.save()?;
+    settings.save_async().await?;
     Ok(())
 }
 
@@ -721,7 +736,7 @@ pub async fn download_dwproton(
         Ok((proton_dir, _version)) => {
             let mut settings = state.settings.lock().await;
             settings.proton_dir = proton_dir;
-            settings.save()?;
+            settings.save_async().await?;
             Ok(())
         }
         Err(e) => {
@@ -748,7 +763,9 @@ pub async fn cancel_proton_download(state: State<'_, AppState>) -> Result<(), Ap
 /// Full play-session journal (oldest first) for the stats card.
 #[tauri::command]
 pub async fn get_game_sessions() -> Result<Vec<crate::config::sessions::GameSession>, AppError> {
-    Ok(crate::config::sessions::load())
+    tokio::task::spawn_blocking(crate::config::sessions::load)
+        .await
+        .map_err(|e| AppError::Api(format!("sessions load task failed: {}", e)))
 }
 
 /// Resolve the game's Proton prefix directory as the launch path would.
