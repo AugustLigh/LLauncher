@@ -391,18 +391,28 @@ pub async fn verify_and_repair(
 
             dl_handles.push(tokio::spawn(async move {
                 let _permit = permit;
-                let res = download_one(
-                    &client,
-                    &mf,
-                    assets_root.as_path(),
+                // A single flaky VFS file shouldn't abort every other file
+                // downloading concurrently in this repair batch — retry it in
+                // place first.
+                let res = crate::download::retry::with_retry(
                     &cancel_flag,
-                    &downloaded,
-                    &app,
-                    &channel,
-                    bytes_total,
-                    repaired,
-                    &done_files,
-                    start,
+                    crate::download::retry::MAX_RETRIES,
+                    crate::download::retry::RETRY_DELAY,
+                    || {
+                        download_one(
+                            &client,
+                            &mf,
+                            assets_root.as_path(),
+                            &cancel_flag,
+                            &downloaded,
+                            &app,
+                            &channel,
+                            bytes_total,
+                            repaired,
+                            &done_files,
+                            start,
+                        )
+                    },
                 )
                 .await;
                 done_files.fetch_add(1, Ordering::Relaxed);
