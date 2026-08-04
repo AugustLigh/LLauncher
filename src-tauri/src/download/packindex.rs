@@ -12,6 +12,7 @@
 use std::path::Path;
 use tauri::Emitter;
 
+use crate::api::constants::API_REQUEST_TIMEOUT;
 use crate::api::types::PackFile;
 use crate::error::AppError;
 
@@ -40,6 +41,7 @@ async fn range(client: &reqwest::Client, url: &str, start: u64, end_inclusive: u
     let resp = client
         .get(url)
         .header(reqwest::header::RANGE, format!("bytes={}-{}", start, end_inclusive))
+        .timeout(API_REQUEST_TIMEOUT)
         .send()
         .await?
         .error_for_status()?;

@@ -6,6 +6,17 @@ use tauri::Emitter;
 use crate::api::types::{DownloadComplete, DownloadError};
 use crate::error::AppError;
 
+/// Extract a safe file name from a pack URL's last path segment. Empty
+/// segments and `.`/`..` are rejected so `download_path.join(name)` can never
+/// resolve outside `download_path` — a tampered pack list could otherwise
+/// smuggle a `..` segment to escape the download directory.
+fn safe_pack_file_name(url: &str) -> &str {
+    match url.rsplit('/').next() {
+        Some(name) if !name.is_empty() && name != "." && name != ".." => name,
+        _ => "unknown",
+    }
+}
+
 pub async fn start_download(
     app: tauri::AppHandle,
     client: reqwest::Client,
@@ -53,7 +64,7 @@ pub async fn start_download(
     let existing_parts: u64 = packs
         .iter()
         .filter_map(|p| {
-            let name = p.url.split('/').last().unwrap_or("unknown");
+            let name = safe_pack_file_name(&p.url);
             std::fs::metadata(download_path.join(name)).ok().map(|m| m.len())
         })
         .sum();
@@ -99,7 +110,7 @@ pub async fn start_download(
         let app2 = app.clone();
         let client2 = client.clone();
         let pack2 = pack.clone();
-        let file_name = pack.url.split('/').last().unwrap_or("unknown").to_string();
+        let file_name = safe_pack_file_name(&pack.url).to_string();
         let dest = download_path.join(&file_name);
         let active2 = download_active.clone();
         let agg2 = agg_downloaded.clone();
@@ -158,7 +169,7 @@ pub async fn start_download(
 
     let parts: Vec<PathBuf> = packs
         .iter()
-        .map(|p| download_path.join(p.url.split('/').last().unwrap_or("unknown")))
+        .map(|p| download_path.join(safe_pack_file_name(&p.url)))
         .collect();
 
     let marker = crate::game::state::incomplete_marker(game_path);
@@ -208,4 +219,25 @@ pub async fn start_download(
     app.emit("download://complete", DownloadComplete { version: version.clone() }).ok();
 
     Ok(version)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejects_traversal_segments_in_pack_urls() {
+        // A pack list entry whose URL ends in `/..` must not resolve
+        // `download_path.join(name)` to the parent of the download directory.
+        assert_eq!(
+            safe_pack_file_name("https://cdn.example.com/packs/.."),
+            "unknown"
+        );
+        assert_eq!(safe_pack_file_name("https://cdn.example.com/packs/."), "unknown");
+        assert_eq!(safe_pack_file_name("https://cdn.example.com/packs/"), "unknown");
+        assert_eq!(
+            safe_pack_file_name("https://cdn.example.com/packs/pack01.zip"),
+            "pack01.zip"
+        );
+    }
 }

@@ -123,6 +123,21 @@ fn decrypt_index(body: &[u8]) -> Result<Vec<u8>, AppError> {
     Ok(out)
 }
 
+/// Reject manifest entries whose `name` could escape `assets_root` once
+/// joined onto it (zip-slip style path traversal): absolute paths or any
+/// `..` component. The resource index is decrypted server data — a
+/// compromised/MITM'd CDN response must not be able to write outside the
+/// game's StreamingAssets directory.
+fn is_safe_relative_path(name: &str) -> bool {
+    let path = Path::new(name);
+    if path.is_absolute() {
+        return false;
+    }
+    !path
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+}
+
 fn file_md5(path: &Path) -> std::io::Result<String> {
     use std::io::Read;
     let mut file = std::fs::File::open(path)?;
@@ -154,6 +169,7 @@ async fn get_resources(
             ("platform", PLATFORM),
             ("rand_str", rand_str),
         ])
+        .timeout(API_REQUEST_TIMEOUT)
         .send()
         .await?
         .error_for_status()?
@@ -170,6 +186,7 @@ async fn fetch_index(
     let url = format!("{}/{}", res_path.trim_end_matches('/'), index_name);
     let body = client
         .get(&url)
+        .timeout(API_REQUEST_TIMEOUT)
         .send()
         .await?
         .error_for_status()?
@@ -202,6 +219,9 @@ async fn build_manifest(
         for f in files {
             let Some(md5) = f.md5 else { continue };
             if md5.is_empty() {
+                continue;
+            }
+            if !is_safe_relative_path(&f.name) {
                 continue;
             }
             out.push(ManifestFile {
@@ -433,7 +453,9 @@ async fn download_one(
         local.file_name().unwrap_or_default().to_string_lossy()
     ));
 
-    let response = client.get(&mf.url).send().await?.error_for_status()?;
+    let response = crate::util::send_with_stall_timeout(client.get(&mf.url), DOWNLOAD_STALL_TIMEOUT)
+        .await?
+        .error_for_status()?;
     let mut stream = response.bytes_stream();
     let file = tokio::fs::File::create(&tmp).await.map_err(AppError::Io)?;
     let mut writer = BufWriter::with_capacity(1024 * 1024, file);
@@ -512,6 +534,16 @@ mod tests {
     fn major_minor_takes_two_components() {
         assert_eq!(major_minor("1.3.3"), "1.3");
         assert_eq!(major_minor("1.0.14"), "1.0");
+    }
+
+    #[test]
+    fn rejects_path_traversal_in_manifest_names() {
+        // A malicious/compromised resource index must not be able to write
+        // outside the game's StreamingAssets root via `..` or an absolute path.
+        assert!(!is_safe_relative_path("../../etc/cron.d/evil"));
+        assert!(!is_safe_relative_path("VFS/../../etc/passwd"));
+        assert!(!is_safe_relative_path("/etc/passwd"));
+        assert!(is_safe_relative_path("VFS/AB/CD.chk"));
     }
 
     #[test]

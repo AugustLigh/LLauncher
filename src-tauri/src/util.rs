@@ -1,6 +1,27 @@
 //! Small cross-cutting helpers.
 
 use std::process::Command;
+use std::time::Duration;
+
+use crate::error::AppError;
+
+/// Send a request, but don't wait forever for the server to respond: if it
+/// hasn't sent a response within `timeout`, treat the connection as dead.
+///
+/// Unlike `RequestBuilder::timeout()`, this only bounds getting the response
+/// *headers* (i.e. the `send()` future) — a large file's body can still take
+/// as long as it needs to stream once the transfer is under way. Use this for
+/// download requests; use `RequestBuilder::timeout()` directly for requests
+/// whose whole response (headers + body) is expected to be small and fast.
+pub async fn send_with_stall_timeout(
+    request: reqwest::RequestBuilder,
+    timeout: Duration,
+) -> Result<reqwest::Response, AppError> {
+    tokio::time::timeout(timeout, request.send())
+        .await
+        .map_err(|_| AppError::Api("Connection stalled: server did not respond in time".to_string()))?
+        .map_err(AppError::Http)
+}
 
 /// Strip AppImage-injected dynamic-linker paths from a child process's
 /// environment.
@@ -127,5 +148,26 @@ mod tests {
         // enough to recognise a leaked AppImage path.
         assert!(is_appimage_path("/tmp/.mount_xyz/usr/lib", None));
         assert!(!is_appimage_path("/usr/lib", None));
+    }
+
+    #[tokio::test]
+    async fn send_with_stall_timeout_gives_up_on_a_dead_connection() {
+        // A server that accepts the TCP connection but never answers (a
+        // flaky CDN edge, a stuck proxy, ...) must not hang the caller
+        // forever waiting for response headers that will never arrive.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind loopback listener");
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            // Accept the connection and then go silent.
+            let _ = listener.accept().await;
+        });
+
+        let client = reqwest::Client::new();
+        let request = client.get(format!("http://{}/", addr));
+        let result = send_with_stall_timeout(request, Duration::from_millis(200)).await;
+
+        assert!(result.is_err());
     }
 }

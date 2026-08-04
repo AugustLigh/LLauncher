@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::Emitter;
 
+use crate::api::constants::{API_REQUEST_TIMEOUT, DOWNLOAD_STALL_TIMEOUT};
 use crate::api::types::{ProtonDownloadComplete, ProtonDownloadProgress, ProtonReleaseInfo};
 use crate::error::AppError;
 
@@ -57,7 +58,8 @@ pub async fn get_latest_dwproton_info(
     client: &reqwest::Client,
 ) -> Result<ProtonReleaseInfo, AppError> {
     let resp: serde_json::Value = client
-        .get(&format!("{}/latest", DWPROTON_RELEASES_URL))
+        .get(format!("{}/latest", DWPROTON_RELEASES_URL))
+        .timeout(API_REQUEST_TIMEOUT)
         .send()
         .await?
         .json()
@@ -95,6 +97,7 @@ pub async fn list_dwproton_releases(
     let resp: Vec<serde_json::Value> = client
         .get(DWPROTON_RELEASES_URL)
         .query(&[("limit", "20")])
+        .timeout(API_REQUEST_TIMEOUT)
         .send()
         .await?
         .json()
@@ -126,7 +129,9 @@ pub async fn download_and_extract_dwproton(
     // Download
     emit_progress(app, 0, info.size, 0, "downloading");
 
-    let response = client.get(&info.download_url).send().await?;
+    let response =
+        crate::util::send_with_stall_timeout(client.get(&info.download_url), DOWNLOAD_STALL_TIMEOUT)
+            .await?;
     let total_size = response.content_length().unwrap_or(info.size);
 
     let mut stream = response.bytes_stream();
