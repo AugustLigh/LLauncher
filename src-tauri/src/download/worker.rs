@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use tauri::Emitter;
 use tokio::io::{AsyncWriteExt, BufWriter};
 
+use crate::api::constants::DOWNLOAD_STALL_TIMEOUT;
 use crate::api::types::{DownloadProgress, PackFile};
 use crate::error::AppError;
 
@@ -189,7 +190,9 @@ pub async fn download_file(
     if resume_from > 0 {
         request = request.header(reqwest::header::RANGE, format!("bytes={}-", resume_from));
     }
-    let response = request.send().await?.error_for_status()?;
+    let response = crate::util::send_with_stall_timeout(request, DOWNLOAD_STALL_TIMEOUT)
+        .await?
+        .error_for_status()?;
 
     let file = if resume_from > 0 && response.status() == reqwest::StatusCode::PARTIAL_CONTENT {
         tokio::fs::OpenOptions::new()
