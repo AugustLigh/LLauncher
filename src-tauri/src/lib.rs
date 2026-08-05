@@ -26,10 +26,6 @@ pub fn run() {
     // Linux GPU stacks. Respect the user's override if they set it explicitly.
     #[cfg(target_os = "linux")]
     {
-        if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
-            std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-        }
-
         // Point GIO at the system TLS backend module (glib-networking). The
         // AppImage does not bundle libgio{gnutls,openssl}.so, so without this
         // WebKit falls back to GDummyTlsBackend, every HTTPS request fails
