@@ -267,12 +267,12 @@ fn emit_progress(
 pub async fn verify_and_repair(
     app: tauri::AppHandle,
     client: reqwest::Client,
-    cancel_flag: Arc<AtomicBool>,
+    active_flag: Arc<AtomicBool>,
     game_dir: String,
     max_concurrent: u32,
     channel: String,
 ) -> Result<IntegrityComplete, AppError> {
-    cancel_flag.store(true, Ordering::SeqCst);
+    active_flag.store(true, Ordering::SeqCst);
     let max_concurrent = max_concurrent.clamp(1, 8) as usize;
 
     // 1–3. Resolve the manifest.
@@ -296,7 +296,7 @@ pub async fn verify_and_repair(
     let mut verify_handles = Vec::with_capacity(total_files);
 
     for idx in 0..total_files {
-        if !cancel_flag.load(Ordering::SeqCst) {
+        if !active_flag.load(Ordering::SeqCst) {
             return Err(AppError::Cancelled);
         }
         let permit = semaphore
@@ -308,26 +308,27 @@ pub async fn verify_and_repair(
         let assets_root = assets_root.clone();
         let checked = checked.clone();
         let app = app.clone();
-        let cancel_flag = cancel_flag.clone();
+        let active_flag = active_flag.clone();
         let channel = channel.clone();
 
         verify_handles.push(tokio::task::spawn_blocking(move || -> Option<usize> {
             let _permit = permit;
             let mf = &manifest[idx];
             let local = assets_root.join(&mf.name);
-            let needs_download = if !cancel_flag.load(Ordering::SeqCst) {
-                false
-            } else {
+            let needs_download = if active_flag.load(Ordering::SeqCst) {
                 match std::fs::metadata(&local) {
                     Ok(m) if m.len() == mf.size => {
                         file_md5(&local).map(|h| h != mf.md5).unwrap_or(true)
                     }
                     _ => true,
                 }
+            } else {
+                // Already cancelled — skip the hash, the batch is unwinding.
+                false
             };
 
             let done = checked.fetch_add(1, Ordering::Relaxed) + 1;
-            if done % 32 == 0 || done == manifest.len() {
+            if done.is_multiple_of(32) || done == manifest.len() {
                 emit_progress(&app, &channel, "verifying", done, manifest.len(), 0, 0, 0);
             }
             if needs_download {
@@ -344,7 +345,7 @@ pub async fn verify_and_repair(
             to_download.push(idx);
         }
     }
-    if !cancel_flag.load(Ordering::SeqCst) {
+    if !active_flag.load(Ordering::SeqCst) {
         return Err(AppError::Cancelled);
     }
     emit_progress(&app, &channel, "verifying", total_files, total_files, 0, 0, 0);
@@ -372,7 +373,7 @@ pub async fn verify_and_repair(
         let mut dl_handles = Vec::with_capacity(repaired);
 
         for &idx in &to_download {
-            if !cancel_flag.load(Ordering::SeqCst) {
+            if !active_flag.load(Ordering::SeqCst) {
                 return Err(AppError::Cancelled);
             }
             let permit = semaphore
@@ -383,7 +384,7 @@ pub async fn verify_and_repair(
             let mf = manifest[idx].clone();
             let assets_root = assets_root.clone();
             let client = client.clone();
-            let cancel_flag = cancel_flag.clone();
+            let active_flag = active_flag.clone();
             let downloaded = downloaded.clone();
             let done_files = done_files.clone();
             let app = app.clone();
@@ -395,7 +396,7 @@ pub async fn verify_and_repair(
                 // downloading concurrently in this repair batch — retry it in
                 // place first.
                 let res = crate::download::retry::with_retry(
-                    &cancel_flag,
+                    &active_flag,
                     crate::download::retry::MAX_RETRIES,
                     crate::download::retry::RETRY_DELAY,
                     || {
@@ -403,7 +404,7 @@ pub async fn verify_and_repair(
                             &client,
                             &mf,
                             assets_root.as_path(),
-                            &cancel_flag,
+                            &active_flag,
                             &downloaded,
                             &app,
                             &channel,
@@ -445,7 +446,7 @@ async fn download_one(
     client: &reqwest::Client,
     mf: &ManifestFile,
     assets_root: &Path,
-    cancel_flag: &Arc<AtomicBool>,
+    active_flag: &Arc<AtomicBool>,
     downloaded: &Arc<AtomicU64>,
     app: &tauri::AppHandle,
     channel: &str,
@@ -473,7 +474,7 @@ async fn download_one(
     let mut last_emit = Instant::now();
 
     while let Some(chunk) = stream.next().await {
-        if !cancel_flag.load(Ordering::SeqCst) {
+        if !active_flag.load(Ordering::SeqCst) {
             drop(writer);
             tokio::fs::remove_file(&tmp).await.ok();
             return Err(AppError::Cancelled);
