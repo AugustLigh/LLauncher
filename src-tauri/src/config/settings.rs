@@ -159,4 +159,14 @@ impl AppSettings {
         std::fs::write(&path, content)?;
         Ok(())
     }
+
+    /// Persist without blocking the async runtime thread. Use this from
+    /// `#[tauri::command]` handlers; `save()` is for genuinely sync contexts
+    /// (app setup, or code already inside `spawn_blocking`).
+    pub async fn save_async(&self) -> Result<(), crate::error::AppError> {
+        let settings = self.clone();
+        tokio::task::spawn_blocking(move || settings.save())
+            .await
+            .map_err(|e| crate::error::AppError::Api(format!("settings save task failed: {}", e)))?
+    }
 }
