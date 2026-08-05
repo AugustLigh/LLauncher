@@ -1,4 +1,4 @@
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::sync::Arc;
 
 use crate::config::settings::AppSettings;
@@ -9,8 +9,11 @@ pub struct AppState {
     pub download_active: Arc<AtomicBool>,
     pub proton_download_active: Arc<AtomicBool>,
     pub game_running: Arc<AtomicBool>,
-    /// PID of the spawned game process group leader, if running.
-    pub game_pid: Arc<std::sync::Mutex<Option<u32>>>,
+    /// PID of the spawned game process group leader, if running; 0 = none.
+    /// A plain atomic instead of `Mutex<Option<u32>>`: real PIDs are always
+    /// non-zero, so 0 as a sentinel avoids a lock (and the possibility of it
+    /// getting poisoned) for what is just a single-word get/set/clear.
+    pub game_pid: Arc<AtomicU32>,
 }
 
 impl AppState {
@@ -29,7 +32,7 @@ impl AppState {
             download_active: Arc::new(AtomicBool::new(false)),
             proton_download_active: Arc::new(AtomicBool::new(false)),
             game_running: Arc::new(AtomicBool::new(false)),
-            game_pid: Arc::new(std::sync::Mutex::new(None)),
+            game_pid: Arc::new(AtomicU32::new(0)),
         }
     }
 }
