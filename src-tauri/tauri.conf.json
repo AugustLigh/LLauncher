@@ -32,7 +32,8 @@
     "linux": {
       "appimage": {
         "files": {
-          "/usr/lib/gio/modules/libgiognutls.so": "bundle-extra/libgiognutls.so"
+          "/usr/lib/gio/modules/libgiognutls.so": "bundle-extra/libgiognutls.so",
+          "/usr/lib/gstreamer-1.0": "bundle-extra/gstreamer-1.0"
         }
       },
       "deb": {

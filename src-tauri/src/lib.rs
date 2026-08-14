@@ -61,6 +61,25 @@ pub fn run() {
                 }
             }
         }
+
+        // Prefer the GStreamer plugins bundled into the AppImage. WebKitGTK
+        // loads these modules dynamically, and SteamOS can otherwise mix the
+        // AppImage's WebKit stack with host plugins from a different build.
+        if std::env::var_os("GST_PLUGIN_SYSTEM_PATH_1_0").is_none() {
+            if let Some(appdir) = std::env::var_os("APPDIR") {
+                let bundled_plugins = std::path::Path::new(&appdir).join("usr/lib/gstreamer-1.0");
+                if bundled_plugins.is_dir() {
+                    let bundled_scanner = bundled_plugins.join("gst-plugin-scanner");
+
+                    std::env::set_var("GST_PLUGIN_SYSTEM_PATH_1_0", bundled_plugins);
+                    if std::env::var_os("GST_PLUGIN_SCANNER_1_0").is_none()
+                        && bundled_scanner.exists()
+                    {
+                        std::env::set_var("GST_PLUGIN_SCANNER_1_0", bundled_scanner);
+                    }
+                }
+            }
+        }
     }
 
     let settings = AppSettings::load();
