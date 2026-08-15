@@ -52,6 +52,7 @@ yay -S llauncher-bin   # or: paru -S llauncher-bin
 - **Rust** toolchain ([rustup](https://rustup.rs))
 - **System libraries** for Tauri v2 — see the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/#linux)
 - **glib-networking** — its GIO TLS module is bundled into the AppImage at build time
+- **GStreamer plugins** — the build copies the local `gstreamer-1.0` plugin directory into the AppImage for WebKitGTK
 - A **Proton** build (DWProton can be downloaded from within the launcher)
 
 ## Getting Started
@@ -71,7 +72,7 @@ npx tauri dev
 ## Building
 
 ```bash
-npx tauri build
+./build.sh
 ```
 
 Release bundles will be created in `src-tauri/target/release/bundle/`:
@@ -81,6 +82,11 @@ Release bundles will be created in `src-tauri/target/release/bundle/`:
 | AppImage | `bundle/appimage/LLauncher_0.1.0_amd64.AppImage` |
 | .deb     | `bundle/deb/LLauncher_0.1.0_amd64.deb`           |
 | .rpm     | `bundle/rpm/LLauncher-0.1.0-1.x86_64.rpm`        |
+
+AppImage builds embed the build host's GIO TLS module and GStreamer plugin
+directory via `scripts/prepare-appimage-files.sh`. To refresh those embedded
+libraries after a WebKitGTK/GStreamer update, update the distro packages on the
+build host and run `./build.sh` again.
 
 ## Configuration
 
