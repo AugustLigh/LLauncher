@@ -363,6 +363,15 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
             });
         }
 
+        // In the Flatpak, wine processes that outlive the session keep the old
+        // sandbox instance alive and poison the next launch (its fsync shared
+        // memory is unreachable from a new instance) — reap them now that the
+        // session is over. See launcher::shutdown_wineserver.
+        if std::env::var_os("FLATPAK_ID").is_some() {
+            let settings = app2.state::<AppState>().settings.blocking_lock().clone();
+            crate::game::launcher::shutdown_wineserver(&settings);
+        }
+
         if let Some(status) = status {
             // Give the game a moment to flush its stderr/stdout.
             std::thread::sleep(std::time::Duration::from_millis(200));

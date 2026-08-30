@@ -54,15 +54,6 @@ fn build_env_script(settings: &AppSettings, compat_data: &Path) -> String {
     // Unset Python vars that break Proton's bundled Python
     script.push_str("unset PYTHONHOME PYTHONPATH\n");
 
-    // Inside the Flatpak, DWProton runs on the runtime's python3, and its
-    // third-party `filelock` dependency is shipped by the flatpak under /app
-    // (the runtime itself has no site-packages we can add to). Re-export the
-    // path after the unset above — that unset is for host setups where a
-    // stray PYTHONPATH breaks Proton, which can't happen with our fixed dir.
-    if std::env::var_os("FLATPAK_ID").is_some() {
-        script.push_str("export PYTHONPATH=/app/share/llauncher/pysite\n");
-    }
-
     // Standard env vars
     script.push_str(&format!(
         "export PROTON_USE_WINEALSA=1\n\
@@ -282,6 +273,30 @@ pub fn launch_game(settings: &AppSettings) -> Result<LaunchedGame, AppError> {
         .map_err(|e| AppError::GameNotFound(format!("Failed to launch: {}", e)))?;
 
     Ok(LaunchedGame { child, log_path })
+}
+
+/// Shut down the prefix's wineserver (and with it every wine process of the
+/// prefix, winedevice included).
+///
+/// Needed inside the Flatpak: a wineserver that outlives the session keeps
+/// the old sandbox instance alive, and the next launch finds it through the
+/// shared /run/user socket but cannot open its fsync shared memory — that
+/// lives in the dead instance's private /dev/shm — so wine exits 1 before
+/// loading anything, with no output. Call after the game session ends, never
+/// while it may still be running.
+pub fn shutdown_wineserver(settings: &AppSettings) {
+    let wineserver = Path::new(&settings.proton_dir).join("files/bin/wineserver");
+    if !wineserver.exists() {
+        return;
+    }
+    let prefix = resolve_prefix_dir(settings, Path::new(&settings.game_dir)).join("pfx");
+    if !prefix.exists() {
+        return;
+    }
+    let _ = Command::new(wineserver)
+        .arg("-k")
+        .env("WINEPREFIX", &prefix)
+        .status();
 }
 
 /// Run a Wine tool (winecfg, regedit, ...) inside the game's Proton prefix
