@@ -119,9 +119,19 @@ pub async fn start_download(
 
         let handle = tokio::spawn(async move {
             let _permit = permit;
-            crate::download::worker::download_file(
-                &app2, &client2, &pack2, &dest, i, total_files, &active2, start, &agg2, ts,
-                per_worker_limit,
+            // A single flaky pack (dropped connection, a bad byte off a CDN
+            // edge) shouldn't abort every other pack downloading concurrently
+            // in this batch — retry it in place first.
+            crate::download::retry::with_retry(
+                &active2,
+                crate::download::retry::MAX_RETRIES,
+                crate::download::retry::RETRY_DELAY,
+                || {
+                    crate::download::worker::download_file(
+                        &app2, &client2, &pack2, &dest, i, total_files, &active2, start, &agg2, ts,
+                        per_worker_limit,
+                    )
+                },
             )
             .await
         });

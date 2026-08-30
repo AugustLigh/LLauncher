@@ -24,12 +24,7 @@ pub async fn download_file(
     agg_total: u64,
     speed_limit: u64,
 ) -> Result<(), AppError> {
-    let file_name = pack
-        .url
-        .split('/')
-        .last()
-        .unwrap_or("unknown")
-        .to_string();
+    let file_name = pack.url.rsplit('/').next().unwrap_or("unknown").to_string();
 
     let expected_size: u64 = pack.package_size.parse().unwrap_or(0);
     let existing_size = std::fs::metadata(dest).map(|m| m.len()).unwrap_or(0);
