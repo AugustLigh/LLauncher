@@ -16,6 +16,12 @@ export default function App() {
   const { systemCheck, refresh: refreshSystemCheck } = useSystemCheck();
   const { failure, dismiss: dismissFailure } = useLaunchEvents();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState('paths');
+
+  const openSettings = (tab = 'paths') => {
+    setSettingsTab(tab);
+    setSettingsOpen(true);
+  };
 
   return (
     <I18nProvider language={settings?.language}>
@@ -25,11 +31,12 @@ export default function App() {
           content={content}
           settings={settings}
           systemCheck={systemCheck}
-          onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSettings={() => openSettings()}
         />
         {settingsOpen && (
           <SettingsModal
             settings={settings}
+            initialTab={settingsTab}
             systemCheck={systemCheck}
             onRefreshSystemCheck={refreshSystemCheck}
             onSave={saveSettings}
@@ -37,7 +44,14 @@ export default function App() {
           />
         )}
         {failure && (
-          <LaunchFailedDialog failure={failure} onClose={dismissFailure} />
+          <LaunchFailedDialog
+            failure={failure}
+            onClose={dismissFailure}
+            onOpenProtonSettings={() => {
+              dismissFailure();
+              openSettings('proton');
+            }}
+          />
         )}
       </MainLayout>
     </I18nProvider>

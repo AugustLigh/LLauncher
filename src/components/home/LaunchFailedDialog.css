@@ -68,6 +68,23 @@
   color: var(--color-text-secondary);
 }
 
+.launch-failed__hint {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(255, 180, 60, 0.08);
+  border: 1px solid rgba(255, 180, 60, 0.35);
+  border-radius: var(--radius-sm);
+}
+
+.launch-failed__hint-text {
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--color-text-primary);
+}
+
 .launch-failed__tail {
   font-family: 'SF Mono', 'Fira Code', monospace;
   font-size: var(--font-size-xs);

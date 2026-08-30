@@ -1,3 +1,4 @@
+pub mod diagnose;
 pub mod discord;
 pub mod launcher;
 pub mod prefix;

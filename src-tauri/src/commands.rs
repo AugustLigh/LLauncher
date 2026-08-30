@@ -314,6 +314,7 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
     };
 
     let log_path = launched.log_path.clone();
+    let proton_dir = settings_clone.proton_dir.clone();
     let app2 = app.clone();
     tokio::task::spawn_blocking(move || {
         let started = std::time::Instant::now();
@@ -356,10 +357,14 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
         }
 
         if let Some(status) = status {
-            if quick_exit {
-                // Give the game a moment to flush its stderr/stdout.
-                std::thread::sleep(std::time::Duration::from_millis(200));
-                let log_tail = crate::game::launcher::read_log_tail(&log_path, 60);
+            // Give the game a moment to flush its stderr/stdout.
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            let log_tail = crate::game::launcher::read_log_tail(&log_path, 60);
+            let hint = crate::game::diagnose::diagnose_launch_failure(&log_tail, &proton_dir);
+            // A recognized fatal signature counts as a failed launch even past
+            // the quick-exit window: prefix creation/upgrade alone (protonfixes
+            // downloads and all) can hold the process open longer than that.
+            if quick_exit || hint.is_some() {
                 // The window may be hidden (tray launch, --play, "hide after
                 // launch") — bring it back so the failure dialog is seen.
                 if let Some(window) = app2.get_webview_window("main") {
@@ -371,6 +376,7 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
                     crate::api::types::LaunchFailed {
                         exit_code: status.code(),
                         log_tail,
+                        hint: hint.map(str::to_string),
                     },
                 );
             }

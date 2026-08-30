@@ -3,7 +3,13 @@ import LogViewer from '../common/LogViewer';
 import { useTranslation } from '../../i18n';
 import './LaunchFailedDialog.css';
 
-export default function LaunchFailedDialog({ failure, onClose }) {
+// Known-failure signature ids from the backend (game::diagnose) mapped to
+// their translated advice strings.
+const HINT_TEXT_KEYS = {
+  'dwproton11-ntoskrnl': 'launchFailed.hintDwproton11',
+};
+
+export default function LaunchFailedDialog({ failure, onClose, onOpenProtonSettings }) {
   const { t } = useTranslation();
   const [showFullLog, setShowFullLog] = useState(false);
 
@@ -14,6 +20,7 @@ export default function LaunchFailedDialog({ failure, onClose }) {
     : t('launchFailed.exitCodeUnknown');
 
   const tail = (failure.log_tail || '').trim();
+  const hintKey = HINT_TEXT_KEYS[failure.hint];
 
   return (
     <>
@@ -25,6 +32,19 @@ export default function LaunchFailedDialog({ failure, onClose }) {
           </div>
           <div className="launch-failed__body">
             <div className="launch-failed__exit">{exitText}</div>
+            {hintKey && (
+              <div className="launch-failed__hint">
+                <div className="launch-failed__hint-text">{t(hintKey)}</div>
+                {onOpenProtonSettings && (
+                  <button
+                    className="launch-failed__btn launch-failed__btn--primary"
+                    onClick={onOpenProtonSettings}
+                  >
+                    {t('launchFailed.openProtonSettings')}
+                  </button>
+                )}
+              </div>
+            )}
             {tail ? (
               <pre className="launch-failed__tail">{tail}</pre>
             ) : (

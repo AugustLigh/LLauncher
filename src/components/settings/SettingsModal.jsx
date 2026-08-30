@@ -11,10 +11,10 @@ import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 import { useTranslation } from '../../i18n';
 import './SettingsModal.css';
 
-export default function SettingsModal({ settings, systemCheck, onRefreshSystemCheck, onSave, onClose }) {
+export default function SettingsModal({ settings, initialTab, systemCheck, onRefreshSystemCheck, onSave, onClose }) {
   const { t } = useTranslation();
   const [form, setForm] = useState(null);
-  const [activeTab, setActiveTab] = useState('paths');
+  const [activeTab, setActiveTab] = useState(initialTab || 'paths');
   const [speedUnit, setSpeedUnit] = useState('MB/s');
   const [releases, setReleases] = useState([]);
   const [installedProtons, setInstalledProtons] = useState([]);

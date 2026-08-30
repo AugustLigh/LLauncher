@@ -234,6 +234,8 @@ export default {
     exitCodeUnknown: 'Process terminated unexpectedly',
     viewLog: 'View full log',
     noLog: 'No log output captured.',
+    hintDwproton11: 'Your installed DWProton version (11.x series) is incompatible with Endfield: the anti-cheat calls kernel functions Wine 11 does not implement yet, and the game aborts. Open the Proton settings and install the recommended build (10.0-26).',
+    openProtonSettings: 'Open Proton settings',
   },
   logViewer: {
     title: 'Launch log',

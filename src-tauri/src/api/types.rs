@@ -236,6 +236,9 @@ pub struct DownloadError {
 pub struct LaunchFailed {
     pub exit_code: Option<i32>,
     pub log_tail: String,
+    /// Known-failure signature id (see `game::diagnose`) the frontend maps to
+    /// actionable advice; None when the log matched nothing we recognize.
+    pub hint: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
