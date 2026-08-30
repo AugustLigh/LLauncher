@@ -4,6 +4,7 @@ mod config;
 mod download;
 mod error;
 mod game;
+mod media;
 mod state;
 mod util;
 

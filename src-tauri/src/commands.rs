@@ -39,7 +39,14 @@ pub async fn get_launcher_content(
     let settings = state.settings.lock().await;
     let lang = settings.language.clone();
     drop(settings);
-    crate::api::client::get_launcher_content(&state.http_client, &lang).await
+    let mut content = crate::api::client::get_launcher_content(&state.http_client, &lang).await?;
+    // Hosts without the GStreamer plugins WebKit needs can't survive even
+    // attempting the video backdrop (issue #31) — hand the UI a content
+    // payload with no video so it renders the static image instead.
+    if !content.background.video_url.is_empty() && !crate::media::can_play_video_background() {
+        content.background.video_url = String::new();
+    }
+    Ok(content)
 }
 
 #[tauri::command]
