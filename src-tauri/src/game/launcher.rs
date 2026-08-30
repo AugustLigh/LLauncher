@@ -54,6 +54,15 @@ fn build_env_script(settings: &AppSettings, compat_data: &Path) -> String {
     // Unset Python vars that break Proton's bundled Python
     script.push_str("unset PYTHONHOME PYTHONPATH\n");
 
+    // Inside the Flatpak, DWProton runs on the runtime's python3, and its
+    // third-party `filelock` dependency is shipped by the flatpak under /app
+    // (the runtime itself has no site-packages we can add to). Re-export the
+    // path after the unset above — that unset is for host setups where a
+    // stray PYTHONPATH breaks Proton, which can't happen with our fixed dir.
+    if std::env::var_os("FLATPAK_ID").is_some() {
+        script.push_str("export PYTHONPATH=/app/share/llauncher/pysite\n");
+    }
+
     // Standard env vars
     script.push_str(&format!(
         "export PROTON_USE_WINEALSA=1\n\
