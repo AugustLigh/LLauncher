@@ -131,19 +131,122 @@ fn file_crc32(path: &Path) -> std::io::Result<u32> {
 /// latest packs — i.e. the executable game is already current and only the VFS
 /// assets may need updating. A single missing or changed non-VFS file means the
 /// engine changed and the caller must do a full pack update instead.
+///
+/// Reads ~1.4 GB, so the CRC pass is spread across worker threads the same way
+/// extraction is (interleaved assignment, capped at 8); the first mismatch
+/// stops all workers early.
 pub fn engine_is_current(entries: &[CdEntry], game_dir: &str) -> bool {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
     let root = Path::new(game_dir);
-    for e in entries {
-        if e.name.ends_with('/') || e.name.starts_with(VFS_PREFIX) {
-            continue; // directories and VFS assets are handled by the delta
-        }
-        let local = root.join(&e.name);
-        match file_crc32(&local) {
-            Ok(crc) if crc == e.crc32 => {}
-            _ => return false,
-        }
+    let non_vfs: Vec<&CdEntry> = entries
+        .iter()
+        // Directories and VFS assets are handled by the delta.
+        .filter(|e| !e.name.ends_with('/') && !e.name.starts_with(VFS_PREFIX))
+        .collect();
+    if non_vfs.is_empty() {
+        return true;
     }
-    true
+
+    let workers = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1)
+        .min(8)
+        .min(non_vfs.len());
+
+    let mismatch = AtomicBool::new(false);
+    std::thread::scope(|scope| {
+        for worker_id in 0..workers {
+            let non_vfs = &non_vfs;
+            let mismatch = &mismatch;
+            scope.spawn(move || {
+                for e in non_vfs.iter().skip(worker_id).step_by(workers) {
+                    if mismatch.load(Ordering::Relaxed) {
+                        return;
+                    }
+                    match file_crc32(&root.join(&e.name)) {
+                        Ok(crc) if crc == e.crc32 => {}
+                        _ => {
+                            mismatch.store(true, Ordering::Relaxed);
+                            return;
+                        }
+                    }
+                }
+            });
+        }
+    });
+    !mismatch.load(Ordering::Relaxed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn crc(data: &[u8]) -> u32 {
+        let mut h = crc32fast::Hasher::new();
+        h.update(data);
+        h.finalize()
+    }
+
+    fn write_game_dir(files: &[(&str, &[u8])]) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "llauncher-packindex-{}-{:x}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        for (name, data) in files {
+            let path = dir.join(name);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, data).unwrap();
+        }
+        dir
+    }
+
+    #[test]
+    fn accepts_matching_engine_across_worker_threads() {
+        // More entries than the worker cap so the interleaved assignment
+        // actually splits work, mirroring a real ~40-file engine set.
+        let files: Vec<(String, Vec<u8>)> = (0..20)
+            .map(|i| (format!("Managed/lib{}.dll", i), vec![i as u8; 1000 + i]))
+            .collect();
+        let refs: Vec<(&str, &[u8])> =
+            files.iter().map(|(n, d)| (n.as_str(), d.as_slice())).collect();
+        let dir = write_game_dir(&refs);
+
+        let mut entries: Vec<CdEntry> = files
+            .iter()
+            .map(|(n, d)| CdEntry { name: n.clone(), crc32: crc(d) })
+            .collect();
+        // Directory markers and VFS assets must be ignored even when absent
+        // on disk — the VFS delta owns them.
+        entries.push(CdEntry { name: "Managed/".into(), crc32: 0 });
+        entries.push(CdEntry {
+            name: format!("{}/bundle.dat", VFS_PREFIX),
+            crc32: 0,
+        });
+
+        assert!(engine_is_current(&entries, dir.to_str().unwrap()));
+
+        // A single changed byte in any non-VFS file must fail the whole check.
+        std::fs::write(dir.join("Managed/lib3.dll"), b"tampered").unwrap();
+        assert!(!engine_is_current(&entries, dir.to_str().unwrap()));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn missing_engine_file_means_not_current() {
+        let dir = write_game_dir(&[("Endfield.exe", b"engine".as_slice())]);
+        let entries = vec![
+            CdEntry { name: "Endfield.exe".into(), crc32: crc(b"engine") },
+            CdEntry { name: "missing.dll".into(), crc32: 1 },
+        ];
+        assert!(!engine_is_current(&entries, dir.to_str().unwrap()));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
 
 pub fn emit_checking(app: &tauri::AppHandle) {

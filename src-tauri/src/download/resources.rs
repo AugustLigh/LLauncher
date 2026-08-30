@@ -260,6 +260,31 @@ fn emit_progress(
     .ok();
 }
 
+/// Average file size below which a repair batch counts as "small files":
+/// per-request overhead (round-trip, temp file, rename) dominates transfer
+/// time, so the link stays undersaturated at pack-download concurrency.
+const SMALL_FILE_AVG_BYTES: u64 = 1024 * 1024;
+
+/// Connection count for small-file batches. Files this small finish in a
+/// fraction of a round-trip, so extra connections mostly overlap latency
+/// rather than add bandwidth pressure on the CDN.
+const SMALL_FILE_CONCURRENCY: usize = 16;
+
+/// How many files of a repair batch to download concurrently. Large-file
+/// batches respect the user's download setting (those saturate the link the
+/// way pack downloads do); small-file batches get boosted to overlap the
+/// per-request latency that otherwise dominates VFS updates.
+fn repair_concurrency(user_max: usize, files: usize, bytes_total: u64) -> usize {
+    if files == 0 {
+        return user_max;
+    }
+    if bytes_total / (files as u64) < SMALL_FILE_AVG_BYTES {
+        user_max.max(SMALL_FILE_CONCURRENCY)
+    } else {
+        user_max
+    }
+}
+
 // ─── Orchestration ───
 
 /// Verify the installed VFS assets against the latest manifest and re-download
@@ -291,8 +316,15 @@ pub async fn verify_and_repair(
     let assets_root = Arc::new(Path::new(&game_dir).join(STREAMING_ASSETS_SUBDIR));
 
     // 4. Verify: hash every local file in parallel, collect the ones to fetch.
+    // Hashing is disk/CPU-bound, not network-bound — size it from the machine
+    // (same cap as extraction), not from the user's download connection
+    // setting, which only throttled the read-heavy stage for no reason.
+    let verify_workers = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1)
+        .clamp(1, 8);
     let checked = Arc::new(AtomicUsize::new(0));
-    let semaphore = Arc::new(tokio::sync::Semaphore::new(max_concurrent));
+    let semaphore = Arc::new(tokio::sync::Semaphore::new(verify_workers));
     let mut verify_handles = Vec::with_capacity(total_files);
 
     for idx in 0..total_files {
@@ -353,6 +385,7 @@ pub async fn verify_and_repair(
     // 5. Download the mismatched / missing files.
     let repaired = to_download.len();
     let bytes_total: u64 = to_download.iter().map(|&i| manifest[i].size).sum();
+    let dl_concurrent = repair_concurrency(max_concurrent, repaired, bytes_total);
 
     if repaired > 0 {
         std::fs::create_dir_all(assets_root.as_path())?;
@@ -369,7 +402,7 @@ pub async fn verify_and_repair(
         let downloaded = Arc::new(AtomicU64::new(0));
         let done_files = Arc::new(AtomicUsize::new(0));
         let start = Instant::now();
-        let semaphore = Arc::new(tokio::sync::Semaphore::new(max_concurrent));
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(dl_concurrent));
         let mut dl_handles = Vec::with_capacity(repaired);
 
         for &idx in &to_download {
@@ -525,6 +558,20 @@ async fn download_one(
 mod tests {
     use super::*;
     use base64::Engine;
+
+    #[test]
+    fn boosts_concurrency_only_for_small_file_batches() {
+        // A VFS delta of thousands of tiny files is latency-bound — the user's
+        // pack-download setting must be raised, not respected verbatim.
+        assert_eq!(repair_concurrency(4, 2000, 200 * 1024 * 1024), 16);
+        // A batch of large files saturates the link like pack downloads do —
+        // the user's setting stands.
+        assert_eq!(repair_concurrency(4, 10, 4 * 1024 * 1024 * 1024), 4);
+        // A user who already asked for more than the boost keeps their value.
+        assert_eq!(repair_concurrency(32, 2000, 200 * 1024 * 1024), 32);
+        // Nothing to download — value is unused, but must not divide by zero.
+        assert_eq!(repair_concurrency(4, 0, 0), 4);
+    }
 
     #[test]
     fn rand_str_from_file_path() {
