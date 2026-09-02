@@ -1,6 +1,6 @@
 [package]
 name = "llauncher"
-version = "0.3.1"
+version = "0.3.2"
 description = "Linux Launcher for Arknights: Endfield"
 authors = ["you"]
 edition = "2021"
