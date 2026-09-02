@@ -48,7 +48,7 @@ jobs:
         with:
           manifest-path: packaging/flatpak/ci.yml
           bundle: LLauncher-${{ inputs.tag }}-x86_64.flatpak
-          cache-key: flatpak-builder-${{ github.sha }}
+          cache-key: flatpak-builder-${{ inputs.tag }}
           upload-artifact: true
 
   attach:
@@ -64,7 +64,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          file="$(find bundle -name '*.flatpak' | head -1)"
+          # download-artifact unpacks into a directory named after the
+          # artifact, which itself ends in .flatpak — match files only.
+          file="$(find bundle -type f -name '*.flatpak' | head -1)"
           test -n "$file"
           ls -la "$file"
           gh release upload "${{ inputs.tag }}" "$file" --repo "${{ github.repository }}" --clobber
