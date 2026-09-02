@@ -1,0 +1,70 @@
+name: Flatpak bundle
+
+# Builds the Flatpak from an existing release tag and attaches the .flatpak
+# bundle to that GitHub release. Chained from release.yml after the other
+# bundles are published; can also be dispatched by hand for an existing tag.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build (e.g. 0.3.2)"
+        required: true
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      # The committed manifest pins a git tag+commit for Flathub. That commit
+      # cannot reference itself, so build the checked-out tree instead.
+      - name: Point the manifest at the checked-out source
+        run: |
+          python3 - <<'PY'
+          import re
+          src = "packaging/flatpak/io.github.augustligh.LLauncher.yml"
+          s = open(src).read()
+          s2 = re.sub(
+              r"      - type: git\n        url: https://github\.com/AugustLigh/LLauncher\.git\n(?:        (?:tag|commit): [^\n]+\n)+",
+              "      - type: dir\n        path: ../..\n        skip:\n          - .git\n          - node_modules\n          - src-tauri/target\n",
+              s,
+          )
+          assert s2 != s, "git source block not found in the manifest"
+          open("packaging/flatpak/ci.yml", "w").write(s2)
+          PY
+          grep -n -A2 "type: dir" packaging/flatpak/ci.yml
+
+      - uses: flathub-infra/flatpak-github-actions/flatpak-builder@933e9e8ca36e85046ebca8e211f0785c6becac40
+        with:
+          manifest-path: packaging/flatpak/ci.yml
+          bundle: LLauncher-${{ inputs.tag }}-x86_64.flatpak
+          cache-key: flatpak-builder-${{ github.sha }}
+          upload-artifact: true
+
+  attach:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: bundle
+      - name: Attach the bundle to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          file="$(find bundle -name '*.flatpak' | head -1)"
+          test -n "$file"
+          ls -la "$file"
+          gh release upload "${{ inputs.tag }}" "$file" --repo "${{ github.repository }}" --clobber

@@ -67,3 +67,13 @@ jobs:
     with:
       tag: ${{ github.event.inputs.tag }}
     secrets: inherit
+
+  # Same for the .flatpak bundle: built from the tag and attached to the
+  # release created above.
+  flatpak:
+    needs: build
+    uses: ./.github/workflows/flatpak.yml
+    with:
+      tag: ${{ github.event.inputs.tag }}
+    permissions:
+      contents: write
