@@ -1,0 +1,25 @@
+- generic [ref=f1e6]:
+  - generic [ref=f1e7]:
+    - generic [ref=f1e8]: LLauncher
+    - generic [ref=f1e9]:
+      - button "Minimize" [ref=f1e10] [cursor=pointer]
+      - button "Close" [ref=f1e13] [cursor=pointer]
+  - generic [ref=f1e16]:
+    - generic [ref=f1e19]:
+      - button [ref=f1e21] [cursor=pointer]
+      - generic [ref=f1e22]: Smoke test news item
+    - generic [ref=f1e26]:
+      - generic [ref=f1e27]:
+        - generic [ref=f1e28]:
+          - generic [ref=f1e29]: "Arknights: Endfield"
+          - generic [ref=f1e30]: Endfield
+          - generic [ref=f1e31]:
+            - generic [ref=f1e32]: Ready to play
+            - generic [ref=f1e34]: v1.5.3
+          - generic [ref=f1e35]:
+            - generic [ref=f1e36]: Played 1h 0m · last played 02.09.2026
+            - generic [ref=f1e37]:
+              - generic [ref=f1e38]: 30m this week · avg session 30m
+              - generic "Playtime over the last 7 days" [ref=f1e39]
+        - button "⚙" [ref=f1e47] [cursor=pointer]
+      - button "Launch" [ref=f1e49] [cursor=pointer]

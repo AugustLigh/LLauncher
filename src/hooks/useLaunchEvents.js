@@ -5,14 +5,11 @@ export default function useLaunchEvents() {
   const [failure, setFailure] = useState(null);
 
   useEffect(() => {
-    let unlisten;
-    listen('launch://failed', (event) => {
+    const pending = listen('launch://failed', (event) => {
       setFailure(event.payload);
-    }).then((u) => {
-      unlisten = u;
     });
     return () => {
-      if (unlisten) unlisten();
+      pending.then((u) => u());
     };
   }, []);
 

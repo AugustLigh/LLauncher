@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import LogViewer from '../common/LogViewer';
+import useModalDismiss from '../../hooks/useModalDismiss';
 import { useTranslation } from '../../i18n';
 import './LaunchFailedDialog.css';
 
@@ -12,6 +13,8 @@ const HINT_TEXT_KEYS = {
 export default function LaunchFailedDialog({ failure, onClose, onOpenProtonSettings }) {
   const { t } = useTranslation();
   const [showFullLog, setShowFullLog] = useState(false);
+  // Escape closes the log viewer first when it is open, then the dialog.
+  useModalDismiss(onClose, !!failure && !showFullLog);
 
   if (!failure) return null;
 
@@ -25,7 +28,7 @@ export default function LaunchFailedDialog({ failure, onClose, onOpenProtonSetti
   return (
     <>
       <div className="launch-failed-overlay" onClick={onClose}>
-        <div className="launch-failed" onClick={(e) => e.stopPropagation()}>
+        <div className="launch-failed" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
           <div className="launch-failed__header">
             <span className="launch-failed__title">{t('launchFailed.title')}</span>
             <button className="launch-failed__close" onClick={onClose}>{'✕'}</button>

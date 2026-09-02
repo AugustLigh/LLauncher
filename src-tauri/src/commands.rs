@@ -14,10 +14,19 @@ pub async fn get_settings(state: State<'_, AppState>) -> Result<AppSettings, App
 #[tauri::command]
 pub async fn save_settings(
     state: State<'_, AppState>,
-    settings: AppSettings,
+    mut settings: AppSettings,
 ) -> Result<(), AppError> {
-    settings.save_async().await?;
     let mut current = state.settings.lock().await;
+    // The frontend edits a snapshot of the settings; fields the backend owns
+    // (install bookkeeping, play statistics) may have moved on since that
+    // snapshot was taken — an install, an import, a play session. Keep our
+    // values so a later "Save" in the settings dialog cannot roll them back
+    // and, say, turn an installed game back into "Install".
+    settings.installed_version = current.installed_version.clone();
+    settings.total_playtime_secs = current.total_playtime_secs;
+    settings.last_played = current.last_played;
+    settings.autostart_initialized = current.autostart_initialized;
+    settings.save_async().await?;
     *current = settings;
     Ok(())
 }
@@ -55,8 +64,24 @@ pub async fn check_game_state(
 ) -> Result<crate::game::state::GameState, AppError> {
     let settings = state.settings.lock().await;
     let game_dir = settings.game_dir.clone();
-    let installed_version = settings.installed_version.clone();
+    let mut installed_version = settings.installed_version.clone();
     drop(settings);
+
+    // A game folder we have no version on record for — the user pointed the
+    // launcher at an existing install in Settings, or the config was wiped —
+    // is adopted on the spot, exactly as the "import existing game" link does,
+    // instead of being offered a fresh install.
+    if installed_version.is_empty()
+        && crate::game::state::has_existing_install(std::path::Path::new(&game_dir))
+    {
+        let version_info =
+            crate::api::client::get_latest_game_version(&state.http_client, "").await?;
+        let mut settings = state.settings.lock().await;
+        settings.installed_version = version_info.version.clone();
+        settings.save_async().await?;
+        installed_version = version_info.version;
+    }
+
     crate::game::state::determine_game_state(
         &state.http_client,
         &game_dir,
@@ -307,6 +332,46 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
 
     let settings_clone = state.settings.lock().await.clone();
 
+    // The home-screen button only launches when the state is "ready", but the
+    // tray menu and `--play` skip that check: the out-of-date game then
+    // connects, shows its own "update required" dialog and closes, which looks
+    // like a broken launch. Ask the server first and refuse when an update is
+    // pending. A failed check (offline, API down) must not block playing.
+    if let Ok(crate::game::state::GameState::UpdateAvailable {
+        installed_version,
+        latest_version,
+    }) = crate::game::state::determine_game_state(
+        &state.http_client,
+        &settings_clone.game_dir,
+        &settings_clone.installed_version,
+    )
+    .await
+    {
+        crate::logging::info(format!(
+            "launch refused: update available ({} -> {})",
+            installed_version, latest_version
+        ));
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+        let _ = app.emit(
+            "launch://update-required",
+            crate::api::types::UpdateRequired {
+                installed_version: installed_version.clone(),
+                latest_version: latest_version.clone(),
+            },
+        );
+        return Err(AppError::UpdateRequired {
+            installed: installed_version,
+            latest: latest_version,
+        });
+    }
+
+    crate::logging::info(format!(
+        "launching game (proton={}, wayland={}, gamescope={})",
+        settings_clone.proton_dir, settings_clone.use_wayland, settings_clone.use_gamescope
+    ));
     let mut launched = crate::game::launcher::launch_game(&settings_clone)?;
     let game_running = state.game_running.clone();
     let game_pid = state.game_pid.clone();
@@ -346,6 +411,12 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
 
         let quick_exit = status.is_some()
             && started.elapsed() < std::time::Duration::from_millis(3500);
+        crate::logging::info(format!(
+            "game exited after {}s (code {:?}){}",
+            started.elapsed().as_secs(),
+            status.as_ref().and_then(|s| s.code()),
+            if quick_exit { " — quick exit, treated as a failed launch" } else { "" }
+        ));
 
         // Record playtime and last-played timestamp. Quick exits are failed
         // launches, not sessions — keep them out of the journal.
@@ -465,7 +536,7 @@ pub async fn import_existing_game(
     path: String,
 ) -> Result<String, AppError> {
     let game_path = std::path::Path::new(&path);
-    if !game_path.join("Endfield.exe").exists() {
+    if !crate::game::state::has_existing_install(game_path) {
         return Err(AppError::GameNotFound(format!(
             "Endfield.exe not found in {}",
             path
@@ -510,17 +581,22 @@ pub async fn uninstall_game(state: State<'_, AppState>) -> Result<(), AppError> 
     }
 
     let download_path = std::path::PathBuf::from(&download_dir);
-    tokio::task::spawn_blocking(move || {
-        std::fs::remove_dir_all(&game_path).ok();
+    tokio::task::spawn_blocking(move || -> Result<(), AppError> {
+        // A failed removal (permissions, a busy mount) must surface instead of
+        // being swallowed and then reported as a successful uninstall with
+        // tens of GB still on disk.
+        std::fs::remove_dir_all(&game_path)?;
         // Only remove the download cache if it follows the _download naming —
         // the user may have pointed it at a shared folder.
-        if download_path.file_name().is_some_and(|n| n == "_download") {
-            std::fs::remove_dir_all(&download_path).ok();
+        if download_path.file_name().is_some_and(|n| n == "_download") && download_path.exists() {
+            std::fs::remove_dir_all(&download_path)?;
         }
+        Ok(())
     })
     .await
-    .map_err(|e| AppError::Api(format!("Uninstall task failed: {}", e)))?;
+    .map_err(|e| AppError::Api(format!("Uninstall task failed: {}", e)))??;
 
+    crate::logging::info(format!("uninstalled game from {}", game_dir));
     let mut settings = state.settings.lock().await;
     settings.installed_version = String::new();
     settings.save_async().await?;
@@ -539,7 +615,7 @@ pub async fn get_debug_info(state: State<'_, AppState>) -> Result<String, AppErr
         .map_err(|e| AppError::Api(format!("debug info task failed: {}", e)))
 }
 
-fn build_debug_info(settings: AppSettings) -> String {
+pub(crate) fn build_debug_info(settings: AppSettings) -> String {
     let os = std::fs::read_to_string("/etc/os-release")
         .ok()
         .and_then(|c| {
@@ -571,6 +647,7 @@ fn build_debug_info(settings: AppSettings) -> String {
     // #21) abort long after the startup banner, so 30 lines often miss the
     // actual backtrace.
     let log_tail = crate::game::launcher::read_log_tail(&paths::launch_log_path(), 200);
+    let launcher_log = crate::logging::tail(60);
 
     format!(
         "LLauncher {version}\n\
@@ -581,6 +658,8 @@ fn build_debug_info(settings: AppSettings) -> String {
          Game version: {game_version}\n\
          ntsync: {ntsync}\n\
          Flags: vulkan={vulkan} wayland={wayland} dxvk_async={dxvk} gamemode={gamemode} mangohud={mangohud} gamescope={gamescope} prime={prime} fsync_off={fsync} esync_off={esync}\n\
+         Flatpak: {flatpak}\n\
+         \n--- launcher.log tail ---\n{launcher_log}\n\
          \n--- launch.log tail ---\n{log_tail}",
         version = env!("CARGO_PKG_VERSION"),
         os = os,
@@ -600,6 +679,8 @@ fn build_debug_info(settings: AppSettings) -> String {
         prime = settings.use_prime_offload,
         fsync = settings.disable_fsync,
         esync = settings.disable_esync,
+        flatpak = std::env::var_os("FLATPAK_ID").is_some(),
+        launcher_log = launcher_log,
         log_tail = log_tail,
     )
 }

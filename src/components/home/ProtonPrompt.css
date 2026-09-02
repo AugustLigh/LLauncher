@@ -65,6 +65,12 @@
   margin-bottom: var(--space-lg);
 }
 
+.proton-prompt__text + .proton-prompt__text--muted {
+  margin-top: calc(-1 * var(--space-md));
+  font-size: var(--font-size-xs, 0.8em);
+  opacity: 0.75;
+}
+
 .proton-prompt__actions {
   display: flex;
   gap: var(--space-sm);

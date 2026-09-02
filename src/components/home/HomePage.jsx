@@ -1,5 +1,6 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/plugin-dialog';
 import SystemWarning from '../common/SystemWarning';
@@ -10,7 +11,7 @@ import NewsPanel from './NewsPanel';
 import SingleEntCard from './SingleEntCard';
 import SocialSidebar from './SocialSidebar';
 import ProtonPrompt from './ProtonPrompt';
-import useGameState from '../../hooks/useGameState';
+import ConfirmDialog from '../common/ConfirmDialog';
 import useDownload from '../../hooks/useDownload';
 import useGameRunning from '../../hooks/useGameRunning';
 import useGameStats from '../../hooks/useGameStats';
@@ -18,13 +19,28 @@ import { useTranslation } from '../../i18n';
 import { notify } from '../../utils/notify';
 import './HomePage.css';
 
-export default function HomePage({ content, settings, systemCheck, onOpenSettings }) {
+// `onSync` re-reads settings, the system check and the game state from the
+// backend; call it after anything that changes backend state behind the
+// frontend's back (import, finished install, Proton download).
+export default function HomePage({
+  content,
+  settings,
+  systemCheck,
+  gameState,
+  gameLoading,
+  onSync,
+  onOpenSettings,
+}) {
   const { t } = useTranslation();
-  const { gameState, loading: gameLoading, refresh } = useGameState();
   const { running: gameRunning, markRunning } = useGameRunning();
   const stats = useGameStats();
   const [showProtonPrompt, setShowProtonPrompt] = useState(false);
   const [importError, setImportError] = useState(null);
+  // Pre-spawn launch failures (missing exe, unreadable prefix, "already
+  // running") come back as a rejected invoke, not as launch://failed, and
+  // used to vanish into console.error — the button just did nothing.
+  const [launchError, setLaunchError] = useState(null);
+  const [confirmStop, setConfirmStop] = useState(false);
 
   const handleImport = async () => {
     setImportError(null);
@@ -32,18 +48,18 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
       const dir = await open({ directory: true });
       if (!dir) return;
       await invoke('import_existing_game', { path: dir });
-      refresh();
+      onSync();
     } catch (e) {
-      setImportError(typeof e === 'string' ? e : e.message || 'Import failed');
+      setImportError(typeof e === 'string' ? e : e.message || t('errors.importFailed'));
     }
   };
 
   const handleStopGame = async () => {
-    if (!confirm(t('home.stopConfirm'))) return;
+    setConfirmStop(false);
     try {
       await invoke('stop_game');
     } catch (e) {
-      console.error('Failed to stop game:', e);
+      setLaunchError(`${t('errors.stopFailed')}: ${typeof e === 'string' ? e : e.message || e}`);
     }
   };
 
@@ -51,11 +67,12 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
     notify('LLauncher', t('notify.downloadComplete'));
     try {
       await invoke('update_installed_version', { version });
-      refresh();
     } catch (e) {
       console.error('Failed to update version:', e);
     }
-  }, [refresh, t]);
+    // The backend already recorded the version itself; either way, re-read.
+    onSync();
+  }, [onSync, t]);
 
   const { downloading, progress, error: dlError, startDownload, startUpdate, pauseDownload, cancelDownload } =
     useDownload(onDownloadComplete);
@@ -63,6 +80,23 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
   useEffect(() => {
     if (dlError) notify('LLauncher', t('notify.downloadError', { message: dlError }));
   }, [dlError, t]);
+
+  // A tray / --play launch refused because the game is out of date: show why
+  // and re-read the state so the main button flips to "Update".
+  const onSyncRef = useRef(onSync);
+  onSyncRef.current = onSync;
+  const tRef = useRef(t);
+  tRef.current = t;
+  useEffect(() => {
+    const pending = listen('launch://update-required', (event) => {
+      const { installed_version, latest_version } = event.payload || {};
+      setLaunchError(tRef.current('home.updateRequired', { installed: installed_version, latest: latest_version }));
+      onSyncRef.current();
+    });
+    return () => {
+      pending.then((u) => u());
+    };
+  }, []);
 
   const handleAction = async () => {
     if (!gameState) return;
@@ -80,22 +114,35 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
           setShowProtonPrompt(true);
           return;
         }
+        setLaunchError(null);
         try {
           await invoke('launch_game');
           markRunning();
           const action = settings?.on_launch_action || 'hide';
-          if (action === 'hide') getCurrentWindow().hide();
-          else if (action === 'close') getCurrentWindow().close();
+          // "close" also just hides: the backend keeps the window alive so
+          // the game watcher (playtime, exit handling, Flatpak wineserver
+          // clean-up) survives, and the tray is where quitting happens.
+          if (action === 'hide' || action === 'close') getCurrentWindow().hide();
         } catch (e) {
-          console.error('Failed to launch game:', e);
+          const message = typeof e === 'string' ? e : e.message || t('errors.launchFailed');
+          // The update-required case arrives as a translated message through
+          // launch://update-required; don't overwrite it with the raw error.
+          if (/update required/i.test(message)) {
+            onSync();
+            break;
+          }
+          setLaunchError(message);
         }
         break;
     }
   };
 
+  // The backend has switched `proton_dir` to the fresh build; pull the new
+  // settings and system check so "Play" no longer trips the prompt.
   const handleProtonDownloadComplete = useCallback(() => {
     setShowProtonPrompt(false);
-  }, []);
+    onSync();
+  }, [onSync]);
 
   return (
     <div className="home-page">
@@ -136,8 +183,23 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
           {downloading && progress && (
             <ProgressBar progress={progress} onPause={pauseDownload} onCancel={cancelDownload} />
           )}
-          {dlError && <div className="home-page__error">{dlError}</div>}
-          {importError && <div className="home-page__error">{importError}</div>}
+          {dlError && (
+            <div className="home-page__error">
+              <span className="home-page__error-text">{dlError}</span>
+            </div>
+          )}
+          {importError && (
+            <div className="home-page__error">
+              <span className="home-page__error-text">{importError}</span>
+              <button className="home-page__error-dismiss" onClick={() => setImportError(null)} title={t('common.dismiss')}>{'✕'}</button>
+            </div>
+          )}
+          {launchError && (
+            <div className="home-page__error">
+              <span className="home-page__error-text">{launchError}</span>
+              <button className="home-page__error-dismiss" onClick={() => setLaunchError(null)} title={t('common.dismiss')}>{'✕'}</button>
+            </div>
+          )}
           <ActionButton
             gameState={gameState}
             downloading={downloading}
@@ -148,7 +210,7 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
             disabled={gameLoading}
           />
           {gameRunning && (
-            <button className="home-page__stop-btn" onClick={handleStopGame}>
+            <button className="home-page__stop-btn" onClick={() => setConfirmStop(true)}>
               {t('home.stopGame')}
             </button>
           )}
@@ -159,6 +221,17 @@ export default function HomePage({ content, settings, systemCheck, onOpenSetting
           )}
         </div>
       </div>
+
+      {confirmStop && (
+        <ConfirmDialog
+          title={t('home.stopGame')}
+          message={t('home.stopConfirm')}
+          confirmLabel={t('home.stopGame')}
+          danger
+          onConfirm={handleStopGame}
+          onCancel={() => setConfirmStop(false)}
+        />
+      )}
 
       {showProtonPrompt && (
         <ProtonPrompt

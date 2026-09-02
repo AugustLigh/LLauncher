@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import NewsItem from './NewsItem';
+import { useTranslation } from '../../i18n';
 import './NewsPanel.css';
 
 export default function NewsPanel({ tabs }) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState(0);
 
   if (!tabs || tabs.length === 0) {
@@ -10,7 +12,7 @@ export default function NewsPanel({ tabs }) {
       <div className="news-panel">
         <div className="news-panel__content">
           <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--font-size-sm)' }}>
-            No news available
+            {t('news.empty')}
           </span>
         </div>
       </div>

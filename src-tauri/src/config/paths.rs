@@ -61,7 +61,7 @@ pub fn default_download_dir() -> PathBuf {
 }
 
 /// Base directory for launcher data on the user's home partition.
-fn data_base() -> PathBuf {
+pub fn data_base() -> PathBuf {
     dirs::data_dir()
         .unwrap_or_else(|| {
             dirs::home_dir()

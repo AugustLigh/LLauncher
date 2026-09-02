@@ -9,19 +9,21 @@ export default function useGameRunning() {
   useEffect(() => {
     invoke('is_game_running').then(setRunning).catch(() => {});
 
-    const unlisteners = [];
+    const pending = [];
     // Launches can also start from the tray menu.
-    listen('game://started', () => setRunning(true)).then((u) => unlisteners.push(u));
-    listen('game://exited', () => {
+    pending.push(listen('game://started', () => setRunning(true)));
+    pending.push(listen('game://exited', () => {
       setRunning(false);
       // Bring the launcher back when the game ends (it may have been hidden
       // on launch).
       const win = getCurrentWindow();
       win.show().catch(() => {});
       win.setFocus().catch(() => {});
-    }).then((u) => unlisteners.push(u));
+    }));
     return () => {
-      unlisteners.forEach((u) => u());
+      // Wait for every registration to settle before unregistering, so a
+      // listener whose promise had not resolved at teardown is not leaked.
+      Promise.all(pending).then((us) => us.forEach((u) => u()));
     };
   }, []);
 

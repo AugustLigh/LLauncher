@@ -19,6 +19,12 @@ finish-args:
   # Wine: 32-bit components and ptrace-based exception handling
   - --allow=multiarch
   - --allow=devel
+  # One /dev/shm shared by every instance of the app. By default each
+  # instance gets a private tmpfs, so a wineserver that outlives the session
+  # keeps its fsync shared memory in a /dev/shm the next instance cannot see
+  # and the next launch dies before wine loads anything. Same setting the
+  # Steam/Bottles/Twintail flatpaks use for exactly this reason.
+  - --allow=per-app-dev-shm
   # The game install location is user-chosen (defaults under $HOME); external
   # drives are a common place for a 50 GB install
   - --filesystem=home

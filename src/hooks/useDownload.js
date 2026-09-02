@@ -4,6 +4,10 @@ import { listen } from '@tauri-apps/api/event';
 
 export default function useDownload(onComplete) {
   const [downloading, setDownloading] = useState(false);
+  // Latest callback without making it an effect dependency: re-registering
+  // every listener because `t` changed identity dropped events mid-download.
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState(null);
   // Whether the current stop should discard partial files (Cancel) or keep
@@ -11,33 +15,33 @@ export default function useDownload(onComplete) {
   const discardRef = useRef(false);
 
   useEffect(() => {
-    const unlisteners = [];
+    const pending = [];
 
-    listen('download://progress', (event) => {
+    pending.push(listen('download://progress', (event) => {
       setProgress({ stage: 'downloading', ...event.payload });
-    }).then((u) => unlisteners.push(u));
+    }));
 
-    listen('download://file-complete', (event) => {
+    pending.push(listen('download://file-complete', (event) => {
       setProgress((prev) =>
         prev ? { ...prev, ...event.payload } : { stage: 'downloading', ...event.payload }
       );
-    }).then((u) => unlisteners.push(u));
+    }));
 
-    listen('download://verify-progress', (event) => {
+    pending.push(listen('download://verify-progress', (event) => {
       setProgress({ stage: 'verifying', ...event.payload });
-    }).then((u) => unlisteners.push(u));
+    }));
 
-    listen('download://extract-progress', (event) => {
+    pending.push(listen('download://extract-progress', (event) => {
       setProgress({ stage: 'extracting', ...event.payload });
-    }).then((u) => unlisteners.push(u));
+    }));
 
-    listen('download://complete', (event) => {
+    pending.push(listen('download://complete', (event) => {
       setDownloading(false);
       setProgress(null);
-      if (onComplete) onComplete(event.payload.version);
-    }).then((u) => unlisteners.push(u));
+      if (onCompleteRef.current) onCompleteRef.current(event.payload.version);
+    }));
 
-    listen('download://error', (event) => {
+    pending.push(listen('download://error', (event) => {
       setDownloading(false);
       // Cancellation is user-initiated (pause): partial files are kept and
       // the next start resumes via HTTP Range, so it is not an error.
@@ -46,11 +50,11 @@ export default function useDownload(onComplete) {
       } else {
         setError(event.payload.message);
       }
-    }).then((u) => unlisteners.push(u));
+    }));
 
     // The smart-update delta path reports on its own channel; normalise it into
     // the same progress shape so the existing progress bar works.
-    listen('update://progress', (event) => {
+    pending.push(listen('update://progress', (event) => {
       const p = event.payload;
       setProgress({
         stage: p.stage === 'downloading' ? 'downloading' : 'verifying',
@@ -61,27 +65,29 @@ export default function useDownload(onComplete) {
         bytes_total: p.bytes_total,
         speed_bps: p.speed_bps,
       });
-    }).then((u) => unlisteners.push(u));
+    }));
 
-    listen('update://complete', (event) => {
+    pending.push(listen('update://complete', (event) => {
       setDownloading(false);
       setProgress(null);
-      if (onComplete) onComplete(event.payload.version);
-    }).then((u) => unlisteners.push(u));
+      if (onCompleteRef.current) onCompleteRef.current(event.payload.version);
+    }));
 
-    listen('update://error', (event) => {
+    pending.push(listen('update://error', (event) => {
       setDownloading(false);
       if (/cancelled/i.test(event.payload.message)) {
         setProgress(null);
       } else {
         setError(event.payload.message);
       }
-    }).then((u) => unlisteners.push(u));
+    }));
 
     return () => {
-      unlisteners.forEach((u) => u());
+      // Wait for every registration to settle before unregistering, so a
+      // listener whose promise had not resolved at teardown is not leaked.
+      Promise.all(pending).then((us) => us.forEach((u) => u()));
     };
-  }, [onComplete]);
+  }, []);
 
   const startDownload = useCallback(async () => {
     setDownloading(true);

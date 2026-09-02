@@ -4,6 +4,8 @@ import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialo
 import PathSelector from './PathSelector';
 import LanguageSelector from './LanguageSelector';
 import LogViewer from '../common/LogViewer';
+import ConfirmDialog from '../common/ConfirmDialog';
+import useModalDismiss from '../../hooks/useModalDismiss';
 import useProtonDownload from '../../hooks/useProtonDownload';
 import useIntegrityCheck from '../../hooks/useIntegrityCheck';
 import { formatSize, formatSpeed, formatPercent } from '../../utils/format';
@@ -11,7 +13,7 @@ import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 import { useTranslation } from '../../i18n';
 import './SettingsModal.css';
 
-export default function SettingsModal({ settings, initialTab, systemCheck, onRefreshSystemCheck, onSave, onClose }) {
+export default function SettingsModal({ settings, initialTab, systemCheck, onRefreshSystemCheck, onSync, onSave, onClose }) {
   const { t } = useTranslation();
   const [form, setForm] = useState(null);
   const [activeTab, setActiveTab] = useState(initialTab || 'paths');
@@ -29,6 +31,15 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
   const [prefixInfo, setPrefixInfo] = useState(null);
   const [prefixBusy, setPrefixBusy] = useState(null);
   const [prefixMsg, setPrefixMsg] = useState(null);
+  // Snapshot the form was loaded from, to detect unsaved edits on close.
+  const [loadedForm, setLoadedForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  // One transient status line per tab for actions that previously failed
+  // silently (set active Proton, autostart, repair, copy debug info).
+  const [tabMsg, setTabMsg] = useState(null);
+  // Pending confirmation: { key, title, message, danger, confirmLabel, onConfirm }
+  const [pendingConfirm, setPendingConfirm] = useState(null);
 
   const TABS = [
     { id: 'paths', label: t('settings.tab.paths') },
@@ -71,8 +82,12 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
     if (integrityChecking) return;
     const installed = form?.installed_version || '—';
     const latest = latestVersion || '—';
-    if (!confirm(t('settings.integrity.confirm', { installed, latest }))) return;
-    startIntegrity();
+    setPendingConfirm({
+      title: t('settings.integrity.name'),
+      message: t('settings.integrity.confirm', { installed, latest }),
+      confirmLabel: t('settings.integrity.button'),
+      onConfirm: () => { setPendingConfirm(null); startIntegrity(); },
+    });
   };
 
   const integrityPct = integrityProgress
@@ -85,14 +100,31 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
         : 0
     : 0;
 
+  // Edit a snapshot taken when the dialog opens. Start from the frontend copy
+  // for an instant render, then replace it with the backend's current values:
+  // the frontend copy can lag behind commands that change settings on their
+  // own (a Proton download, a game import), and saving a stale snapshot would
+  // silently roll those back. Later prop updates are ignored on purpose so a
+  // background sync cannot wipe in-progress edits.
   useEffect(() => {
-    if (settings) {
-      setForm({ ...settings });
-      if (settings.download_speed_limit > 0 && settings.download_speed_limit < 1024 * 1024) {
+    let superseded = false;
+    const apply = (s) => {
+      setForm({ ...s });
+      setLoadedForm({ ...s });
+      if (s.download_speed_limit > 0 && s.download_speed_limit < 1024 * 1024) {
         setSpeedUnit('KB/s');
       }
-    }
-  }, [settings]);
+    };
+    if (settings) apply(settings);
+    invoke('get_settings')
+      .then((fresh) => {
+        if (!superseded && fresh) apply(fresh);
+      })
+      .catch((e) => console.error('Failed to load settings:', e));
+    return () => {
+      superseded = true;
+    };
+  }, []);
 
   const fetchReleases = useCallback(async () => {
     setReleasesLoading(true);
@@ -131,6 +163,31 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
     }
   }, [activeTab]);
 
+  // Hooks must run on every render — keep these above the early return.
+  const isDirty = () => {
+    if (!form || !loadedForm) return false;
+    return JSON.stringify(form) !== JSON.stringify(loadedForm);
+  };
+
+  // Backdrop click / Escape / X: a staged form must not lose edits to a stray
+  // click, so ask first when something changed.
+  const requestClose = () => {
+    if (saving) return;
+    if (isDirty()) {
+      setPendingConfirm({
+        title: t('settings.unsavedTitle'),
+        message: t('settings.unsavedBody'),
+        confirmLabel: t('settings.unsavedDiscard'),
+        danger: true,
+        onConfirm: () => { setPendingConfirm(null); onClose(); },
+      });
+      return;
+    }
+    onClose();
+  };
+  // Only the top-most overlay should react to Escape.
+  useModalDismiss(requestClose, !pendingConfirm && !showLog);
+
   if (!form) return null;
 
   const handleChange = (key, value) => {
@@ -147,14 +204,26 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
       const status = await isEnabled();
       setAutostart(status);
     } catch (e) {
-      console.error('Failed to toggle autostart:', e);
+      setTabMsg({ ok: false, text: `${t('errors.autostartFailed')}: ${typeof e === 'string' ? e : e.message || e}` });
     }
   };
 
-  const handleSave = () => {
-    onSave(form);
-    onClose();
+  // Awaited: a failed save used to close the dialog anyway and silently throw
+  // every edit away. Now the dialog stays open with the reason shown.
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await onSave(form);
+      onClose();
+    } catch (e) {
+      setSaveError(`${t('errors.saveFailed')}: ${typeof e === 'string' ? e : e.message || e}`);
+    } finally {
+      setSaving(false);
+    }
   };
+
 
   const handleProtonDownload = (release) => {
     startProtonDownload(release || undefined);
@@ -164,40 +233,60 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
     try {
       await invoke('set_active_proton', { path });
       setForm((prev) => prev ? { ...prev, proton_dir: path } : prev);
+      setLoadedForm((prev) => prev ? { ...prev, proton_dir: path } : prev);
       if (onRefreshSystemCheck) onRefreshSystemCheck();
     } catch (e) {
-      console.error('Failed to set active proton:', e);
+      setTabMsg({ ok: false, text: `${t('errors.setProtonFailed')}: ${typeof e === 'string' ? e : e.message || e}` });
     }
   };
 
-  const handleRepair = async () => {
+  const handleRepair = () => {
     if (repairing) return;
-    if (!confirm(t('settings.repair.confirm'))) return;
-    setRepairing(true);
-    try {
-      await invoke('repair_game');
-      onClose();
-    } catch (e) {
-      console.error('Failed to repair:', e);
-    } finally {
-      setRepairing(false);
-    }
+    setPendingConfirm({
+      title: t('settings.repair.name'),
+      message: t('settings.repair.confirm'),
+      confirmLabel: t('settings.repair.button'),
+      onConfirm: async () => {
+        setPendingConfirm(null);
+        setRepairing(true);
+        setTabMsg(null);
+        try {
+          await invoke('repair_game');
+          if (onSync) onSync();
+          onClose();
+        } catch (e) {
+          setTabMsg({ ok: false, text: `${t('errors.repairFailed')}: ${typeof e === 'string' ? e : e.message || e}` });
+        } finally {
+          setRepairing(false);
+        }
+      },
+    });
   };
 
-  const handleUninstall = async () => {
+  const handleUninstall = () => {
     if (uninstalling) return;
-    if (!confirm(t('settings.uninstall.confirm'))) return;
-    setUninstalling(true);
-    try {
-      await invoke('uninstall_game');
-      // Reload so every view picks up the now-empty installation state.
-      window.location.reload();
-    } catch (e) {
-      console.error('Failed to uninstall:', e);
-      alert(typeof e === 'string' ? e : e.message || 'Uninstall failed');
-    } finally {
-      setUninstalling(false);
-    }
+    setPendingConfirm({
+      title: t('settings.uninstall.name'),
+      message: t('settings.uninstall.confirm'),
+      confirmLabel: t('settings.uninstall.button'),
+      danger: true,
+      onConfirm: async () => {
+        setPendingConfirm(null);
+        setUninstalling(true);
+        setTabMsg(null);
+        try {
+          await invoke('uninstall_game');
+          // Re-read backend state instead of reloading the whole webview,
+          // which re-fetched every remote asset and visibly flashed.
+          if (onSync) onSync();
+          onClose();
+        } catch (e) {
+          setTabMsg({ ok: false, text: `${t('errors.uninstallFailed')}: ${typeof e === 'string' ? e : e.message || e}` });
+        } finally {
+          setUninstalling(false);
+        }
+      },
+    });
   };
 
   const handleCopyDebugInfo = async () => {
@@ -207,7 +296,7 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
       setDebugCopied(true);
       setTimeout(() => setDebugCopied(false), 2000);
     } catch (e) {
-      console.error('Failed to copy debug info:', e);
+      setTabMsg({ ok: false, text: `${t('errors.copyFailed')}: ${typeof e === 'string' ? e : e.message || e}` });
     }
   };
 
@@ -250,18 +339,34 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
       filters: [{ name: 'Prefix backup', extensions: ['gz'] }],
     });
     if (!archive) return;
-    if (!confirm(t('settings.prefixTools.restoreConfirm'))) return;
-    await runPrefixAction('restore', () => invoke('restore_prefix', { archive }), () =>
-      t('settings.prefixTools.restoreDone')
-    );
+    setPendingConfirm({
+      title: t('settings.prefixTools.restore'),
+      message: t('settings.prefixTools.restoreConfirm'),
+      confirmLabel: t('settings.prefixTools.restore'),
+      danger: true,
+      onConfirm: () => {
+        setPendingConfirm(null);
+        runPrefixAction('restore', () => invoke('restore_prefix', { archive }), () =>
+          t('settings.prefixTools.restoreDone')
+        );
+      },
+    });
   };
 
-  const handleResetPrefix = async () => {
+  const handleResetPrefix = () => {
     if (prefixBusy) return;
-    if (!confirm(t('settings.prefixTools.resetConfirm'))) return;
-    await runPrefixAction('reset', () => invoke('reset_prefix'), () =>
-      t('settings.prefixTools.resetDone')
-    );
+    setPendingConfirm({
+      title: t('settings.prefixTools.reset'),
+      message: t('settings.prefixTools.resetConfirm'),
+      confirmLabel: t('settings.prefixTools.reset'),
+      danger: true,
+      onConfirm: () => {
+        setPendingConfirm(null);
+        runPrefixAction('reset', () => invoke('reset_prefix'), () =>
+          t('settings.prefixTools.resetDone')
+        );
+      },
+    });
   };
 
   const findInstalled = (tagName) => {
@@ -283,11 +388,11 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
   };
 
   return (
-    <div className="settings-overlay" onClick={onClose}>
-      <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="settings-overlay" onClick={requestClose}>
+      <div className="settings-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="settings-modal__header">
           <span className="settings-modal__title">{t('settings.title')}</span>
-          <button className="settings-modal__close" onClick={onClose}>
+          <button className="settings-modal__close" onClick={requestClose}>
             {'✕'}
           </button>
         </div>
@@ -297,7 +402,7 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
             <button
               key={tab.id}
               className={`settings-modal__tab ${activeTab === tab.id ? 'settings-modal__tab--active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => { setActiveTab(tab.id); setTabMsg(null); }}
             >
               {tab.label}
             </button>
@@ -305,6 +410,11 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
         </div>
 
         <div className="settings-modal__body" key={activeTab}>
+          {tabMsg && (
+            <span className={`settings-modal__msg ${tabMsg.ok ? 'settings-modal__msg--ok' : 'settings-modal__msg--err'}`}>
+              {tabMsg.text}
+            </span>
+          )}
           {activeTab === 'paths' && (
             <>
               <div className="settings-modal__section">
@@ -446,7 +556,7 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
                               {installed && !active && <span className="settings-proton__badge settings-proton__badge--installed">{t('settings.badgeInstalled')}</span>}
                             </span>
                             <span className="settings-proton__item-meta">
-                              {r.published_at || 'unknown'} &middot; {formatSize(r.size)}
+                              {r.published_at || t('common.unknown')} &middot; {formatSize(r.size)}
                             </span>
                             {risky && <span className="settings-proton__warn">{t('settings.protonRiskyWarn')}</span>}
                           </div>
@@ -1006,16 +1116,27 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
         </div>
 
         <div className="settings-modal__footer">
-          <button className="settings-modal__btn settings-modal__btn--cancel" onClick={onClose}>
+          {saveError && <span className="settings-modal__save-error">{saveError}</span>}
+          <button className="settings-modal__btn settings-modal__btn--cancel" onClick={requestClose} disabled={saving}>
             {t('common.cancel')}
           </button>
-          <button className="settings-modal__btn settings-modal__btn--save" onClick={handleSave}>
-            {t('common.save')}
+          <button className="settings-modal__btn settings-modal__btn--save" onClick={handleSave} disabled={saving}>
+            {saving ? t('settings.saving') : t('common.save')}
           </button>
         </div>
       </div>
 
       {showLog && <LogViewer onClose={() => setShowLog(false)} />}
+      {pendingConfirm && (
+        <ConfirmDialog
+          title={pendingConfirm.title}
+          message={pendingConfirm.message}
+          confirmLabel={pendingConfirm.confirmLabel}
+          danger={!!pendingConfirm.danger}
+          onConfirm={pendingConfirm.onConfirm}
+          onCancel={() => setPendingConfirm(null)}
+        />
+      )}
     </div>
   );
 }

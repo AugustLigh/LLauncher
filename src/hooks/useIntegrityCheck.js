@@ -12,29 +12,31 @@ export default function useIntegrityCheck() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const unlisteners = [];
+    const pending = [];
 
-    listen('integrity://progress', (event) => {
+    pending.push(listen('integrity://progress', (event) => {
       setProgress(event.payload);
-    }).then((u) => unlisteners.push(u));
+    }));
 
-    listen('integrity://complete', (event) => {
+    pending.push(listen('integrity://complete', (event) => {
       setChecking(false);
       setProgress(null);
       setResult(event.payload);
-    }).then((u) => unlisteners.push(u));
+    }));
 
-    listen('integrity://error', (event) => {
+    pending.push(listen('integrity://error', (event) => {
       setChecking(false);
       setProgress(null);
       // Cancellation is user-initiated, not a failure.
       if (!/cancelled/i.test(event.payload.message)) {
         setError(event.payload.message);
       }
-    }).then((u) => unlisteners.push(u));
+    }));
 
     return () => {
-      unlisteners.forEach((u) => u());
+      // Wait for every registration to settle before unregistering, so a
+      // listener whose promise had not resolved at teardown is not leaked.
+      Promise.all(pending).then((us) => us.forEach((u) => u()));
     };
   }, []);
 

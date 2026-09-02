@@ -35,6 +35,9 @@ pub enum AppError {
     #[error("Download cancelled")]
     Cancelled,
 
+    #[error("Game update required (installed {installed}, latest {latest})")]
+    UpdateRequired { installed: String, latest: String },
+
     #[error("Not enough free disk space in {path}: {needed_mib} MiB required, {available_mib} MiB available")]
     DiskSpace {
         path: String,
@@ -44,10 +47,16 @@ pub enum AppError {
 }
 
 impl Serialize for AppError {
+    // Tauri serialises a command's `Err` to hand it to the webview — the one
+    // choke point every backend failure passes through, so record it in the
+    // launcher log here. User-initiated cancellation is not a failure.
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
+        if !matches!(self, AppError::Cancelled) {
+            crate::logging::warn(format!("command failed: {}", self));
+        }
         serializer.serialize_str(&self.to_string())
     }
 }

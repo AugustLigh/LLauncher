@@ -51,6 +51,26 @@ button {
   color: inherit;
 }
 
+/* Keyboard / gamepad users (Steam Deck) need to see where focus is. The
+   global outline reset above hides it for mouse clicks; :focus-visible only
+   fires for keyboard navigation, so mouse users keep the clean look. */
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Error text must be selectable so it can be pasted into a bug report, and
+   must wrap long paths/URLs instead of being clipped by overflow: hidden. */
+.selectable,
+pre {
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+
 input, select {
   font-family: var(--font-family);
   color: var(--color-text-primary);

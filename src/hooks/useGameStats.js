@@ -67,12 +67,9 @@ export default function useGameStats() {
 
   useEffect(() => {
     fetchStats();
-    let unlisten;
-    listen('game://exited', fetchStats).then((u) => {
-      unlisten = u;
-    });
+    const pending = listen('game://exited', fetchStats);
     return () => {
-      if (unlisten) unlisten();
+      pending.then((u) => u());
     };
   }, [fetchStats]);
 

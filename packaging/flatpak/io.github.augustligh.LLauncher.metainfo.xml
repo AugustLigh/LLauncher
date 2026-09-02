@@ -82,6 +82,18 @@
   </content_rating>
 
   <releases>
+    <release version="0.3.2" date="2026-09-02">
+      <url>https://github.com/AugustLigh/LLauncher/releases/tag/0.3.2</url>
+      <description>
+        <p>
+          Launching from the tray or the desktop action now checks for a game
+          update first. Closing the window hides it to the tray so play
+          statistics and the Flatpak wineserver clean-up keep working. Settings
+          are written atomically, the launcher keeps its own log, launch and
+          save errors are shown, and every dialog works with the keyboard.
+        </p>
+      </description>
+    </release>
     <release version="0.3.1" date="2026-08-30">
       <url>https://github.com/AugustLigh/LLauncher/releases/tag/0.3.1</url>
       <description>

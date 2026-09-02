@@ -141,22 +141,48 @@ impl Default for AppSettings {
 impl AppSettings {
     pub fn load() -> Self {
         let path = paths::settings_path();
-        if path.exists() {
-            match std::fs::read_to_string(&path) {
-                Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
-                Err(_) => Self::default(),
+        if !path.exists() {
+            return Self::default();
+        }
+        let content = match std::fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(e) => {
+                crate::logging::warn(format!("settings: cannot read {}: {}", path.display(), e));
+                return Self::default();
             }
-        } else {
-            Self::default()
+        };
+        match serde_json::from_str(&content) {
+            Ok(settings) => settings,
+            Err(e) => {
+                // A corrupt settings file (half-written by a crash, hand-edited
+                // badly) used to silently reset everything, which turned an
+                // installed game back into "Install". Keep the broken file
+                // around for the user instead of overwriting it on the next
+                // save, and say so in the log.
+                let backup = path.with_extension("json.corrupt");
+                let _ = std::fs::rename(&path, &backup);
+                crate::logging::error(format!(
+                    "settings: {} is not valid JSON ({}); moved to {} and using defaults",
+                    path.display(),
+                    e,
+                    backup.display()
+                ));
+                Self::default()
+            }
         }
     }
 
+    /// Write atomically: serialise to a sibling temp file, then rename over the
+    /// real one. A crash or power loss mid-write leaves the previous file
+    /// intact rather than a truncated one that `load` would reject.
     pub fn save(&self) -> Result<(), crate::error::AppError> {
         let path = paths::settings_path();
         let dir = path.parent().unwrap();
         std::fs::create_dir_all(dir)?;
         let content = serde_json::to_string_pretty(self)?;
-        std::fs::write(&path, content)?;
+        let tmp = path.with_extension("json.tmp");
+        std::fs::write(&tmp, content)?;
+        std::fs::rename(&tmp, &path)?;
         Ok(())
     }
 

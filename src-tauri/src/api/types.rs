@@ -245,3 +245,12 @@ pub struct LaunchFailed {
 pub struct GameExited {
     pub exit_code: Option<i32>,
 }
+
+/// A launch was refused because the server has a newer game version. Emitted
+/// so a tray / `--play` launch, which has no UI of its own, can still tell
+/// the user what to do.
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateRequired {
+    pub installed_version: String,
+    pub latest_version: String,
+}

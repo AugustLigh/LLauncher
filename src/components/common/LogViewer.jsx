@@ -1,12 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useTranslation } from '../../i18n';
+import useModalDismiss from '../../hooks/useModalDismiss';
 import './LogViewer.css';
 
 export default function LogViewer({ initialContent, onClose }) {
   const { t } = useTranslation();
   const [content, setContent] = useState(initialContent ?? null);
   const [loading, setLoading] = useState(initialContent == null);
+  useModalDismiss(onClose);
 
   const loadLog = useCallback(async () => {
     setLoading(true);
@@ -29,7 +31,7 @@ export default function LogViewer({ initialContent, onClose }) {
 
   return (
     <div className="log-viewer-overlay" onClick={onClose}>
-      <div className="log-viewer" onClick={(e) => e.stopPropagation()}>
+      <div className="log-viewer" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="log-viewer__header">
           <span className="log-viewer__title">{t('logViewer.title')}</span>
           <div className="log-viewer__header-actions">

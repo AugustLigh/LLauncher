@@ -110,6 +110,31 @@
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.settings-modal__save-error {
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
+  overflow-wrap: anywhere;
+  user-select: text;
+  margin-right: auto;
+  align-self: center;
+}
+
+.settings-modal__msg {
+  font-size: var(--font-size-xs);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.settings-modal__msg--ok {
+  color: var(--color-success);
+}
+
+.settings-modal__msg--err {
+  color: var(--color-error);
 }
 
 /* Toggle */
@@ -433,6 +458,8 @@
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-sm);
   border: 1px solid rgba(239, 68, 68, 0.2);
+  overflow-wrap: anywhere;
+  user-select: text;
 }
 
 .settings-integrity-warning {

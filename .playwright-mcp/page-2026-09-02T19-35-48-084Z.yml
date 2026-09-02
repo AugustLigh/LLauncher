@@ -1,0 +1,7 @@
+- generic [ref=e51]:
+  - generic [ref=e52]: Something went wrong
+  - paragraph [ref=e53]: The launcher hit an unexpected error and cannot continue. You can copy the details for a bug report, then reload.
+  - generic [ref=e54]: "Error: Minified React error #310; visit https://reactjs.org/docs/error-decoder.html?invariant=310 for the full message or use the non-minified dev environment for full errors and additional helpful warnings. at _t (http://127.0.0.1:4173/assets/index-C7XRFaR-.js:38:17670) at Yl (http://127.0.0.1:4173/assets/index-C7XRFaR-.js:38:20618) at Object.Pi [as useEffect] (http://127.0.0.1:4173/assets/index-C7XRFaR-.js:38:20876) at Ef.ee.useEffect (http://127.0.0.1:4173/assets/index-C7XRFaR-.js:9:5981) at tl (http://127.0.0.1:4173/assets/index-C7XRFaR-.js:48:17312) at Op (http://127.0.0.1:4173/assets/index-C7XRFaR-.js:48:35215) at Si (http://127.0.0.1:4173/assets/index-C7XRFaR-.js:38:17075) at Fi (http://127.0.0.1:4173/assets/index-C7XRFaR-.js:40:3159) at Qu (http://127.0.0.1:4173/assets/index-C7XRFaR-.js:40:45099) at Bu (http://127.0.0.1:4173/assets/index-C7XRFaR-.js:40:39992)"
+  - generic [ref=e55]:
+    - button "Copy details" [ref=e56] [cursor=pointer]
+    - button "Reload" [ref=e57] [cursor=pointer]

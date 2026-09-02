@@ -4,6 +4,7 @@ mod config;
 mod download;
 mod error;
 mod game;
+mod logging;
 mod media;
 mod state;
 mod util;
@@ -15,7 +16,6 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager,
 };
-use tauri_plugin_autostart::ManagerExt;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -84,6 +84,16 @@ pub fn run() {
     }
 
     let settings = AppSettings::load();
+
+    // `llauncher --debug-info`: print the bug-report block to stdout and exit.
+    // Reachable even when the webview never renders (issue #11-style black
+    // screens), which is exactly when the in-app "Copy" button is useless.
+    if std::env::args().any(|a| a == "--debug-info") {
+        println!("{}", commands::build_debug_info(settings));
+        return;
+    }
+
+    logging::info(format!("LLauncher {} starting", env!("CARGO_PKG_VERSION")));
     let app_state = AppState::new(settings);
 
     // `llauncher --play` (desktop-file "Play" action, scripts): start the game
@@ -127,12 +137,14 @@ pub fn run() {
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&launch, &show, &quit])?;
 
-            // Enable autostart on first launch
+            // Autostart used to be switched on silently on the first run.
+            // Registering yourself in the user's session without asking is a
+            // common complaint, so it is now opt-in from Settings > Launch.
+            // The flag is still recorded so existing installs are untouched.
             {
                 let state = app.state::<AppState>();
                 let mut settings = state.settings.blocking_lock();
                 if !settings.autostart_initialized {
-                    let _ = app.autolaunch().enable();
                     settings.autostart_initialized = true;
                     let _ = settings.save();
                 }
@@ -197,6 +209,18 @@ pub fn run() {
             }
 
             Ok(())
+        })
+        // The launcher lives in the tray; every close request (the titlebar
+        // X, Alt+F4, the "close after launch" option) hides the window
+        // instead of destroying it. Destroying the only window exits the
+        // process, which killed the game-watcher thread: no playtime
+        // recorded, no failure dialog, and inside the Flatpak no wineserver
+        // clean-up — so the *next* launch broke. Quit is the tray's job.
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_settings,

@@ -1,0 +1,66 @@
+- generic [ref=f1e6]:
+  - generic [ref=f1e7]:
+    - generic [ref=f1e8]: LLauncher
+    - generic [ref=f1e9]:
+      - button "Minimize" [ref=f1e10] [cursor=pointer]
+      - button "Close" [ref=f1e13] [cursor=pointer]
+  - generic [ref=f1e16]:
+    - generic [ref=f1e19]:
+      - button [ref=f1e21] [cursor=pointer]
+      - generic [ref=f1e22]: Smoke test news item
+    - generic [ref=f1e26]:
+      - generic [ref=f1e27]:
+        - generic [ref=f1e28]:
+          - generic [ref=f1e29]: "Arknights: Endfield"
+          - generic [ref=f1e30]: Endfield
+          - generic [ref=f1e31]:
+            - generic [ref=f1e32]: Ready to play
+            - generic [ref=f1e34]: v1.5.3
+          - generic [ref=f1e35]:
+            - generic [ref=f1e36]: Played 1h 0m · last played 02.09.2026
+            - generic [ref=f1e37]:
+              - generic [ref=f1e38]: 30m this week · avg session 30m
+              - generic "Playtime over the last 7 days" [ref=f1e39]
+        - button "⚙" [active] [ref=f1e47] [cursor=pointer]
+      - button "Launch" [ref=f1e49] [cursor=pointer]
+  - dialog [ref=f1e51]:
+    - generic [ref=f1e52]:
+      - generic [ref=f1e53]: Settings
+      - button "✕" [ref=f1e54] [cursor=pointer]
+    - generic [ref=f1e55]:
+      - button "Paths" [ref=f1e56] [cursor=pointer]
+      - button "Proton" [ref=f1e57] [cursor=pointer]
+      - button "Launch" [ref=f1e58] [cursor=pointer]
+      - button "Downloads" [ref=f1e59] [cursor=pointer]
+      - button "Game" [ref=f1e60] [cursor=pointer]
+    - generic [ref=f1e61]:
+      - generic [ref=f1e62]:
+        - generic [ref=f1e63]: Game directory
+        - generic [ref=f1e64]:
+          - textbox [ref=f1e65]: /home/u/Games/ArknightsEndfield
+          - button "Browse" [ref=f1e66] [cursor=pointer]
+      - generic [ref=f1e67]:
+        - generic [ref=f1e68]: Download directory
+        - generic [ref=f1e69]:
+          - textbox [ref=f1e70]: /home/u/Games/ArknightsEndfield/_download
+          - button "Browse" [ref=f1e71] [cursor=pointer]
+        - generic [ref=f1e72]: Temporary directory for downloaded archives
+      - generic [ref=f1e73]:
+        - generic [ref=f1e74]: Language
+        - combobox [ref=f1e75] [cursor=pointer]:
+          - option "English" [selected]
+          - option "Русский"
+          - option "日本語"
+          - option "한국어"
+          - option "繁體中文"
+          - option "简体中文"
+          - option "Deutsch"
+          - option "Français"
+          - option "Español"
+          - option "Português (Brasil)"
+          - option "Bahasa Indonesia"
+          - option "ไทย"
+          - option "Tiếng Việt"
+    - generic [ref=f1e76]:
+      - button "Cancel" [ref=f1e77] [cursor=pointer]
+      - button "Save" [ref=f1e78] [cursor=pointer]

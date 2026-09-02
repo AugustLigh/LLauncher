@@ -7,6 +7,14 @@ pub fn incomplete_marker(game_dir: &Path) -> PathBuf {
     game_dir.join(".llauncher_incomplete")
 }
 
+/// Whether `game_dir` holds a playable install we did not necessarily put
+/// there: the game binary is present and no download of ours was interrupted
+/// mid-way. Used to adopt a folder the user pointed the launcher at (or one
+/// installed by another launcher) without a separate "import" step.
+pub fn has_existing_install(game_dir: &Path) -> bool {
+    game_dir.join("Endfield.exe").exists() && !incomplete_marker(game_dir).exists()
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "status")]
 pub enum GameState {
