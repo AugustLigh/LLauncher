@@ -31,3 +31,7 @@ src-tauri/gen/schemas
 .claude/
 *.key
 aur_key*
+
+# local UI smoke-test artifacts
+.playwright-mcp/
+smoke-*.png

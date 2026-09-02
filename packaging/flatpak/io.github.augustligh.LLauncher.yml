@@ -158,11 +158,10 @@ modules:
       - install -Dm644 io.github.augustligh.LLauncher.desktop /app/share/applications/io.github.augustligh.LLauncher.desktop
       - install -Dm644 io.github.augustligh.LLauncher.metainfo.xml /app/share/metainfo/io.github.augustligh.LLauncher.metainfo.xml
     sources:
-      # Pinned past 0.3.1: the flatpak needs the wineserver session cleanup
-      # (836b24a). Re-pin to the next release tag when it exists.
       - type: git
         url: https://github.com/AugustLigh/LLauncher.git
-        commit: 836b24a8c97acb0a06efd92c6b18f8bd3a88605a
+        tag: 0.3.2
+        commit: cd607350a9059d0ec4acddab6469faf6a58f3b2c
       - cargo-sources.json
       - node-sources.json
       - type: file
