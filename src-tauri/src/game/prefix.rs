@@ -1,4 +1,11 @@
+//! Maintenance for the game's Proton prefix: shader caches, backup/restore
+//! and a full reset. Linux-only — on Windows there is no prefix, so every
+//! entry point is a stub returning `Unsupported` and the UI hides the whole
+//! section.
+
+#[cfg(unix)]
 use std::path::Path;
+#[cfg(unix)]
 use std::process::Command;
 
 use serde::Serialize;
@@ -14,6 +21,7 @@ pub struct ShaderCacheResult {
 /// Delete DXVK state caches for the game: `*.dxvk-cache` files anywhere under
 /// the game directory plus the prefix's `shadercache` folder if present.
 /// Vulkan pipeline caches are rebuilt transparently on the next launch.
+#[cfg(unix)]
 pub fn clear_shader_cache(game_dir: &Path, compat_data: &Path) -> ShaderCacheResult {
     let mut result = ShaderCacheResult {
         files_removed: 0,
@@ -29,6 +37,7 @@ pub fn clear_shader_cache(game_dir: &Path, compat_data: &Path) -> ShaderCacheRes
     result
 }
 
+#[cfg(unix)]
 fn remove_dxvk_caches(dir: &Path, result: &mut ShaderCacheResult, depth: u32) {
     // The cache sits next to the executable; a shallow bound keeps a scan of a
     // ~60 GB install from crawling every asset directory.
@@ -56,6 +65,7 @@ fn remove_dxvk_caches(dir: &Path, result: &mut ShaderCacheResult, depth: u32) {
     }
 }
 
+#[cfg(unix)]
 fn collect_dir_size(dir: &Path, result: &mut ShaderCacheResult) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
@@ -75,6 +85,7 @@ fn collect_dir_size(dir: &Path, result: &mut ShaderCacheResult) {
 /// `dest` as a gzipped tarball. Uses the system tar: it is present on every
 /// distro and, unlike the zip crate, preserves the symlinks a Wine prefix is
 /// full of. Archives the *contents* so a restore is prefix-name-agnostic.
+#[cfg(unix)]
 pub fn backup(compat_data: &Path, dest: &Path) -> Result<(), AppError> {
     if !compat_data.join("pfx").exists() {
         return Err(AppError::Api(
@@ -105,6 +116,7 @@ pub fn backup(compat_data: &Path, dest: &Path) -> Result<(), AppError> {
 }
 
 /// Replace the prefix with the contents of a backup archive.
+#[cfg(unix)]
 pub fn restore(compat_data: &Path, archive: &Path) -> Result<(), AppError> {
     if !archive.exists() {
         return Err(AppError::Api(format!(
@@ -159,9 +171,38 @@ pub fn restore(compat_data: &Path, archive: &Path) -> Result<(), AppError> {
 
 /// Delete the prefix entirely. Proton recreates a clean one on the next
 /// launch; the game will re-login and re-apply its settings.
+#[cfg(unix)]
 pub fn reset(compat_data: &Path) -> Result<(), AppError> {
     if compat_data.exists() {
         std::fs::remove_dir_all(compat_data)?;
     }
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Windows stubs: no Wine prefix exists, so these commands can only report that
+// they do not apply. Kept so the command list is identical on both platforms.
+// ---------------------------------------------------------------------------
+
+#[cfg(windows)]
+pub fn clear_shader_cache(_game_dir: &std::path::Path, _compat_data: &std::path::Path) -> ShaderCacheResult {
+    ShaderCacheResult {
+        files_removed: 0,
+        bytes_freed: 0,
+    }
+}
+
+#[cfg(windows)]
+pub fn backup(_compat_data: &std::path::Path, _dest: &std::path::Path) -> Result<(), AppError> {
+    Err(AppError::Unsupported("prefix backup".to_string()))
+}
+
+#[cfg(windows)]
+pub fn restore(_compat_data: &std::path::Path, _archive: &std::path::Path) -> Result<(), AppError> {
+    Err(AppError::Unsupported("prefix restore".to_string()))
+}
+
+#[cfg(windows)]
+pub fn reset(_compat_data: &std::path::Path) -> Result<(), AppError> {
+    Err(AppError::Unsupported("prefix reset".to_string()))
 }

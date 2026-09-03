@@ -8,11 +8,13 @@
 //! the plugins up front and serve the static background image instead when
 //! they are absent.
 
+#[cfg(unix)]
 use std::path::PathBuf;
 
 /// Whether the video backdrop can be attempted at all. False means the
 /// backend strips `video_url` from the launcher content and the UI renders
 /// the static image, which needs no GStreamer.
+#[cfg(unix)]
 pub fn can_play_video_background() -> bool {
     // `autodetect` provides autoaudiosink — the exact element WebKit dies
     // without — and `playback` provides playbin, the pipeline it builds.
@@ -23,9 +25,17 @@ pub fn can_play_video_background() -> bool {
     )
 }
 
+/// Windows plays the backdrop through WebView2 (Chromium), which decodes
+/// H.264/MP4 itself — there is no host plugin stack that can be missing.
+#[cfg(windows)]
+pub fn can_play_video_background() -> bool {
+    true
+}
+
 /// Every directory the host's GStreamer may load plugins from: the standard
 /// env overrides (which the AppImage sets to its bundled copy), then the
 /// per-distro system locations.
+#[cfg(unix)]
 fn plugin_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     for var in [
@@ -49,13 +59,14 @@ fn plugin_dirs() -> Vec<PathBuf> {
 }
 
 /// True when every named plugin file exists in at least one of the dirs.
+#[cfg(unix)]
 fn dirs_have_plugins(dirs: &[PathBuf], names: &[&str]) -> bool {
     names
         .iter()
         .all(|name| dirs.iter().any(|dir| dir.join(name).is_file()))
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 

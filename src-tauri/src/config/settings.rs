@@ -89,6 +89,11 @@ pub struct AppSettings {
     /// Extra raw arguments appended to the gamescope invocation.
     #[serde(default)]
     pub gamescope_extra_args: String,
+    /// Windows only: start the game elevated (UAC prompt) right away instead
+    /// of waiting for `CreateProcess` to fail with ERROR_ELEVATION_REQUIRED.
+    /// Some anti-cheat drivers need it; most installs do not.
+    #[serde(default)]
+    pub windows_run_as_admin: bool,
     /// Accumulated in-game time in seconds.
     #[serde(default)]
     pub total_playtime_secs: u64,
@@ -132,6 +137,7 @@ impl Default for AppSettings {
             gamescope_upscaler: default_gamescope_upscaler(),
             gamescope_hdr: false,
             gamescope_extra_args: String::new(),
+            windows_run_as_admin: false,
             total_playtime_secs: 0,
             last_played: 0,
         }

@@ -1,7 +1,11 @@
+//! Linux: the game is a Windows executable, run through Proton inside a
+//! prefix the launcher owns.
+
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
+use std::process::Command;
 
+use super::{parse_custom_env_vars, GameProcess, LaunchedGame};
 use crate::config::paths;
 use crate::config::settings::AppSettings;
 use crate::error::AppError;
@@ -10,21 +14,6 @@ use crate::error::AppError;
 fn shell_escape(s: &str) -> String {
     // Replace each ' with '\'' (end quote, escaped quote, start quote)
     format!("'{}'", s.replace('\'', "'\\''"))
-}
-
-/// A POSIX environment variable name: letters, digits, underscore, not
-/// starting with a digit. `export NAME=value` requires `NAME` to be a bare
-/// identifier — quoting/escaping it the way we escape `value` would either do
-/// nothing useful or change the syntax, so invalid names are rejected instead.
-fn is_valid_env_var_name(name: &str) -> bool {
-    let mut chars = name.chars();
-    matches!(chars.next(), Some(c) if c.is_ascii_alphabetic() || c == '_')
-        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
-}
-
-pub struct LaunchedGame {
-    pub child: Child,
-    pub log_path: PathBuf,
 }
 
 /// Resolve the Proton prefix (STEAM_COMPAT_DATA_PATH) directory.
@@ -102,24 +91,8 @@ fn build_env_script(settings: &AppSettings, compat_data: &Path) -> String {
     }
 
     // Custom env vars (KEY=VALUE per line)
-    if !settings.custom_env_vars.is_empty() {
-        for line in settings.custom_env_vars.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-            if let Some((key, value)) = line.split_once('=') {
-                let key = key.trim();
-                if !is_valid_env_var_name(key) {
-                    continue;
-                }
-                script.push_str(&format!(
-                    "export {}={}\n",
-                    key,
-                    shell_escape(value.trim())
-                ));
-            }
-        }
+    for (key, value) in parse_custom_env_vars(&settings.custom_env_vars) {
+        script.push_str(&format!("export {}={}\n", key, shell_escape(value)));
     }
 
     script
@@ -272,7 +245,10 @@ pub fn launch_game(settings: &AppSettings) -> Result<LaunchedGame, AppError> {
         .spawn()
         .map_err(|e| AppError::GameNotFound(format!("Failed to launch: {}", e)))?;
 
-    Ok(LaunchedGame { child, log_path })
+    Ok(LaunchedGame {
+        process: GameProcess::Child(child),
+        log_path,
+    })
 }
 
 /// Shut down the prefix's wineserver (and with it every wine process of the
@@ -332,16 +308,19 @@ pub fn run_prefix_tool(settings: &AppSettings, tool: &str) -> Result<(), AppErro
     Ok(())
 }
 
-/// Read the tail of the launch log (last `max_lines` lines).
-/// Returns empty string if log does not exist or cannot be read.
-pub fn read_log_tail(log_path: &Path, max_lines: usize) -> String {
-    let content = match std::fs::read_to_string(log_path) {
-        Ok(c) => c,
-        Err(_) => return String::new(),
-    };
-    let lines: Vec<&str> = content.lines().collect();
-    let start = lines.len().saturating_sub(max_lines);
-    lines[start..].join("\n")
+/// Ask the game to shut down: the whole process group (bash -> proton ->
+/// game) gets a SIGTERM.
+pub fn request_stop(pid: u32) {
+    unsafe {
+        libc::killpg(pid as i32, libc::SIGTERM);
+    }
+}
+
+/// Kill the process group outright, for when the polite request was ignored.
+pub fn force_stop(pid: u32) {
+    unsafe {
+        libc::killpg(pid as i32, libc::SIGKILL);
+    }
 }
 
 #[cfg(test)]
@@ -349,16 +328,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn validates_env_var_names() {
-        // `export NAME=value` requires a bare identifier for NAME — a
-        // malformed custom env var line must be dropped, not turned into
-        // broken (or injectable) shell syntax.
-        assert!(is_valid_env_var_name("DXVK_HUD"));
-        assert!(is_valid_env_var_name("_FOO"));
-        assert!(is_valid_env_var_name("FOO_1"));
-        assert!(!is_valid_env_var_name(""));
-        assert!(!is_valid_env_var_name("1FOO"));
-        assert!(!is_valid_env_var_name("FOO BAR"));
-        assert!(!is_valid_env_var_name("FOO;rm -rf ~"));
+    fn escapes_single_quotes_in_paths() {
+        // A game directory with an apostrophe in it must not break out of the
+        // quoted argument in the generated shell script.
+        assert_eq!(shell_escape("/home/o'brien/Games"), r"'/home/o'\''brien/Games'");
     }
 }

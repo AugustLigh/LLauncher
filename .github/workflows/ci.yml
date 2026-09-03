@@ -13,11 +13,19 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-22.04
+    # Both shipped platforms get built and tested: a change to the Linux launch
+    # path must not break the Windows one (and vice versa), and only a real
+    # compile on each host catches that.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Linux dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -49,4 +57,26 @@ jobs:
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Rust build
+        if: runner.os == 'Linux'
         run: cargo build --manifest-path src-tauri/Cargo.toml
+
+      # On Windows go straight for the real bundle instead of a debug build: it
+      # compiles the release binary anyway and leaves an installer behind, so
+      # the Windows port can be tried out from a branch without cutting a
+      # release.
+      - name: Build Windows installers
+        if: runner.os == 'Windows'
+        run: npx tauri build
+
+      - name: Upload Windows installers
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: llauncher-windows
+          # The NSIS setup and the MSI, plus the bare executable for a quick
+          # portable run on a machine that already has WebView2.
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/*.exe
+          retention-days: 14

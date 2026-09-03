@@ -17,16 +17,56 @@ use tauri::{
     Manager,
 };
 
+/// Windows GUI binaries start without a console, so `LLauncher.exe
+/// --debug-info` run from a terminal would print into a void. Attach to the
+/// calling console and point stdout/stderr at it. A no-op when there is no
+/// parent console (double-clicked from Explorer).
+#[cfg(windows)]
+fn attach_parent_console() {
+    use windows_sys::Win32::Foundation::{GENERIC_WRITE, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::Storage::FileSystem::{
+        CreateFileW, FILE_SHARE_WRITE, OPEN_EXISTING,
+    };
+    use windows_sys::Win32::System::Console::{
+        AttachConsole, SetStdHandle, ATTACH_PARENT_PROCESS, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE,
+    };
+
+    unsafe {
+        if AttachConsole(ATTACH_PARENT_PROCESS) == 0 {
+            return;
+        }
+        // Attaching does not rebind the process' standard handles — the ones
+        // a GUI process inherited are useless — so open the console device
+        // itself and install it as stdout/stderr.
+        let name: Vec<u16> = "CONOUT$\0".encode_utf16().collect();
+        let handle = CreateFileW(
+            name.as_ptr(),
+            GENERIC_WRITE,
+            FILE_SHARE_WRITE,
+            std::ptr::null(),
+            OPEN_EXISTING,
+            0,
+            std::ptr::null_mut(),
+        );
+        if handle != INVALID_HANDLE_VALUE {
+            SetStdHandle(STD_OUTPUT_HANDLE, handle);
+            SetStdHandle(STD_ERROR_HANDLE, handle);
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Use xdg-desktop-portal for file dialogs (native KDE/GNOME picker)
-    std::env::set_var("GTK_USE_PORTAL", "1");
-
-    // Workaround for WebKitGTK 2.40+ EGL_BAD_PARAMETER on Arch/CachyOS/Fedora
-    // and NVIDIA setups. Disables the DMA-BUF renderer that breaks on many
-    // Linux GPU stacks. Respect the user's override if they set it explicitly.
+    // Every environment tweak below is about the GTK/WebKit stack the webview
+    // uses on Linux; on Windows the webview is WebView2 and needs none of it.
     #[cfg(target_os = "linux")]
     {
+        // Use xdg-desktop-portal for file dialogs (native KDE/GNOME picker)
+        std::env::set_var("GTK_USE_PORTAL", "1");
+
+        // Workaround for WebKitGTK 2.40+ EGL_BAD_PARAMETER on Arch/CachyOS/
+        // Fedora and NVIDIA setups. Disables the DMA-BUF renderer that breaks
+        // on many Linux GPU stacks. Respect an explicit user override.
         if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
             std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         }
@@ -89,6 +129,8 @@ pub fn run() {
     // Reachable even when the webview never renders (issue #11-style black
     // screens), which is exactly when the in-app "Copy" button is useless.
     if std::env::args().any(|a| a == "--debug-info") {
+        #[cfg(windows)]
+        attach_parent_console();
         println!("{}", commands::build_debug_info(settings));
         return;
     }

@@ -1,8 +1,9 @@
 name: Release
 
-# Builds on Ubuntu 22.04 LTS so the bundles link against an older glibc/openssl
-# and run on a wider range of distributions than a build from a rolling/recent
-# host would.
+# The Linux bundles are built on Ubuntu 22.04 LTS so they link against an older
+# glibc/openssl and run on a wider range of distributions than a build from a
+# rolling/recent host would; the Windows installers are built on windows-latest
+# and attached to the same release.
 # Triggered explicitly (update.sh runs `gh workflow run release.yml -f tag=X`)
 # rather than on tag push, so a local release (`update.sh X --local`) never
 # races with a CI build for the same tag.
@@ -49,6 +50,46 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Build and publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.event.inputs.tag }}
+          releaseName: "LLauncher ${{ github.event.inputs.tag }}"
+          releaseBody: "See the assets below to download and install this version."
+          releaseDraft: false
+          prerelease: false
+
+  # Runs after the Linux job rather than beside it: whichever job goes first
+  # creates the GitHub release, and two `tauri-action`s racing to create the
+  # same one is how you end up with a duplicate (or a lost) release.
+  build-windows:
+    needs: build
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: yarn install --frozen-lockfile
+
+      # Attaches the NSIS installer and the MSI to the release the Linux job
+      # created (tauri.windows.conf.json picks those two targets).
+      - name: Build and attach the Windows installers
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

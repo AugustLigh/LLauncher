@@ -19,7 +19,8 @@ const MAX_BYTES: u64 = 2 * 1024 * 1024;
 
 static LOCK: Mutex<()> = Mutex::new(());
 
-/// `~/.local/share/llauncher/llauncher.log`
+/// `~/.local/share/llauncher/llauncher.log` on Linux,
+/// `%APPDATA%\llauncher\llauncher.log` on Windows.
 pub fn log_path() -> PathBuf {
     crate::config::paths::data_base().join("llauncher.log")
 }

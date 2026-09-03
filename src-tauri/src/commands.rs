@@ -376,7 +376,7 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
     let game_running = state.game_running.clone();
     let game_pid = state.game_pid.clone();
     game_running.store(true, std::sync::atomic::Ordering::SeqCst);
-    game_pid.store(launched.child.id(), std::sync::atomic::Ordering::SeqCst);
+    game_pid.store(launched.process.id(), std::sync::atomic::Ordering::SeqCst);
     let _ = app.emit("game://started", ());
 
     let discord = if settings_clone.use_discord_rpc {
@@ -396,7 +396,7 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
             .unwrap_or(0);
 
         let status = loop {
-            match launched.child.try_wait() {
+            match launched.process.try_wait() {
                 Ok(Some(status)) => break Some(status),
                 Ok(None) => std::thread::sleep(std::time::Duration::from_millis(500)),
                 Err(_) => break None,
@@ -414,7 +414,7 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
         crate::logging::info(format!(
             "game exited after {}s (code {:?}){}",
             started.elapsed().as_secs(),
-            status.as_ref().and_then(|s| s.code()),
+            status.and_then(|s| s.code),
             if quick_exit { " — quick exit, treated as a failed launch" } else { "" }
         ));
 
@@ -461,7 +461,7 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
                 let _ = app2.emit(
                     "launch://failed",
                     crate::api::types::LaunchFailed {
-                        exit_code: status.code(),
+                        exit_code: status.code,
                         log_tail,
                         hint: hint.map(str::to_string),
                     },
@@ -470,7 +470,7 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
             let _ = app2.emit(
                 "game://exited",
                 crate::api::types::GameExited {
-                    exit_code: status.code(),
+                    exit_code: status.code,
                 },
             );
         } else {
@@ -496,11 +496,9 @@ pub async fn stop_game(state: State<'_, AppState>) -> Result<(), AppError> {
         return Ok(());
     }
 
-    // Ask the whole process group (bash -> proton -> game) to terminate, then
-    // escalate to SIGKILL if it is still alive a few seconds later.
-    unsafe {
-        libc::killpg(pid as i32, libc::SIGTERM);
-    }
+    // Ask the game to terminate, then escalate to an outright kill if it is
+    // still alive a few seconds later.
+    crate::game::launcher::request_stop(pid);
 
     let game_running = state.game_running.clone();
     let game_pid = state.game_pid.clone();
@@ -509,9 +507,7 @@ pub async fn stop_game(state: State<'_, AppState>) -> Result<(), AppError> {
         if game_running.load(std::sync::atomic::Ordering::SeqCst) {
             let pid = game_pid.load(std::sync::atomic::Ordering::SeqCst);
             if pid != 0 {
-                unsafe {
-                    libc::killpg(pid as i32, libc::SIGKILL);
-                }
+                crate::game::launcher::force_stop(pid);
             }
         }
     });
@@ -616,6 +612,42 @@ pub async fn get_debug_info(state: State<'_, AppState>) -> Result<String, AppErr
 }
 
 pub(crate) fn build_debug_info(settings: AppSettings) -> String {
+    // A wider tail than the launch-failure path: in-game crashes (e.g. issue
+    // #21) abort long after the startup banner, so 30 lines often miss the
+    // actual backtrace.
+    let log_tail = crate::game::launcher::read_log_tail(&paths::launch_log_path(), 200);
+    let launcher_log = crate::logging::tail(60);
+
+    format!(
+        "{header}\n\
+         \n--- launcher.log tail ---\n{launcher_log}\n\
+         \n--- launch.log tail ---\n{log_tail}",
+        header = debug_header(&settings),
+        launcher_log = launcher_log,
+        log_tail = log_tail,
+    )
+}
+
+/// Run a command and capture its trimmed stdout; empty string on any failure.
+fn run_capture(cmd: &str, args: &[&str]) -> String {
+    let mut command = std::process::Command::new(cmd);
+    command.args(args);
+    crate::util::strip_appimage_libs(&mut command);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // CREATE_NO_WINDOW: don't flash a console window at the user.
+        command.creation_flags(0x0800_0000);
+    }
+    command
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default()
+}
+
+#[cfg(unix)]
+fn debug_header(settings: &AppSettings) -> String {
     let os = std::fs::read_to_string("/etc/os-release")
         .ok()
         .and_then(|c| {
@@ -625,29 +657,15 @@ pub(crate) fn build_debug_info(settings: AppSettings) -> String {
         })
         .unwrap_or_else(|| "unknown".to_string());
 
-    let run = |cmd: &str, args: &[&str]| -> String {
-        let mut command = std::process::Command::new(cmd);
-        command.args(args);
-        crate::util::strip_appimage_libs(&mut command);
-        command
-            .output()
-            .ok()
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-            .unwrap_or_default()
-    };
-
-    let kernel = run("uname", &["-r"]);
-    let gpu = run("sh", &["-c", "lspci -nn 2>/dev/null | grep -Ei 'vga|3d' | sed 's/^[0-9a-f:.]* //'"]);
+    let kernel = run_capture("uname", &["-r"]);
+    let gpu = run_capture(
+        "sh",
+        &["-c", "lspci -nn 2>/dev/null | grep -Ei 'vga|3d' | sed 's/^[0-9a-f:.]* //'"],
+    );
     let proton = std::path::Path::new(&settings.proton_dir)
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| settings.proton_dir.clone());
-
-    // A wider tail than the launch-failure path: in-game crashes (e.g. issue
-    // #21) abort long after the startup banner, so 30 lines often miss the
-    // actual backtrace.
-    let log_tail = crate::game::launcher::read_log_tail(&paths::launch_log_path(), 200);
-    let launcher_log = crate::logging::tail(60);
 
     format!(
         "LLauncher {version}\n\
@@ -658,9 +676,7 @@ pub(crate) fn build_debug_info(settings: AppSettings) -> String {
          Game version: {game_version}\n\
          ntsync: {ntsync}\n\
          Flags: vulkan={vulkan} wayland={wayland} dxvk_async={dxvk} gamemode={gamemode} mangohud={mangohud} gamescope={gamescope} prime={prime} fsync_off={fsync} esync_off={esync}\n\
-         Flatpak: {flatpak}\n\
-         \n--- launcher.log tail ---\n{launcher_log}\n\
-         \n--- launch.log tail ---\n{log_tail}",
+         Flatpak: {flatpak}",
         version = env!("CARGO_PKG_VERSION"),
         os = os,
         kernel = kernel,
@@ -680,8 +696,43 @@ pub(crate) fn build_debug_info(settings: AppSettings) -> String {
         fsync = settings.disable_fsync,
         esync = settings.disable_esync,
         flatpak = std::env::var_os("FLATPAK_ID").is_some(),
-        launcher_log = launcher_log,
-        log_tail = log_tail,
+    )
+}
+
+#[cfg(windows)]
+fn debug_header(settings: &AppSettings) -> String {
+    // One PowerShell round-trip for both facts: the OS caption with its build
+    // number on the first line, the GPU names on the second. Spawning it twice
+    // would double the ~half-second startup cost for no gain.
+    let probe = run_capture(
+        "powershell",
+        &[
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "$os = Get-CimInstance Win32_OperatingSystem; \
+             \"$($os.Caption) (build $($os.BuildNumber))\"; \
+             (Get-CimInstance Win32_VideoController | \
+              Select-Object -ExpandProperty Name) -join ', '",
+        ],
+    );
+    let mut lines = probe.lines();
+    let os = lines.next().unwrap_or("").trim().to_string();
+    let gpu = lines.next().unwrap_or("").trim().to_string();
+
+    format!(
+        "LLauncher {version}\n\
+         OS: {os}\n\
+         GPU: {gpu}\n\
+         Game version: {game_version}\n\
+         Flags: run_as_admin={admin} discord_rpc={discord} on_launch={on_launch}",
+        version = env!("CARGO_PKG_VERSION"),
+        os = if os.is_empty() { "Windows (version unknown)".to_string() } else { os },
+        gpu = if gpu.is_empty() { "unknown".to_string() } else { gpu },
+        game_version = if settings.installed_version.is_empty() { "not installed" } else { &settings.installed_version },
+        admin = settings.windows_run_as_admin,
+        discord = settings.use_discord_rpc,
+        on_launch = settings.on_launch_action,
     )
 }
 

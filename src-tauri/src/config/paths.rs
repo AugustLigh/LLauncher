@@ -5,14 +5,18 @@ use std::path::{Path, PathBuf};
 /// for directories that have not been created yet. `None` if it cannot be
 /// determined.
 pub fn available_space(path: &Path) -> Option<u64> {
-    use std::os::unix::ffi::OsStrExt;
-
     let mut probe = path;
     while !probe.exists() {
         probe = probe.parent()?;
     }
+    available_space_of_existing(probe)
+}
 
-    let c_path = std::ffi::CString::new(probe.as_os_str().as_bytes()).ok()?;
+#[cfg(unix)]
+fn available_space_of_existing(dir: &Path) -> Option<u64> {
+    use std::os::unix::ffi::OsStrExt;
+
+    let c_path = std::ffi::CString::new(dir.as_os_str().as_bytes()).ok()?;
     let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
     if unsafe { libc::statvfs(c_path.as_ptr(), &mut stat) } == 0 {
         Some(stat.f_bavail as u64 * stat.f_frsize as u64)
@@ -21,7 +25,38 @@ pub fn available_space(path: &Path) -> Option<u64> {
     }
 }
 
-/// Config directory: ~/.config/llauncher/
+#[cfg(windows)]
+fn available_space_of_existing(dir: &Path) -> Option<u64> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+
+    // GetDiskFreeSpaceExW wants a directory (a trailing separator is fine) and
+    // a NUL-terminated wide string.
+    let wide: Vec<u16> = dir
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+
+    // "Free bytes available to the calling user" — the quota-aware figure,
+    // matching what statvfs' f_bavail reports on Unix.
+    let mut available: u64 = 0;
+    let ok = unsafe {
+        GetDiskFreeSpaceExW(
+            wide.as_ptr(),
+            &mut available,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+        )
+    };
+    if ok == 0 {
+        return None;
+    }
+    Some(available)
+}
+
+/// Config directory: `~/.config/llauncher/` on Linux,
+/// `%APPDATA%\llauncher\` on Windows.
 pub fn config_dir() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
@@ -33,12 +68,12 @@ pub fn settings_path() -> PathBuf {
     config_dir().join("settings.json")
 }
 
-/// Game launch log path: ~/.config/llauncher/launch.log
+/// Game launch log path, next to the settings file.
 pub fn launch_log_path() -> PathBuf {
     config_dir().join("launch.log")
 }
 
-/// Play-session journal path: ~/.config/llauncher/sessions.json
+/// Play-session journal path, next to the settings file.
 pub fn sessions_path() -> PathBuf {
     config_dir().join("sessions.json")
 }

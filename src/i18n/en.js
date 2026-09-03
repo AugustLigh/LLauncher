@@ -213,6 +213,10 @@ export default {
       name: 'Canonical Hole (skip_volatile_check)',
       desc: 'WINE_CANONICAL_HOLE=skip_volatile_check — may improve performance up to 200% (DWProton)',
     },
+    runAsAdmin: {
+      name: 'Run as administrator',
+      desc: 'Ask for elevation before starting the game. Only needed if the anti-cheat refuses to load; custom environment variables are ignored in this mode.',
+    },
     launchArgs: 'Launch arguments',
     launchArgsPlaceholder: 'e.g. -windowed -fullscreen',
     envVars: 'Custom environment variables',

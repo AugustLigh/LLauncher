@@ -21,6 +21,9 @@ pub enum AppError {
     GameNotFound(String),
 
     #[error("Proton not found: {0}")]
+    // Only the Linux launch path can hit this; keep the variant in the shared
+    // enum so the error type is identical on both platforms.
+    #[cfg_attr(windows, allow(dead_code))]
     ProtonNotFound(String),
 
     #[error("tar not found")]
@@ -34,6 +37,14 @@ pub enum AppError {
 
     #[error("Download cancelled")]
     Cancelled,
+
+    /// A feature that only exists on one platform (Proton, the Wine prefix
+    /// tools) was invoked on another. The UI hides these controls, so this is
+    /// a guard against a stale frontend, not something a user should see.
+    /// Only the Windows stubs construct it today.
+    #[cfg_attr(unix, allow(dead_code))]
+    #[error("Not available on this platform: {0}")]
+    Unsupported(String),
 
     #[error("Game update required (installed {installed}, latest {latest})")]
     UpdateRequired { installed: String, latest: String },

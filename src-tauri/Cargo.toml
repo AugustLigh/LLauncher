@@ -1,7 +1,7 @@
 [package]
 name = "llauncher"
 version = "0.3.2"
-description = "Linux Launcher for Arknights: Endfield"
+description = "Launcher for Arknights: Endfield"
 authors = ["you"]
 edition = "2021"
 
@@ -29,6 +29,23 @@ dirs = "6"
 zip = { version = "2", default-features = false, features = ["deflate", "deflate64"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
-libc = "0.2"
 tauri-plugin-notification = "2"
 discord-rich-presence = "1.1.0"
+
+# `killpg`/`statvfs`: the POSIX bits of process control and free-space probing.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# Win32 equivalents: free space (GetDiskFreeSpaceExW), waiting on a process
+# handle, and the elevated launch path (ShellExecuteExW).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Console",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }

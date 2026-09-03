@@ -213,6 +213,10 @@ export default {
       name: 'Canonical Hole (skip_volatile_check)',
       desc: 'WINE_CANONICAL_HOLE=skip_volatile_check — может ускорить игру до 200% (DWProton)',
     },
+    runAsAdmin: {
+      name: 'Запуск от имени администратора',
+      desc: 'Запрашивать повышение прав перед стартом игры. Нужно, только если античит отказывается загружаться; пользовательские переменные окружения в этом режиме не передаются.',
+    },
     launchArgs: 'Аргументы запуска',
     launchArgsPlaceholder: 'например, -windowed -fullscreen',
     envVars: 'Переменные окружения',

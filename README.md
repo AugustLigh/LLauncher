@@ -2,7 +2,7 @@
 
 # 🚀 LLauncher
 
-**A native Linux launcher for Arknights: Endfield**
+**A native Linux launcher for Arknights: Endfield — with Windows builds too**
 
 Built with Tauri v2, React, and Rust
 
@@ -20,7 +20,11 @@ Built with Tauri v2, React, and Rust
 
 LLauncher is a lightweight, native Linux launcher for **Arknights: Endfield**. It handles game installation, updates, and launching through Proton — no Steam or Lutris required.
 
-[Download the latest release](https://github.com/AugustLigh/LLauncher/releases/latest) (AppImage / .deb / .rpm / .flatpak)
+The same launcher builds for Windows, where the game needs no compatibility
+layer: the install, update and verification machinery is identical and the
+Proton-specific settings simply disappear.
+
+[Download the latest release](https://github.com/AugustLigh/LLauncher/releases/latest) (AppImage / .deb / .rpm / .flatpak, plus an .exe installer and .msi for Windows)
 
 On Arch Linux (and derivatives like CachyOS, Manjaro, EndeavourOS) install from the AUR — dependencies are handled automatically:
 
@@ -60,13 +64,22 @@ install without a remote.
 
 ## Prerequisites
 
-- **Linux** (x86_64)
+Common to both platforms:
+
 - **Node.js** >= 18 and **npm** (or yarn)
 - **Rust** toolchain ([rustup](https://rustup.rs))
+
+Linux (x86_64):
+
 - **System libraries** for Tauri v2 — see the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/#linux)
 - **glib-networking** — its GIO TLS module is bundled into the AppImage at build time
 - **GStreamer plugins** — the build copies the local `gstreamer-1.0` plugin directory into the AppImage for WebKitGTK
 - A **Proton** build (DWProton can be downloaded from within the launcher)
+
+Windows (x86_64):
+
+- **Microsoft Visual C++ Build Tools** and the **Windows SDK** — see the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/#windows)
+- **WebView2** — preinstalled on Windows 11 and current Windows 10; the installer fetches it otherwise
 
 ## Getting Started
 
@@ -101,9 +114,24 @@ directory via `scripts/prepare-appimage-files.sh`. To refresh those embedded
 libraries after a WebKitGTK/GStreamer update, update the distro packages on the
 build host and run `./build.sh` again.
 
+On Windows, run the build from a Windows host (the bundlers need it):
+
+```powershell
+npx tauri build
+```
+
+| Format | Path                                          |
+| ------ | --------------------------------------------- |
+| NSIS   | `bundle/nsis/LLauncher_0.3.2_x64-setup.exe`    |
+| MSI    | `bundle/msi/LLauncher_0.3.2_x64_en-US.msi`     |
+
+The platform-specific bundler settings live in `src-tauri/tauri.linux.conf.json`
+and `src-tauri/tauri.windows.conf.json`; Tauri merges the matching one over
+`tauri.conf.json` automatically.
+
 ## Configuration
 
-Settings are stored in `~/.config/llauncher/settings.json` and can be edited through the in-app settings panel.
+Settings are stored in `~/.config/llauncher/settings.json` (`%APPDATA%\llauncher\settings.json` on Windows) and can be edited through the in-app settings panel.
 
 | Category  | Options                                                            |
 | --------- | ------------------------------------------------------------------ |
@@ -112,16 +140,28 @@ Settings are stored in `~/.config/llauncher/settings.json` and can be edited thr
 | Launch    | Gamemode, MangoHUD, Vulkan, Wayland, DXVK Async, on-launch action |
 | Downloads | Speed limit, concurrent connections, custom env vars, launch args  |
 
+On Windows the Proton tab and every Proton-only launch option are hidden — the
+game runs natively — and the Launch tab offers "Run as administrator" instead,
+for the rare case where the anti-cheat refuses to load without elevation.
+
 <img width="1282" height="715" alt="изображение" src="https://github.com/user-attachments/assets/e9262948-b29a-4b93-bb2c-8e0438db8a6f" />
 
 
-Default paths:
+Default paths (Linux):
 
 ```
 Game:   ~/Games/ArknightsEndfield
 Proton: ~/.local/share/llauncher/proton
 Config: ~/.config/llauncher/settings.json
 Logs:   ~/.config/llauncher/launch.log
+```
+
+Default paths (Windows):
+
+```
+Game:   %USERPROFILE%\Games\ArknightsEndfield
+Config: %APPDATA%\llauncher\settings.json
+Logs:   %APPDATA%\llauncher\launch.log
 ```
 
 ## Troubleshooting
@@ -161,7 +201,7 @@ LLauncher/
 │       ├── api/                #   API client, types, constants
 │       ├── config/             #   Settings persistence, path management
 │       ├── download/           #   Download manager, workers, extraction, verification
-│       ├── game/               #   Game state detection, Proton launching
+│       ├── game/               #   Game state detection, launching (launcher/{linux,windows}.rs)
 │       ├── commands.rs         #   Tauri command handlers
 │       └── lib.rs              #   App setup and plugin registration
 ├── package.json
