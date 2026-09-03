@@ -129,13 +129,24 @@ fn decrypt_index(body: &[u8]) -> Result<Vec<u8>, AppError> {
 /// compromised/MITM'd CDN response must not be able to write outside the
 /// game's StreamingAssets directory.
 fn is_safe_relative_path(name: &str) -> bool {
+    use std::path::Component;
+
     let path = Path::new(name);
     if path.is_absolute() {
         return false;
     }
-    !path
-        .components()
-        .any(|c| matches!(c, std::path::Component::ParentDir))
+    // `is_absolute` alone is not enough on Windows: there a path is absolute
+    // only with a drive prefix, so "/etc/passwd" and "\windows\system32"
+    // come back as *relative* — and `join` still throws away everything but the
+    // drive, landing the write at the root of the volume instead of inside the
+    // game. Rejecting the root and prefix components closes that on both
+    // platforms.
+    !path.components().any(|c| {
+        matches!(
+            c,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        )
+    })
 }
 
 fn file_md5(path: &Path) -> std::io::Result<String> {
@@ -600,8 +611,19 @@ mod tests {
         // outside the game's StreamingAssets root via `..` or an absolute path.
         assert!(!is_safe_relative_path("../../etc/cron.d/evil"));
         assert!(!is_safe_relative_path("VFS/../../etc/passwd"));
+        // Rooted but, on Windows, not "absolute" — `join` would still escape
+        // to the root of the drive.
         assert!(!is_safe_relative_path("/etc/passwd"));
         assert!(is_safe_relative_path("VFS/AB/CD.chk"));
+
+        // Backslashes only separate components on Windows; elsewhere the whole
+        // string is one (harmless, if odd) file name.
+        #[cfg(windows)]
+        {
+            assert!(!is_safe_relative_path(r"\windows\system32\evil.dll"));
+            assert!(!is_safe_relative_path(r"C:\windows\system32\evil.dll"));
+            assert!(!is_safe_relative_path(r"VFS\..\..\evil.dll"));
+        }
     }
 
     #[test]
