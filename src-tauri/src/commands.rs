@@ -322,7 +322,7 @@ pub async fn start_update(
 /// reported as a launch failure with a tail of the log; in every case we reap
 /// the child (no zombie), clear the running flag, record playtime and emit
 /// `game://exited` so the UI can update / bring the window back.
-pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
+pub async fn launch_and_watch(app: tauri::AppHandle, with_mods: bool) -> Result<(), AppError> {
     use tauri::Manager;
 
     let state = app.state::<AppState>();
@@ -369,10 +369,13 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
     }
 
     crate::logging::info(format!(
-        "launching game (proton={}, wayland={}, gamescope={})",
-        settings_clone.proton_dir, settings_clone.use_wayland, settings_clone.use_gamescope
+        "launching game (proton={}, wayland={}, gamescope={}, mods={})",
+        settings_clone.proton_dir,
+        settings_clone.use_wayland,
+        settings_clone.use_gamescope,
+        with_mods
     ));
-    let mut launched = crate::game::launcher::launch_game(&settings_clone)?;
+    let mut launched = crate::game::launcher::launch_game(&settings_clone, with_mods)?;
     let game_running = state.game_running.clone();
     let game_pid = state.game_pid.clone();
     game_running.store(true, std::sync::atomic::Ordering::SeqCst);
@@ -484,9 +487,59 @@ pub async fn launch_and_watch(app: tauri::AppHandle) -> Result<(), AppError> {
     Ok(())
 }
 
+/// `with_mods` is the second launch action on the home screen: the game runs
+/// on D3D11 with the 3DMigoto proxy loaded instead of the native Vulkan
+/// renderer. Absent (tray menu, `--play`) means a normal launch.
 #[tauri::command]
-pub async fn launch_game(app: tauri::AppHandle) -> Result<(), AppError> {
-    launch_and_watch(app).await
+pub async fn launch_game(app: tauri::AppHandle, with_mods: Option<bool>) -> Result<(), AppError> {
+    launch_and_watch(app, with_mods.unwrap_or(false)).await
+}
+
+/// What the launcher can see of the mod setup: is the loader in place, how
+/// many mods are installed, where to drop new ones.
+#[tauri::command]
+pub async fn get_mods_status(
+    state: State<'_, AppState>,
+) -> Result<crate::game::mods::ModsStatus, AppError> {
+    let game_dir = state.settings.lock().await.game_dir.clone();
+    Ok(crate::game::mods::status(std::path::Path::new(&game_dir)))
+}
+
+/// Download and install the 3DMigoto loader into the game directory.
+#[tauri::command]
+pub async fn install_mod_loader(
+    state: State<'_, AppState>,
+) -> Result<crate::game::mods::LoaderInstallResult, AppError> {
+    let (game_dir, client) = {
+        let settings = state.settings.lock().await;
+        (settings.game_dir.clone(), state.http_client.clone())
+    };
+    crate::game::mods::install_loader(&client, std::path::Path::new(&game_dir)).await
+}
+
+/// Remove the loader again. Installed mods are left alone.
+#[tauri::command]
+pub async fn uninstall_mod_loader(state: State<'_, AppState>) -> Result<(), AppError> {
+    let game_dir = state.settings.lock().await.game_dir.clone();
+    let dir = std::path::PathBuf::from(game_dir);
+    tokio::task::spawn_blocking(move || crate::game::mods::uninstall_loader(&dir))
+        .await
+        .map_err(|e| AppError::Api(format!("mod loader uninstall task failed: {}", e)))?
+}
+
+/// Open the `Mods` directory in the file manager, creating it on the way if
+/// this is the user's first mod.
+#[tauri::command]
+pub async fn open_mods_folder(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    use tauri_plugin_opener::OpenerExt;
+    let game_dir = state.settings.lock().await.game_dir.clone();
+    let dir = crate::game::mods::ensure_mods_dir(std::path::Path::new(&game_dir))?;
+    app.opener()
+        .open_path(dir.to_string_lossy(), None::<&str>)
+        .map_err(|e| AppError::Api(format!("Failed to open folder: {}", e)))
 }
 
 #[tauri::command]

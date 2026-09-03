@@ -37,7 +37,7 @@ pub fn resolve_prefix_dir(settings: &AppSettings, game_path: &Path) -> PathBuf {
 /// Shared preamble for anything run inside the game's Proton prefix: exports
 /// every configured env var. Used by the game launch and the prefix tools
 /// (winecfg etc.) so both see the exact same environment.
-fn build_env_script(settings: &AppSettings, compat_data: &Path) -> String {
+fn build_env_script(settings: &AppSettings, compat_data: &Path, with_mods: bool) -> String {
     let mut script = String::new();
 
     // Unset Python vars that break Proton's bundled Python
@@ -88,6 +88,16 @@ fn build_env_script(settings: &AppSettings, compat_data: &Path) -> String {
              export __VK_LAYER_NV_optimus=NVIDIA_only\n\
              export __GLX_VENDOR_LIBRARY_NAME=nvidia\n",
         );
+    }
+
+    // A modded launch needs Wine to load the game's own d3d11.dll — the
+    // 3DMigoto proxy — ahead of its builtin. Without the override Wine picks
+    // DXVK directly and the proxy never runs, which looks exactly like "the
+    // mods do nothing". `n,b` keeps the builtin as fallback, and the proxy
+    // chains to it for the real D3D11 work. Placed before the user's own
+    // variables so a hand-written WINEDLLOVERRIDES still overrides it.
+    if with_mods {
+        script.push_str("export WINEDLLOVERRIDES='d3d11=n,b'\n");
     }
 
     // Custom env vars (KEY=VALUE per line)
@@ -156,7 +166,10 @@ fn build_gamescope_args(settings: &AppSettings) -> String {
     args.join(" ")
 }
 
-pub fn launch_game(settings: &AppSettings) -> Result<LaunchedGame, AppError> {
+/// Start the game. `with_mods` swaps the native Vulkan renderer for the D3D11
+/// path and lets the 3DMigoto proxy in — see `crate::game::mods` for why the
+/// two are inseparable.
+pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGame, AppError> {
     let game_path = Path::new(&settings.game_dir);
     let exe_path = game_path.join("Endfield.exe");
 
@@ -184,7 +197,7 @@ pub fn launch_game(settings: &AppSettings) -> Result<LaunchedGame, AppError> {
     let log_path = paths::launch_log_path();
     std::fs::create_dir_all(log_path.parent().unwrap())?;
 
-    let mut script = build_env_script(settings, &compat_data);
+    let mut script = build_env_script(settings, &compat_data, with_mods);
 
     // cd into game directory
     script.push_str(&format!("cd {}\n", shell_escape(&game_path.to_string_lossy())));
@@ -211,8 +224,10 @@ pub fn launch_game(settings: &AppSettings) -> Result<LaunchedGame, AppError> {
     }
     launch_cmd.push_str(&format!("{} run {}", proton_escaped, wine_escaped));
 
-    // Native Vulkan renderer
-    if settings.use_native_vulkan {
+    // Native Vulkan renderer. Suppressed for a modded launch: 3DMigoto hooks
+    // D3D11 and has no Vulkan equivalent, so `-vulkan` would leave every mod
+    // silently inert.
+    if settings.use_native_vulkan && !with_mods {
         launch_cmd.push_str(" -vulkan");
     }
 
@@ -292,7 +307,7 @@ pub fn run_prefix_tool(settings: &AppSettings, tool: &str) -> Result<(), AppErro
     let compat_data = resolve_prefix_dir(settings, game_path);
     std::fs::create_dir_all(&compat_data)?;
 
-    let mut script = build_env_script(settings, &compat_data);
+    let mut script = build_env_script(settings, &compat_data, false);
     script.push_str(&format!(
         "exec {} run {} > /dev/null 2>&1\n",
         shell_escape(&proton_path.to_string_lossy()),

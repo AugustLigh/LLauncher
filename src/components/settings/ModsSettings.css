@@ -1,0 +1,175 @@
+/* The mods tab. Reads as a checklist: a numbered rail down the left, each
+   step turning gold with a tick once it is satisfied, so "am I set up?" is
+   answered by glancing at the column rather than by reading. */
+
+.mods__intro {
+  padding: var(--space-md) var(--space-lg);
+  margin-bottom: var(--space-lg);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 2px solid var(--color-accent);
+  border-radius: var(--radius-md);
+}
+
+.mods__intro-text {
+  margin: 0;
+  font-size: var(--font-size-base);
+  line-height: 1.55;
+  color: var(--color-text-primary);
+}
+
+.mods__intro-note {
+  margin: var(--space-sm) 0 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+/* ── Steps ── */
+
+.mods__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.mods__step {
+  position: relative;
+  display: flex;
+  gap: var(--space-md);
+  padding-bottom: var(--space-xl);
+}
+
+/* The rail joining one step to the next; the last step has nothing to join. */
+.mods__step::before {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: 28px;
+  bottom: 4px;
+  width: 1px;
+  background: var(--color-border);
+}
+
+.mods__step:last-child {
+  padding-bottom: 0;
+}
+
+.mods__step:last-child::before {
+  display: none;
+}
+
+.mods__step-num {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 27px;
+  height: 27px;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--color-text-muted);
+  background: var(--color-bg-tertiary);
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  transition: all var(--transition-base);
+}
+
+.mods__step--done .mods__step-num {
+  color: var(--color-bg);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 12px var(--color-accent-glow);
+}
+
+.mods__step-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 0;
+  flex: 1;
+  padding-top: 3px;
+}
+
+.mods__step-title {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.mods__step-desc {
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-sm);
+}
+
+.mods__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.mods__ok {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-success);
+}
+
+.mods__src {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+/* The toggle sits inside a step, so it drops the section's own framing. */
+.mods__toggle {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+/* ── Warnings ── */
+
+.mods__warnings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-xl);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.mods__warn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  border-left: 2px solid var(--color-text-muted);
+  background: var(--color-surface);
+}
+
+.mods__warn--perf {
+  border-left-color: var(--color-warning);
+}
+
+.mods__warn--risk {
+  border-left-color: var(--color-error);
+}
+
+.mods__warn-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.mods__warn-text {
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}

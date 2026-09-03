@@ -94,6 +94,11 @@ pub struct AppSettings {
     /// Some anti-cheat drivers need it; most installs do not.
     #[serde(default)]
     pub windows_run_as_admin: bool,
+    /// Show the "play with mods" action: the game then starts on its D3D11
+    /// path with the `d3d11.dll` proxy (3DMigoto/EFMI) loaded. Off by default —
+    /// it costs frames and the game is anti-cheat protected, so it is opt-in.
+    #[serde(default)]
+    pub mods_enabled: bool,
     /// Accumulated in-game time in seconds.
     #[serde(default)]
     pub total_playtime_secs: u64,
@@ -138,6 +143,7 @@ impl Default for AppSettings {
             gamescope_hdr: false,
             gamescope_extra_args: String::new(),
             windows_run_as_admin: false,
+            mods_enabled: false,
             total_playtime_secs: 0,
             last_played: 0,
         }

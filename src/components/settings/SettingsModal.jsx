@@ -4,6 +4,7 @@ import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialo
 import PathSelector from './PathSelector';
 import LanguageSelector from './LanguageSelector';
 import LinuxLaunchOptions from './LinuxLaunchOptions';
+import ModsSettings from './ModsSettings';
 import LogViewer from '../common/LogViewer';
 import ConfirmDialog from '../common/ConfirmDialog';
 import useModalDismiss from '../../hooks/useModalDismiss';
@@ -53,6 +54,7 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
     ...(isLinux ? [{ id: 'proton', label: t('settings.tab.proton') }] : []),
     { id: 'launch', label: t('settings.tab.launch') },
     { id: 'downloads', label: t('settings.tab.downloads') },
+    { id: 'mods', label: t('settings.tab.mods') },
     { id: 'game', label: t('settings.tab.game') },
   ];
 
@@ -786,6 +788,10 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
                 <span className="settings-modal__hint">{t('settings.speedLimitHint')}</span>
               </div>
             </>
+          )}
+
+          {activeTab === 'mods' && (
+            <ModsSettings form={form} onChange={handleChange} />
           )}
 
           {activeTab === 'game' && (

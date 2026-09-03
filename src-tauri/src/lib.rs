@@ -151,7 +151,7 @@ pub fn run() {
                 tauri::async_runtime::spawn(async move {
                     // Immediate failures (not installed, no Proton) have no
                     // dialog of their own — fall back to showing the window.
-                    if commands::launch_and_watch(app.clone()).await.is_err() {
+                    if commands::launch_and_watch(app.clone(), false).await.is_err() {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
@@ -202,7 +202,7 @@ pub fn run() {
                             // Errors (already running, missing proton, ...) are
                             // surfaced through the launch://failed flow or
                             // silently ignored — there is no UI here.
-                            let _ = commands::launch_and_watch(app).await;
+                            let _ = commands::launch_and_watch(app, false).await;
                         });
                     }
                     "show" => {
@@ -241,7 +241,7 @@ pub fn run() {
                     // Crashes after spawn reopen the window via launch://failed;
                     // immediate failures (not installed, no Proton) get no
                     // dialog, so bring the window back for those.
-                    if commands::launch_and_watch(app_handle.clone()).await.is_err() {
+                    if commands::launch_and_watch(app_handle.clone(), false).await.is_err() {
                         if let Some(window) = app_handle.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
@@ -276,6 +276,10 @@ pub fn run() {
             commands::verify_game_integrity,
             commands::start_update,
             commands::launch_game,
+            commands::get_mods_status,
+            commands::install_mod_loader,
+            commands::uninstall_mod_loader,
+            commands::open_mods_folder,
             commands::stop_game,
             commands::is_game_running,
             commands::import_existing_game,

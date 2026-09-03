@@ -33,7 +33,11 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 /// `CreateProcess` refuses a `requireAdministrator` binary with this code.
 const ERROR_ELEVATION_REQUIRED: i32 = 740;
 
-pub fn launch_game(settings: &AppSettings) -> Result<LaunchedGame, AppError> {
+/// `with_mods` exists for parity with the Linux entry point. Windows needs no
+/// special handling: the launcher never passes `-vulkan` here, so the game
+/// already starts on its D3D11 path, and the loader's `d3d11.dll` next to the
+/// executable wins the DLL search order without an override.
+pub fn launch_game(settings: &AppSettings, _with_mods: bool) -> Result<LaunchedGame, AppError> {
     let game_path = Path::new(&settings.game_dir);
     let exe_path = game_path.join("Endfield.exe");
 

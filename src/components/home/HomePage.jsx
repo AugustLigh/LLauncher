@@ -98,7 +98,7 @@ export default function HomePage({
     };
   }, []);
 
-  const handleAction = async () => {
+  const handleAction = async (withMods = false) => {
     if (!gameState) return;
     switch (gameState.status) {
       case 'not_installed':
@@ -116,7 +116,7 @@ export default function HomePage({
         }
         setLaunchError(null);
         try {
-          await invoke('launch_game');
+          await invoke('launch_game', { withMods });
           markRunning();
           const action = settings?.on_launch_action || 'hide';
           // "close" also just hides: the backend keeps the window alive so
@@ -206,9 +206,14 @@ export default function HomePage({
             extracting={progress?.stage === 'extracting'}
             verifying={progress?.stage === 'verifying'}
             running={gameRunning}
-            onAction={handleAction}
+            onAction={() => handleAction(false)}
             disabled={gameLoading}
           />
+          {settings?.mods_enabled && !downloading && !gameRunning && gameState?.status === 'ready' && (
+            <button className="home-page__mods-btn" onClick={() => handleAction(true)} disabled={gameLoading}>
+              {t('home.action.launchMods')}
+            </button>
+          )}
           {gameRunning && (
             <button className="home-page__stop-btn" onClick={() => setConfirmStop(true)}>
               {t('home.stopGame')}

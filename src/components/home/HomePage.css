@@ -147,3 +147,36 @@
 .home-page__import-link:hover {
   color: var(--color-text-primary);
 }
+
+/* The second launch action: same shape as the primary button but hollow, so
+   it reads as an alternative to Play rather than a competing call to action.
+   Only rendered once the user has switched mods on in settings. */
+.home-page__mods-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 320px;
+  height: 40px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--color-accent);
+  background: var(--color-accent-dim);
+  border: 1px solid var(--color-accent-glow);
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.home-page__mods-btn:hover:not(:disabled) {
+  color: var(--color-accent-hover);
+  background: rgba(240, 178, 50, 0.22);
+  border-color: var(--color-accent);
+}
+
+.home-page__mods-btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
