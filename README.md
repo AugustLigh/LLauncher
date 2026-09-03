@@ -28,6 +28,19 @@ On Arch Linux (and derivatives like CachyOS, Manjaro, EndeavourOS) install from 
 yay -S llauncher-bin   # or: paru -S llauncher-bin
 ```
 
+For Flatpak, add the launcher's own repository once and get updates through
+`flatpak update` like any other Flatpak app:
+
+```bash
+flatpak remote-add --if-not-exists --user llauncher \
+    https://augustligh.github.io/LLauncher/llauncher.flatpakrepo
+flatpak install --user llauncher io.github.augustligh.LLauncher
+```
+
+The repository is signed, and its public key is pinned when the remote is
+added. The `.flatpak` bundle on each release stays available for a one-off
+install without a remote.
+
 ## Features
 
 - **One-click install & launch** — download, verify, extract, and play

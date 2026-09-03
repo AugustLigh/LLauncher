@@ -1,19 +1,25 @@
 # Flatpak packaging
 
-Files for building LLauncher as a Flatpak and submitting it to Flathub.
+Files for building LLauncher as a Flatpak and publishing it to the project's
+own Flatpak repository.
+
+Flathub is not an option: its
+[generative AI policy](https://docs.flathub.org/docs/for-app-authors/requirements#generative-ai-policy)
+disallows applications containing AI-assisted code. Updates for Flatpak users
+are served from `https://augustligh.github.io/LLauncher/` instead.
 
 ## Layout
 
 - `io.github.augustligh.LLauncher.yml` — the flatpak-builder manifest. Builds
-  the app from the git tag pinned in its `sources` section, fully offline as
-  Flathub requires.
+  the app from the git tag pinned in its `sources` section, fully offline.
 - `cargo-sources.json` / `node-sources.json` — generated offline mirrors of
   every Rust crate and npm package. **Regenerate on every dependency change**
-  (see below), or the Flathub build will fail.
+  (see below), or the offline build will fail.
 - `io.github.augustligh.LLauncher.desktop` — desktop entry (the flatpak does
   not use the handlebars template in `src-tauri/`).
-- `io.github.augustligh.LLauncher.metainfo.xml` — AppStream metadata shown on
-  Flathub. Add a `<release>` entry for every new version.
+- `io.github.augustligh.LLauncher.metainfo.xml` — AppStream metadata, served
+  from the repository's appstream branch. Add a `<release>` entry for every
+  new version.
 
 ## Building locally
 
@@ -53,28 +59,60 @@ git clone https://github.com/flatpak/flatpak-builder-tools /tmp/fbt
 1. Bump the `tag:` in the manifest's `llauncher` module.
 2. Regenerate the source manifests if the lockfiles changed.
 3. Add a `<release>` entry to the metainfo.
-4. After Flathub acceptance, updates are PRs against the app's repo under
-   `github.com/flathub/io.github.augustligh.LLauncher` (the Flathub bot can
-   open them automatically when a new GitHub release appears).
 
-## Submitting to Flathub (first time)
+Publishing itself is automatic: `release.yml` chains `flatpak.yml`, which
+builds the bundle from the tag, attaches it to the GitHub release, and imports
+it into the repository served from the `gh-pages` branch.
 
-1. Validate: `flatpak run --command=flatpak-builder-lint org.flatpak.Builder appstream packaging/flatpak/io.github.augustligh.LLauncher.metainfo.xml`
-   and `... manifest packaging/flatpak/io.github.augustligh.LLauncher.yml`.
-2. Fork `github.com/flathub/flathub`, create a branch **from `new-pr`**, put
-   the contents of this directory at the repository root, and open a PR
-   against the `new-pr` branch.
-3. After review and merge, verify the app at
-   `https://flathub.org/apps/io.github.augustligh.LLauncher` via the GitHub
-   verification flow to get the "verified" badge.
+## The self-hosted repository
+
+`flatpak.yml`'s `publish` job holds the whole mechanism:
+
+- The `gh-pages` branch **is** the ostree repository — GitHub Pages serves it
+  at `https://augustligh.github.io/LLauncher/`. Each run fetches the branch,
+  imports the freshly built bundle with `flatpak build-import-bundle`, and
+  refreshes the summary and static deltas with `flatpak build-update-repo`.
+- The branch is force-pushed as a single root commit every time, so its git
+  history never accumulates the binary objects of past releases. The published
+  tree stays around 7 MB.
+- `--prune` drops the previous version. Bundles imported from a `.flatpak`
+  file carry parentless commits, so the old commit becomes unreachable the
+  moment the ref moves. Older versions remain downloadable as bundles from
+  their GitHub releases.
+- git does not track empty directories, so the job recreates the ones ostree
+  expects (`refs/remotes`, `tmp`, `state`, …) after fetching the branch.
+  Without that, `build-update-repo` fails with `opendir(refs/remotes)`.
+
+### Signing
+
+The repository is signed with a dedicated GPG key whose private half lives in
+the `FLATPAK_GPG_PRIVATE_KEY` repository secret; the public half is written
+into `llauncher.flatpakrepo` as `GPGKey=` on every publish. Clients pin that
+key when they run `flatpak remote-add`, so an unsigned or differently signed
+commit is refused with "ref does not exist in remote" rather than installed.
+
+The job fails outright when the secret is missing, precisely so that a
+publish never silently degrades into an unsigned one that existing installs
+would reject anyway.
+
+Rotating or losing the key means every user has to remove and re-add the
+remote. Keep the backup of the private key somewhere safe.
+
+## Installing from the repository
+
+```bash
+flatpak remote-add --if-not-exists --user llauncher \
+    https://augustligh.github.io/LLauncher/llauncher.flatpakrepo
+flatpak install --user llauncher io.github.augustligh.LLauncher
+flatpak update --user io.github.augustligh.LLauncher
+```
 
 ## Known linter findings
 
-`flatpak-builder-lint` flags `--filesystem=home` as an error. Game launchers
-with user-chosen, multi-gigabyte install locations (Lutris, Heroic, …)
-routinely get a reviewer-granted exception for this — mention the use case in
-the submission PR. The long-term alternative is moving folder selection fully
-onto the file-chooser portal and dropping the permission.
+`flatpak-builder-lint` flags `--filesystem=home` as an error. It is kept
+deliberately: the game install location is user-chosen and routinely lives on
+another drive. The long-term alternative is moving folder selection fully onto
+the file-chooser portal and dropping the permission.
 
 ## Sandbox notes
 

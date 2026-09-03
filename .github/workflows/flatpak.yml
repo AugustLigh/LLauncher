@@ -1,8 +1,10 @@
 name: Flatpak bundle
 
-# Builds the Flatpak from an existing release tag and attaches the .flatpak
-# bundle to that GitHub release. Chained from release.yml after the other
-# bundles are published; can also be dispatched by hand for an existing tag.
+# Builds the Flatpak from an existing release tag, attaches the .flatpak
+# bundle to that GitHub release, and publishes the same build into the
+# self-hosted Flatpak repository on GitHub Pages. Chained from release.yml
+# after the other bundles are published; can also be dispatched by hand for
+# an existing tag.
 on:
   workflow_dispatch:
     inputs:
@@ -70,3 +72,141 @@ jobs:
           test -n "$file"
           ls -la "$file"
           gh release upload "${{ inputs.tag }}" "$file" --repo "${{ github.repository }}" --clobber
+
+  # Publishes the same bundle into the ostree repository served from the
+  # gh-pages branch, so users get `flatpak update` instead of re-downloading
+  # a bundle by hand. Flathub rejects this app under its generative AI
+  # policy, so this repository is the update channel for Flatpak users.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: flatpak-repo
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: bundle
+
+      - name: Install flatpak and ostree
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak ostree
+
+      - name: Import the repository signing key
+        env:
+          SIGNING_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
+        run: |
+          if [ -z "$SIGNING_KEY" ]; then
+            echo "::error::FLATPAK_GPG_PRIVATE_KEY is not set. Clients pin the"
+            echo "::error::public key when they add the remote, so publishing"
+            echo "::error::unsigned commits would break every existing install."
+            exit 1
+          fi
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          mkdir -p "$GNUPGHOME"
+          chmod 700 "$GNUPGHOME"
+          printf '%s\n' "$SIGNING_KEY" | gpg --batch --quiet --import
+          key_id="$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr:/ {print $10; exit}')"
+          test -n "$key_id"
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          echo "GPG_KEY_ID=$key_id" >> "$GITHUB_ENV"
+
+      # The published repository is the branch content itself. It is fetched
+      # rather than rebuilt so that appstream data and static deltas stay
+      # consistent across releases.
+      - name: Fetch the currently published repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir site
+          cd site
+          git init -q
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q --depth 1 origin gh-pages; then
+            git checkout -q FETCH_HEAD -- .
+          else
+            echo "gh-pages does not exist yet; starting a fresh repository"
+          fi
+
+      - name: Import the bundle
+        run: |
+          bundle="$(find bundle -type f -name '*.flatpak' | head -1)"
+          test -n "$bundle"
+          test -f site/config || ostree init --repo=site --mode=archive-z2
+          # git does not track empty directories, so the ones ostree expects
+          # come back missing from the fetched branch.
+          mkdir -p site/objects site/tmp site/state site/extensions \
+                   site/refs/heads site/refs/mirrors site/refs/remotes
+          flatpak build-import-bundle --update-appstream \
+            --gpg-sign="$GPG_KEY_ID" site "$bundle"
+          # --prune drops the previous version: imported bundle commits have
+          # no parent, so the older commit is unreachable once the ref moves.
+          # Older versions stay downloadable as bundles on their releases.
+          flatpak build-update-repo --generate-static-deltas --prune \
+            --gpg-sign="$GPG_KEY_ID" \
+            --title="LLauncher" \
+            --comment="Linux launcher for Arknights: Endfield" \
+            --description="Flatpak repository for LLauncher, published from GitHub Actions on every release." \
+            --homepage="https://github.com/AugustLigh/LLauncher" \
+            site
+
+      - name: Write the remote description and landing page
+        run: |
+          # Jekyll would otherwise try to process the ostree object tree.
+          touch site/.nojekyll
+          # ostree's lock file has no business in the published tree.
+          rm -f site/.lock
+          {
+            echo "[Flatpak Repo]"
+            echo "Title=LLauncher"
+            echo "Url=https://augustligh.github.io/LLauncher/"
+            echo "Homepage=https://github.com/AugustLigh/LLauncher"
+            echo "Comment=Linux launcher for Arknights: Endfield"
+            echo "Description=Flatpak repository for LLauncher, published from GitHub Actions on every release."
+            echo "GPGKey=$(gpg --export "$GPG_KEY_ID" | base64 -w0)"
+          } > site/llauncher.flatpakrepo
+          cat > site/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>LLauncher Flatpak repository</title>
+          <style>
+            :root { color-scheme: light dark; }
+            body { margin: 0 auto; padding: 3rem 1.25rem; max-width: 46rem;
+                   font: 16px/1.6 system-ui, sans-serif; }
+            pre { padding: 1rem; overflow-x: auto; border-radius: 8px;
+                  background: rgba(127,127,127,.14); }
+            code { font-family: ui-monospace, monospace; }
+          </style>
+          </head>
+          <body>
+          <h1>LLauncher Flatpak repository</h1>
+          <p>Add the remote once, then install and update like any other Flatpak app.</p>
+          <pre><code>flatpak remote-add --if-not-exists --user llauncher \
+              https://augustligh.github.io/LLauncher/llauncher.flatpakrepo
+          flatpak install --user llauncher io.github.augustligh.LLauncher</code></pre>
+          <p>Later updates come with <code>flatpak update</code>.</p>
+          <p>The repository is signed; the public key is pinned when the remote is added.</p>
+          <p><a href="https://github.com/AugustLigh/LLauncher">Source code and other install methods</a></p>
+          </body>
+          </html>
+          HTML
+
+      - name: Publish
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          cd site
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Flatpak repository: $TAG"
+          # A single root commit each time: the branch carries the current
+          # repository state, and its git history never accumulates the
+          # binary objects of every past release.
+          git push -q --force origin HEAD:gh-pages
