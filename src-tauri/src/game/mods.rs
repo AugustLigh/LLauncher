@@ -36,6 +36,10 @@ const LOADER_INI: &str = "d3dx.ini";
 /// Where 3DMigoto looks for mods, one directory per mod.
 const MODS_SUBDIR: &str = "Mods";
 
+/// ReShade renames itself after the API it proxies. `d3d11.dll` belongs to
+/// 3DMigoto here, so a ReShade install alongside it lands on `dxgi.dll`.
+const RESHADE_DLL: &str = "dxgi.dll";
+
 /// What the launcher knows about the mod setup in the game directory.
 #[derive(Debug, Clone, Serialize)]
 pub struct ModsStatus {
@@ -48,6 +52,11 @@ pub struct ModsStatus {
     pub mods_dir: String,
     /// Number of mods installed — every direct subdirectory counts as one.
     pub mod_count: usize,
+    /// ReShade (or another `dxgi.dll` proxy) is present. Detected rather than
+    /// installed: ReShade ships as an interactive setup, and its add-ons —
+    /// RenoDX and friends — are configured by hand anyway. All the launcher
+    /// owes it is the DLL override, which the modded launch sets regardless.
+    pub reshade_installed: bool,
     /// The game directory itself is missing, so nothing else here means much.
     pub game_dir_missing: bool,
 }
@@ -85,6 +94,7 @@ pub fn status(game_dir: &Path) -> ModsStatus {
         loader_configured: game_dir.join(LOADER_INI).is_file(),
         mods_dir: mods.to_string_lossy().to_string(),
         mod_count,
+        reshade_installed: game_dir.join(RESHADE_DLL).is_file(),
         game_dir_missing: !game_dir.is_dir(),
     }
 }

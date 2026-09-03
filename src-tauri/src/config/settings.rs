@@ -94,6 +94,11 @@ pub struct AppSettings {
     /// Some anti-cheat drivers need it; most installs do not.
     #[serde(default)]
     pub windows_run_as_admin: bool,
+    /// Run the game through the vkBasalt post-processing layer (sharpening,
+    /// colour correction, ReShade-format effects). Native Vulkan, so unlike
+    /// the 3DMigoto path it costs nothing extra in renderer terms.
+    #[serde(default)]
+    pub use_vkbasalt: bool,
     /// Show the "play with mods" action: the game then starts on its D3D11
     /// path with the `d3d11.dll` proxy (3DMigoto/EFMI) loaded. Off by default —
     /// it costs frames and the game is anti-cheat protected, so it is opt-in.
@@ -143,6 +148,7 @@ impl Default for AppSettings {
             gamescope_hdr: false,
             gamescope_extra_args: String::new(),
             windows_run_as_admin: false,
+            use_vkbasalt: false,
             mods_enabled: false,
             total_playtime_secs: 0,
             last_played: 0,

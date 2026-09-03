@@ -1,175 +1,159 @@
-/* The mods tab. Reads as a checklist: a numbered rail down the left, each
-   step turning gold with a tick once it is satisfied, so "am I set up?" is
-   answered by glancing at the column rather than by reading. */
+/* Mods tab: two cards, one per kind of mod, each a short list of rows with a
+   tick in front. The tag in the header carries the one fact that decides
+   between them — whether it costs performance. */
 
-.mods__intro {
-  padding: var(--space-md) var(--space-lg);
+.mods__card {
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
   margin-bottom: var(--space-lg);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-left: 2px solid var(--color-accent);
   border-radius: var(--radius-md);
 }
 
-.mods__intro-text {
-  margin: 0;
-  font-size: var(--font-size-base);
-  line-height: 1.55;
+.mods__card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.mods__card-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
   color: var(--color-text-primary);
 }
 
-.mods__intro-note {
-  margin: var(--space-sm) 0 0;
+.mods__tag {
+  padding: 2px 8px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.mods__tag--cost {
+  color: var(--color-warning);
+  background: var(--color-accent-dim);
+}
+
+.mods__tag--free {
+  color: var(--color-success);
+  background: rgba(74, 222, 128, 0.14);
+}
+
+.mods__card-sub {
+  display: block;
+  margin: var(--space-xs) 0 var(--space-md);
   font-size: var(--font-size-sm);
-  line-height: 1.5;
   color: var(--color-text-secondary);
 }
 
-/* ── Steps ── */
+/* ── Rows ── */
 
-.mods__steps {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.mods__step {
-  position: relative;
+.mods__row {
   display: flex;
+  align-items: center;
   gap: var(--space-md);
-  padding-bottom: var(--space-xl);
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--color-border);
 }
 
-/* The rail joining one step to the next; the last step has nothing to join. */
-.mods__step::before {
-  content: '';
-  position: absolute;
-  left: 13px;
-  top: 28px;
-  bottom: 4px;
-  width: 1px;
-  background: var(--color-border);
-}
-
-.mods__step:last-child {
-  padding-bottom: 0;
-}
-
-.mods__step:last-child::before {
-  display: none;
-}
-
-.mods__step-num {
-  position: relative;
-  z-index: 1;
+.mods__dot {
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 27px;
-  height: 27px;
-  font-size: var(--font-size-sm);
+  width: 18px;
+  height: 18px;
+  font-size: 11px;
   font-weight: 700;
-  color: var(--color-text-muted);
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
+  color: var(--color-bg);
+  background: transparent;
+  border: 1px solid var(--color-border-hover);
   border-radius: 50%;
-  transition: all var(--transition-base);
+  transition: all var(--transition-fast);
 }
 
-.mods__step--done .mods__step-num {
-  color: var(--color-bg);
+.mods__dot--on {
   background: var(--color-accent);
   border-color: var(--color-accent);
-  box-shadow: 0 0 12px var(--color-accent-glow);
 }
 
-.mods__step-body {
+.mods__row-label {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
-  min-width: 0;
-  flex: 1;
-  padding-top: 3px;
-}
-
-.mods__step-title {
+  gap: 1px;
   font-size: var(--font-size-base);
-  font-weight: 600;
   color: var(--color-text-primary);
 }
 
-.mods__step-desc {
-  font-size: var(--font-size-sm);
-  line-height: 1.5;
-  color: var(--color-text-secondary);
-  margin-bottom: var(--space-sm);
-}
-
-.mods__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-sm);
-}
-
-.mods__ok {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--color-success);
-}
-
-.mods__src {
+.mods__row-note {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
 
-/* The toggle sits inside a step, so it drops the section's own framing. */
-.mods__toggle {
-  width: 100%;
-  padding: var(--space-sm) var(--space-md);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-/* ── Warnings ── */
-
-.mods__warnings {
+.mods__row-actions {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: var(--space-sm);
-  margin-top: var(--space-xl);
-  padding-top: var(--space-lg);
-  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
-.mods__warn {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-sm);
-  border-left: 2px solid var(--color-text-muted);
-  background: var(--color-surface);
-}
+/* ── Buttons ── */
 
-.mods__warn--perf {
-  border-left-color: var(--color-warning);
-}
-
-.mods__warn--risk {
-  border-left-color: var(--color-error);
-}
-
-.mods__warn-title {
+.mods__btn {
+  padding: 5px 12px;
   font-size: var(--font-size-sm);
-  font-weight: 600;
+  font-weight: 500;
   color: var(--color-text-primary);
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  transition: all var(--transition-fast);
 }
 
-.mods__warn-text {
+.mods__btn:hover:not(:disabled) {
+  background: var(--color-bg-tertiary);
+  border-color: var(--color-border-hover);
+}
+
+.mods__btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.mods__btn--go {
+  color: var(--color-bg);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  font-weight: 600;
+}
+
+.mods__btn--go:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.mods__btn--quiet {
+  color: #f0a0a0;
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.mods__btn--quiet:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.45);
+}
+
+/* ── Footer ── */
+
+.mods__risk {
+  display: block;
+  padding-left: var(--space-md);
   font-size: var(--font-size-sm);
   line-height: 1.5;
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
+  border-left: 2px solid var(--color-error);
 }

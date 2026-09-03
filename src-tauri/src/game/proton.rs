@@ -16,6 +16,10 @@ pub struct SystemCheck {
     pub has_gamemode: bool,
     pub has_mangohud: bool,
     pub has_gamescope: bool,
+    /// The vkBasalt Vulkan layer is installed on the host. Unlike the
+    /// wrappers above it is not a command but a layer manifest, so it is
+    /// looked up by file rather than by `which`.
+    pub has_vkbasalt: bool,
     pub proton_path: String,
 }
 
@@ -36,6 +40,7 @@ pub fn check_system(proton_dir: &str) -> SystemCheck {
         has_gamemode: check_command("gamemoderun"),
         has_mangohud: check_command("mangohud"),
         has_gamescope: check_command("gamescope"),
+        has_vkbasalt: check_vulkan_layer("vkBasalt"),
         proton_path: if has_proton {
             Path::new(proton_dir)
                 .join("proton")
@@ -60,6 +65,7 @@ pub fn check_system(_proton_dir: &str) -> SystemCheck {
         has_gamemode: false,
         has_mangohud: false,
         has_gamescope: false,
+        has_vkbasalt: false,
         proton_path: String::new(),
     }
 }
@@ -67,6 +73,26 @@ pub fn check_system(_proton_dir: &str) -> SystemCheck {
 #[cfg(unix)]
 fn check_ntsync() -> bool {
     std::path::Path::new("/dev/ntsync").exists()
+}
+
+/// Look for an implicit Vulkan layer manifest by name across the search paths
+/// the loader itself uses, system and per-user.
+#[cfg(unix)]
+fn check_vulkan_layer(name: &str) -> bool {
+    let file = format!("{}.json", name);
+    let mut roots = vec![
+        std::path::PathBuf::from("/usr/share/vulkan"),
+        std::path::PathBuf::from("/usr/local/share/vulkan"),
+        std::path::PathBuf::from("/etc/vulkan"),
+    ];
+    if let Some(home) = std::env::var_os("HOME") {
+        roots.push(std::path::Path::new(&home).join(".local/share/vulkan"));
+    }
+    roots.iter().any(|root| {
+        ["implicit_layer.d", "explicit_layer.d"]
+            .iter()
+            .any(|dir| root.join(dir).join(&file).exists())
+    })
 }
 
 #[cfg(unix)]

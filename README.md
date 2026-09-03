@@ -56,7 +56,7 @@ install without a remote.
 - **In-app news** — announcements and updates from the official API
 - **Gamescope integration** — run the game in Valve's micro-compositor with FSR/NIS upscaling, FPS cap, HDR and window-mode control
 - **Prefix toolbox** — open the Wine prefix, run winecfg, clear shader caches, back up / restore / reset the prefix from Settings
-- **Mod support** — install the 3DMigoto loader from the launcher and start the game with mods as a separate action, leaving the normal launch on the native Vulkan renderer
+- **Mod support** — install the 3DMigoto loader from the launcher and start the game with mods as a separate action, leaving the normal launch on the native Vulkan renderer; vkBasalt and ReShade add-ons for graphics mods
 - **Play statistics** — session journal with weekly playtime, average session length and a 7-day activity chart
 - **Quick launch** — `llauncher --play` and a desktop-menu "Launch Arknights: Endfield" action start the game straight from your app menu
 - **Configurable launch options** — Gamemode, MangoHUD, DXVK Async, Wayland, custom env vars and arguments
@@ -190,6 +190,20 @@ than a setting:
   the loader's own overhead applies.
 - **The game ships the ACE anti-cheat.** No wave of bans over cosmetic mods has been
   documented, but nobody — the mod authors included — guarantees anything.
+
+### Image and colour
+
+The other family of mods — sharpening, colour grading, HDR — does not touch models
+and does not need the D3D11 detour:
+
+- **vkBasalt** is a Vulkan layer that runs ReShade-format effects on the game's
+  *native* renderer, so it costs no frames at all. Install the package, then switch
+  it on in Settings → Mods.
+- **ReShade add-ons** such as [RenoDX](https://github.com/clshortfuse/renodx)
+  (graphics overhaul, native HDR) rewrite the game's shaders and are DirectX-only,
+  so they ride along with the modded launch. Put ReShade in the game folder as
+  `dxgi.dll` — `d3d11.dll` belongs to 3DMigoto — and the launcher picks it up on its
+  own; the modded launch already sets the override it needs.
 
 Mods that patch the game itself rather than the renderer work on a normal Vulkan
 launch and need none of this.

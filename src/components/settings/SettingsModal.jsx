@@ -791,7 +791,7 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
           )}
 
           {activeTab === 'mods' && (
-            <ModsSettings form={form} onChange={handleChange} />
+            <ModsSettings form={form} onChange={handleChange} systemCheck={systemCheck} />
           )}
 
           {activeTab === 'game' && (

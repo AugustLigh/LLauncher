@@ -96,8 +96,17 @@ fn build_env_script(settings: &AppSettings, compat_data: &Path, with_mods: bool)
     // mods do nothing". `n,b` keeps the builtin as fallback, and the proxy
     // chains to it for the real D3D11 work. Placed before the user's own
     // variables so a hand-written WINEDLLOVERRIDES still overrides it.
+    // `dxgi` rides along unconditionally: it is where ReShade installs itself
+    // (d3d11 being taken by 3DMigoto), and `n,b` falls back to the builtin
+    // when no native DLL is there, so listing it costs nothing when it is not.
     if with_mods {
-        script.push_str("export WINEDLLOVERRIDES='d3d11=n,b'\n");
+        script.push_str("export WINEDLLOVERRIDES='d3d11=n,b;dxgi=n,b'\n");
+    }
+
+    // vkBasalt hooks the native Vulkan renderer, so it is orthogonal to the
+    // mods path and applies to an ordinary launch too.
+    if settings.use_vkbasalt {
+        script.push_str("export ENABLE_VKBASALT=1\n");
     }
 
     // Custom env vars (KEY=VALUE per line)
