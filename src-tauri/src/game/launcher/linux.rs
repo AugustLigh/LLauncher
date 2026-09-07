@@ -79,6 +79,17 @@ fn build_env_script(settings: &AppSettings, compat_data: &Path, with_mods: bool)
         script.push_str("export WINE_CANONICAL_HOLE='skip_volatile_check'\n");
     }
 
+    // Gamepads. Proton's default input path hands a known controller to the
+    // game as a raw HID device, which is right under Steam — Steam Input turns
+    // it into an XInput pad — and useless here, where there is no Steam: an
+    // XInput-only game then sees nothing at all, while the DualShock's
+    // touchpad still moves the mouse through the kernel driver (issue #32).
+    // PROTON_PREFER_SDL switches winebus to its SDL backend, which presents
+    // every controller SDL knows as an XInput-compatible one.
+    if settings.use_sdl_input {
+        script.push_str("export PROTON_PREFER_SDL=1\n");
+    }
+
     // Hybrid graphics: render on the dedicated GPU (PRIME offload). The NV
     // vars are ignored on non-NVIDIA systems, DRI_PRIME covers AMD/Intel.
     if settings.use_prime_offload {

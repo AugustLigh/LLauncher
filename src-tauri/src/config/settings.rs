@@ -55,6 +55,12 @@ pub struct AppSettings {
     pub download_max_concurrent: u32,
     #[serde(default)]
     pub use_canonical_hole: bool,
+    /// Route controllers through Proton's SDL input backend instead of its
+    /// hidraw one. On by default: outside Steam there is no Steam Input to
+    /// translate a raw HID pad into an XInput one, so hidraw leaves
+    /// XInput-only games with no controller at all (issue #32).
+    #[serde(default = "default_true")]
+    pub use_sdl_input: bool,
     #[serde(default)]
     pub custom_env_vars: String,
     #[serde(default)]
@@ -134,6 +140,7 @@ impl Default for AppSettings {
             download_speed_limit: 0,
             download_max_concurrent: 4,
             use_canonical_hole: false,
+            use_sdl_input: true,
             custom_env_vars: String::new(),
             custom_launch_args: String::new(),
             autostart_initialized: false,

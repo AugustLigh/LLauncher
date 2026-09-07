@@ -175,6 +175,10 @@ export default {
       name: 'Wayland',
       desc: 'Enable Wayland support in Proton (PROTON_ENABLE_WAYLAND=1)',
     },
+    sdlInput: {
+      name: 'Controller support (SDL)',
+      desc: 'Present gamepads to the game as XInput controllers (PROTON_PREFER_SDL=1). Turn off only if a controller worked better without it.',
+    },
     gamemode: {
       name: 'GameMode',
       desc: 'Optimize CPU governor for gaming via gamemoderun',

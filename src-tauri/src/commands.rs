@@ -728,7 +728,7 @@ fn debug_header(settings: &AppSettings) -> String {
          Proton: {proton}\n\
          Game version: {game_version}\n\
          ntsync: {ntsync}\n\
-         Flags: vulkan={vulkan} wayland={wayland} dxvk_async={dxvk} gamemode={gamemode} mangohud={mangohud} gamescope={gamescope} prime={prime} fsync_off={fsync} esync_off={esync}\n\
+         Flags: vulkan={vulkan} wayland={wayland} dxvk_async={dxvk} gamemode={gamemode} mangohud={mangohud} gamescope={gamescope} prime={prime} fsync_off={fsync} esync_off={esync} sdl_input={sdl_input}\n\
          Flatpak: {flatpak}",
         version = env!("CARGO_PKG_VERSION"),
         os = os,
@@ -748,6 +748,7 @@ fn debug_header(settings: &AppSettings) -> String {
         prime = settings.use_prime_offload,
         fsync = settings.disable_fsync,
         esync = settings.disable_esync,
+        sdl_input = settings.use_sdl_input,
         flatpak = std::env::var_os("FLATPAK_ID").is_some(),
     )
 }

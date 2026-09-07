@@ -39,6 +39,19 @@ export default function LinuxLaunchOptions({ form, onChange, systemCheck }) {
 
       <div className="settings-toggle">
         <div className="settings-toggle__info">
+          <span className="settings-toggle__name">{t('settings.sdlInput.name')}</span>
+          <span className="settings-toggle__desc">
+            {t('settings.sdlInput.desc')}
+          </span>
+        </div>
+        <button
+          className={`settings-toggle__switch ${form.use_sdl_input ? 'settings-toggle__switch--on' : ''}`}
+          onClick={() => onChange('use_sdl_input', !form.use_sdl_input)}
+        />
+      </div>
+
+      <div className="settings-toggle">
+        <div className="settings-toggle__info">
           <span className="settings-toggle__name">{t('settings.gamemode.name')}</span>
           <span className="settings-toggle__desc">
             {t('settings.gamemode.desc')}
