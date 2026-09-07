@@ -160,8 +160,8 @@ modules:
     sources:
       - type: git
         url: https://github.com/AugustLigh/LLauncher.git
-        tag: 0.3.2
-        commit: cd607350a9059d0ec4acddab6469faf6a58f3b2c
+        tag: 0.3.3
+        commit: a239e3b0849f7ca6597d77ab361d1249f196893b
       - cargo-sources.json
       - node-sources.json
       - type: file
