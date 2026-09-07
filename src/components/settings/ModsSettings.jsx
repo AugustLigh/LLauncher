@@ -45,6 +45,10 @@ export default function ModsSettings({ form, onChange, systemCheck }) {
   };
 
   const loaderReady = !!status?.loader_installed && !!status?.loader_configured;
+  // The bare 3DMigoto build older versions installed still loads, but it has
+  // been unmaintained since January and mods built with the current toolkit
+  // expect EFMI — so it reads as "needs action" rather than as done.
+  const legacyLoader = loaderReady && !status?.efmi;
   const modCount = status?.mod_count || 0;
 
   if (status?.game_dir_missing) {
@@ -60,22 +64,29 @@ export default function ModsSettings({ form, onChange, systemCheck }) {
         </div>
         <span className="mods__card-sub">{t('settings.mods.skins.sub')}</span>
 
-        <Row done={loaderReady} label={t('settings.mods.skins.loader')}>
-          {loaderReady ? (
+        <Row
+          done={loaderReady && !legacyLoader}
+          label={t('settings.mods.skins.loader')}
+          note={legacyLoader ? t('settings.mods.skins.legacy') : null}
+        >
+          {(!loaderReady || legacyLoader) && (
+            <button
+              className="mods__btn mods__btn--go"
+              onClick={() => run('install', 'install_mod_loader', (r) => t('settings.mods.installed', { version: r.version }))}
+              disabled={!!busy}
+            >
+              {busy === 'install'
+                ? t('settings.mods.skins.installing')
+                : t(legacyLoader ? 'settings.mods.skins.upgrade' : 'settings.mods.skins.install')}
+            </button>
+          )}
+          {status?.loader_installed && (
             <button
               className="mods__btn mods__btn--quiet"
               onClick={() => run('uninstall', 'uninstall_mod_loader', () => t('settings.mods.uninstalled'))}
               disabled={!!busy}
             >
               {busy === 'uninstall' ? '…' : t('settings.mods.skins.remove')}
-            </button>
-          ) : (
-            <button
-              className="mods__btn mods__btn--go"
-              onClick={() => run('install', 'install_mod_loader', (r) => t('settings.mods.installed', { version: r.version }))}
-              disabled={!!busy}
-            >
-              {busy === 'install' ? t('settings.mods.skins.installing') : t('settings.mods.skins.install')}
             </button>
           )}
         </Row>

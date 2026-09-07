@@ -508,7 +508,8 @@ pub async fn get_mods_status(
     Ok(crate::game::mods::status(std::path::Path::new(&game_dir)))
 }
 
-/// Download and install the 3DMigoto loader into the game directory.
+/// Download and install EFMI (and the 3DMigoto build it runs on) into the
+/// game directory.
 #[tauri::command]
 pub async fn install_mod_loader(
     state: State<'_, AppState>,

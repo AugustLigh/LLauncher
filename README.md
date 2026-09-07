@@ -56,7 +56,7 @@ install without a remote.
 - **In-app news** — announcements and updates from the official API
 - **Gamescope integration** — run the game in Valve's micro-compositor with FSR/NIS upscaling, FPS cap, HDR and window-mode control
 - **Prefix toolbox** — open the Wine prefix, run winecfg, clear shader caches, back up / restore / reset the prefix from Settings
-- **Mod support** — install the 3DMigoto loader from the launcher and start the game with mods as a separate action, leaving the normal launch on the native Vulkan renderer; vkBasalt and ReShade add-ons for graphics mods
+- **Mod support** — install EFMI (Endfield Model Importer) from the launcher and start the game with mods as a separate action, leaving the normal launch on the native Vulkan renderer; vkBasalt and ReShade add-ons for graphics mods
 - **Play statistics** — session journal with weekly playtime, average session length and a 7-day activity chart
 - **Quick launch** — `llauncher --play` and a desktop-menu "Launch Arknights: Endfield" action start the game straight from your app menu
 - **Configurable launch options** — Gamemode, MangoHUD, DXVK Async, Wayland, custom env vars and arguments
@@ -172,10 +172,13 @@ characters, weapons and the interface *look* on your screen. They cannot add
 characters, items or mechanics — progress and content live on the server, which knows
 nothing about them.
 
-Almost all of them run on [3DMigoto](https://github.com/wakka810/3dmigoto-arknights-endfield),
-a `d3d11.dll` proxy that intercepts draw calls and swaps in the models a mod supplies.
-Settings → Mods installs it, opens the `Mods` folder and switches on a second launch
-button. Then:
+Almost all of them run on [EFMI](https://github.com/SpectrumQT/EFMI-Package), the
+Endfield Model Importer. EFMI is the Endfield-specific half of a loader: 3DMigoto
+supplies the `d3d11.dll` proxy that intercepts draw calls, EFMI decides which models
+to swap. Upstream installs the two through XXMI Launcher, a Windows GUI; this
+launcher fetches both release archives itself, so no extra tool has to run inside
+the Proton prefix. Settings → Mods installs it, opens the `Mods` folder and switches
+on a second launch button. Then:
 
 1. **Install the loader** — downloaded straight into the game directory.
 2. **Drop mods into `Mods/`** — one directory per mod. [Catalogue](https://gamebanana.com/games/21842).
@@ -184,7 +187,7 @@ button. Then:
 Two caveats, both deliberate reasons the modded launch is a separate button rather
 than a setting:
 
-- **It costs frames on Linux.** 3DMigoto hooks DirectX 11 and has no Vulkan
+- **It costs frames on Linux.** The loader hooks DirectX 11 and has no Vulkan
   equivalent, so a modded session runs on the game's D3D11 path through DXVK instead
   of its native Vulkan renderer. On Windows the game already runs on D3D11 and only
   the loader's own overhead applies.
@@ -202,7 +205,7 @@ and does not need the D3D11 detour:
 - **ReShade add-ons** such as [RenoDX](https://github.com/clshortfuse/renodx)
   (graphics overhaul, native HDR) rewrite the game's shaders and are DirectX-only,
   so they ride along with the modded launch. Put ReShade in the game folder as
-  `dxgi.dll` — `d3d11.dll` belongs to 3DMigoto — and the launcher picks it up on its
+  `dxgi.dll` — `d3d11.dll` belongs to the mod loader — and the launcher picks it up on its
   own; the modded launch already sets the override it needs.
 
 Mods that patch the game itself rather than the renderer work on a normal Vulkan
