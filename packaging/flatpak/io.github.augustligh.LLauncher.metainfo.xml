@@ -82,6 +82,20 @@
   </content_rating>
 
   <releases>
+    <release version="0.3.3" date="2026-09-07">
+      <url>https://github.com/AugustLigh/LLauncher/releases/tag/0.3.3</url>
+      <description>
+        <p>
+          Windows is now a supported platform, with its own installers. Mods
+          are installed from the launcher through EFMI, the Endfield Model
+          Importer, and post-processing mods run on the native renderer via
+          vkBasalt. Gamepads reach the game as XInput controllers, so a
+          DualShock works without Steam Input, and the Wine prefix is shut
+          down after every session so a crash can no longer freeze the next
+          launch on the intro logo.
+        </p>
+      </description>
+    </release>
     <release version="0.3.2" date="2026-09-02">
       <url>https://github.com/AugustLigh/LLauncher/releases/tag/0.3.2</url>
       <description>

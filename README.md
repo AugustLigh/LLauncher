@@ -57,6 +57,7 @@ install without a remote.
 - **Gamescope integration** — run the game in Valve's micro-compositor with FSR/NIS upscaling, FPS cap, HDR and window-mode control
 - **Prefix toolbox** — open the Wine prefix, run winecfg, clear shader caches, back up / restore / reset the prefix from Settings
 - **Mod support** — install EFMI (Endfield Model Importer) from the launcher and start the game with mods as a separate action, leaving the normal launch on the native Vulkan renderer; vkBasalt and ReShade add-ons for graphics mods
+- **Controller support** — gamepads are handed to the game as XInput controllers, so a DualShock/DualSense works without Steam Input
 - **Play statistics** — session journal with weekly playtime, average session length and a 7-day activity chart
 - **Quick launch** — `llauncher --play` and a desktop-menu "Launch Arknights: Endfield" action start the game straight from your app menu
 - **Configurable launch options** — Gamemode, MangoHUD, DXVK Async, Wayland, custom env vars and arguments
@@ -123,8 +124,8 @@ npx tauri build
 
 | Format | Path                                          |
 | ------ | --------------------------------------------- |
-| NSIS   | `bundle/nsis/LLauncher_0.3.2_x64-setup.exe`    |
-| MSI    | `bundle/msi/LLauncher_0.3.2_x64_en-US.msi`     |
+| NSIS   | `bundle/nsis/LLauncher_0.3.3_x64-setup.exe`    |
+| MSI    | `bundle/msi/LLauncher_0.3.3_x64_en-US.msi`     |
 
 The platform-specific bundler settings live in `src-tauri/tauri.linux.conf.json`
 and `src-tauri/tauri.windows.conf.json`; Tauri merges the matching one over
@@ -138,7 +139,7 @@ Settings are stored in `~/.config/llauncher/settings.json` (`%APPDATA%\llauncher
 | --------- | ------------------------------------------------------------------ |
 | Paths     | Game directory, download directory, Proton directory               |
 | Proton    | Manage installed versions, download DWProton, system check results |
-| Launch    | Gamemode, MangoHUD, Vulkan, Wayland, DXVK Async, on-launch action |
+| Launch    | Gamemode, MangoHUD, Vulkan, Wayland, controller support, DXVK Async, on-launch action |
 | Downloads | Speed limit, concurrent connections, custom env vars, launch args  |
 
 On Windows the Proton tab and every Proton-only launch option are hidden — the
