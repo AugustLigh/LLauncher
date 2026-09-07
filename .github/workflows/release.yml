@@ -111,10 +111,18 @@ jobs:
 
   # Same for the .flatpak bundle: built from the tag and attached to the
   # release created above.
+  #
+  # `secrets: inherit` is what lets the publish job reach
+  # FLATPAK_GPG_PRIVATE_KEY: a called workflow gets no secrets by default, so
+  # without it the signing key arrives empty and only the gh-pages repository
+  # publish fails — after the release itself is already out. Dispatching
+  # flatpak.yml by hand worked all along, which is why 0.3.3 was the first
+  # release to hit it.
   flatpak:
     needs: build
     uses: ./.github/workflows/flatpak.yml
     with:
       tag: ${{ github.event.inputs.tag }}
+    secrets: inherit
     permissions:
       contents: write
