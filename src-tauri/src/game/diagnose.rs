@@ -7,6 +7,7 @@
 /// to translated, actionable advice — keep them in sync with `launchFailed.*`
 /// hint strings in `src/i18n/`.
 pub const HINT_DWPROTON11_NTOSKRNL: &str = "dwproton11-ntoskrnl";
+pub const HINT_X_CLIENTS_EXHAUSTED: &str = "x-clients-exhausted";
 
 /// Scan the launch log tail for failure signatures we know the fix for.
 ///
@@ -23,6 +24,17 @@ pub fn diagnose_launch_failure(log_tail: &str, proton_dir: &str) -> Option<&'sta
 
     if ntoskrnl_abort && is_dwproton_11(proton_dir) {
         return Some(HINT_DWPROTON11_NTOSKRNL);
+    }
+
+    // Xlib, refused a connection by the X server. The launcher reaps the
+    // prefix after every session precisely so this cannot build up, so seeing
+    // it means something else on the machine is holding the connections —
+    // ending the session is the only cure once the limit is hit (issue #33).
+    if log_tail
+        .lines()
+        .any(|l| l.trim() == "Maximum number of clients reached")
+    {
+        return Some(HINT_X_CLIENTS_EXHAUSTED);
     }
 
     None
@@ -62,6 +74,21 @@ mod tests {
                 Some(HINT_DWPROTON11_NTOSKRNL)
             );
         }
+    }
+
+    #[test]
+    fn recognizes_an_exhausted_x_server() {
+        // The game froze on the intro logo because Xlib could not connect;
+        // the ntoskrnl abort on the next line is the fallout, not the cause,
+        // and on a 10.x build it carries no advice of its own.
+        let log = "gamemodeauto: \n\
+                   Maximum number of clients reached\n\
+                   wine: Call from 00006FFFFFBFD187 to unimplemented function \
+                   ntoskrnl.exe.PsGetProcessExitStatus, aborting\n";
+        assert_eq!(
+            diagnose_launch_failure(log, PROTON_10),
+            Some(HINT_X_CLIENTS_EXHAUSTED)
+        );
     }
 
     #[test]

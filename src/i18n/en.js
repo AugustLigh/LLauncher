@@ -291,6 +291,7 @@ export default {
       desc: 'Copy system and configuration details for a GitHub issue.',
       button: 'Copy',
       copied: 'Copied!',
+      fallback: 'run `llauncher --debug-info` in a terminal to print the same block.',
     },
     uninstall: {
       name: 'Uninstall game',
@@ -306,6 +307,7 @@ export default {
     viewLog: 'View full log',
     noLog: 'No log output captured.',
     hintDwproton11: 'Your installed DWProton version (11.x series) is incompatible with Endfield: the anti-cheat calls kernel functions Wine 11 does not implement yet, and the game aborts. Open the Proton settings and install the recommended build (10.0-26).',
+    hintXClients: 'The X server refused the connection — it has run out of client slots, so the game froze before it could open a window. Log out and back in (or reboot) to clear them. The launcher now shuts the game\u2019s Wine prefix down after every session, which stops leftovers from a crash piling up like this.',
     openProtonSettings: 'Open Proton settings',
   },
   logViewer: {

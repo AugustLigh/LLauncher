@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { copyText } from '../../utils/clipboard';
 import './ErrorBoundary.css';
 
 // Top-level safety net: a render throw anywhere below would otherwise leave a
@@ -36,7 +37,7 @@ export default class ErrorBoundary extends Component {
             <button
               className="error-boundary__btn"
               onClick={() => {
-                navigator.clipboard?.writeText(text).catch(() => {});
+                copyText(text).catch(() => {});
               }}
             >
               Copy details

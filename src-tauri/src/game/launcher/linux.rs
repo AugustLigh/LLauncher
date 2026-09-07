@@ -287,15 +287,28 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
 }
 
 /// Shut down the prefix's wineserver (and with it every wine process of the
-/// prefix, winedevice included).
+/// prefix, winedevice included). `force` escalates the signal it sends its
+/// clients from SIGINT to SIGKILL, for processes too wedged to act on the
+/// polite one.
 ///
-/// Needed inside the Flatpak: a wineserver that outlives the session keeps
-/// the old sandbox instance alive, and the next launch finds it through the
-/// shared /run/user socket but cannot open its fsync shared memory — that
+/// This is the only reliable way to reap a wine session. `killpg` reaches
+/// what the launch script started, but wineserver puts itself in a session of
+/// its own (`setsid`), so a game process that outlived its wine loader —
+/// after a crash, typically — is reparented out of our process group and
+/// survives the group kill. Two reports come from that: the stop button
+/// leaving `Endfield.exe` running (issue #33), and the same leftovers piling
+/// up across crashed sessions until the X server refuses new connections
+/// ("Maximum number of clients reached") and the next launch freezes on the
+/// intro logo.
+///
+/// Inside the Flatpak the stakes are higher still: a surviving wineserver
+/// keeps the old sandbox instance alive, and the next launch finds it through
+/// the shared /run/user socket but cannot open its fsync shared memory — that
 /// lives in the dead instance's private /dev/shm — so wine exits 1 before
-/// loading anything, with no output. Call after the game session ends, never
-/// while it may still be running.
-pub fn shutdown_wineserver(settings: &AppSettings) {
+/// loading anything, with no output.
+///
+/// Call after the game session ends, never while it may still be running.
+pub fn shutdown_wineserver(settings: &AppSettings, force: bool) {
     let wineserver = Path::new(&settings.proton_dir).join("files/bin/wineserver");
     if !wineserver.exists() {
         return;
@@ -305,7 +318,7 @@ pub fn shutdown_wineserver(settings: &AppSettings) {
         return;
     }
     let _ = Command::new(wineserver)
-        .arg("-k")
+        .arg(if force { "-k9" } else { "-k" })
         .env("WINEPREFIX", &prefix)
         .status();
 }

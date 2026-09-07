@@ -238,7 +238,7 @@ pub fn resolve_prefix_dir(_settings: &AppSettings, _game_path: &Path) -> PathBuf
 }
 
 /// No wineserver to reap.
-pub fn shutdown_wineserver(_settings: &AppSettings) {}
+pub fn shutdown_wineserver(_settings: &AppSettings, _force: bool) {}
 
 pub fn run_prefix_tool(_settings: &AppSettings, tool: &str) -> Result<(), AppError> {
     Err(AppError::Unsupported(format!("Wine tool {}", tool)))

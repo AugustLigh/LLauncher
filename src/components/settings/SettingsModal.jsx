@@ -11,6 +11,7 @@ import useModalDismiss from '../../hooks/useModalDismiss';
 import useProtonDownload from '../../hooks/useProtonDownload';
 import useIntegrityCheck from '../../hooks/useIntegrityCheck';
 import { formatSize, formatSpeed, formatPercent } from '../../utils/format';
+import { copyText } from '../../utils/clipboard';
 import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 import { useTranslation } from '../../i18n';
 import './SettingsModal.css';
@@ -301,7 +302,13 @@ export default function SettingsModal({ settings, initialTab, systemCheck, onRef
   const handleCopyDebugInfo = async () => {
     try {
       const info = await invoke('get_debug_info');
-      await navigator.clipboard.writeText(info);
+      if (!(await copyText(info))) {
+        // Every clipboard route the webview offers was refused. The same
+        // block is on stdout of `llauncher --debug-info`, so say so instead
+        // of leaving the button looking dead (issue #33).
+        setTabMsg({ ok: false, text: `${t('errors.copyFailed')} — ${t('settings.debugInfo.fallback')}` });
+        return;
+      }
       setDebugCopied(true);
       setTimeout(() => setDebugCopied(false), 2000);
     } catch (e) {

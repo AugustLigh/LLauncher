@@ -437,13 +437,16 @@ pub async fn launch_and_watch(app: tauri::AppHandle, with_mods: bool) -> Result<
             });
         }
 
-        // In the Flatpak, wine processes that outlive the session keep the old
-        // sandbox instance alive and poison the next launch (its fsync shared
-        // memory is unreachable from a new instance) — reap them now that the
-        // session is over. See launcher::shutdown_wineserver.
-        if std::env::var_os("FLATPAK_ID").is_some() {
+        // Reap whatever wine left behind now that the session is over. A
+        // crashed game routinely leaves processes that our process group kill
+        // cannot see, and they hold on to an X connection each until the
+        // server starts refusing new ones ("Maximum number of clients
+        // reached") and the next launch freezes on the intro logo — issue #33.
+        // In the Flatpak a surviving wineserver breaks the next launch
+        // outright. See launcher::shutdown_wineserver.
+        {
             let settings = app2.state::<AppState>().settings.blocking_lock().clone();
-            crate::game::launcher::shutdown_wineserver(&settings);
+            crate::game::launcher::shutdown_wineserver(&settings, false);
         }
 
         if let Some(status) = status {
@@ -555,14 +558,25 @@ pub async fn stop_game(state: State<'_, AppState>) -> Result<(), AppError> {
 
     let game_running = state.game_running.clone();
     let game_pid = state.game_pid.clone();
+    let settings = state.settings.lock().await.clone();
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-        if game_running.load(std::sync::atomic::Ordering::SeqCst) {
-            let pid = game_pid.load(std::sync::atomic::Ordering::SeqCst);
-            if pid != 0 {
-                crate::game::launcher::force_stop(pid);
-            }
+        if !game_running.load(std::sync::atomic::Ordering::SeqCst) {
+            return;
         }
+        let pid = game_pid.load(std::sync::atomic::Ordering::SeqCst);
+        if pid != 0 {
+            crate::game::launcher::force_stop(pid);
+        }
+        // Killing the process group is not enough for a game that already
+        // crashed: its wine loader is gone and the process has been reparented
+        // into wineserver's own session, out of the group's reach, so the stop
+        // button appeared to do nothing and Endfield.exe had to be killed by
+        // hand (issue #33). Tearing the prefix's wineserver down takes every
+        // one of its clients with it.
+        tokio::task::spawn_blocking(move || {
+            crate::game::launcher::shutdown_wineserver(&settings, true);
+        });
     });
 
     Ok(())

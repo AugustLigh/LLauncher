@@ -5,9 +5,11 @@ import { useTranslation } from '../../i18n';
 import './LaunchFailedDialog.css';
 
 // Known-failure signature ids from the backend (game::diagnose) mapped to
-// their translated advice strings.
-const HINT_TEXT_KEYS = {
-  'dwproton11-ntoskrnl': 'launchFailed.hintDwproton11',
+// their translated advice. `proton` marks the ones a different Proton build
+// fixes, which are the only ones the shortcut into those settings helps with.
+const HINTS = {
+  'dwproton11-ntoskrnl': { key: 'launchFailed.hintDwproton11', proton: true },
+  'x-clients-exhausted': { key: 'launchFailed.hintXClients' },
 };
 
 export default function LaunchFailedDialog({ failure, onClose, onOpenProtonSettings }) {
@@ -23,7 +25,7 @@ export default function LaunchFailedDialog({ failure, onClose, onOpenProtonSetti
     : t('launchFailed.exitCodeUnknown');
 
   const tail = (failure.log_tail || '').trim();
-  const hintKey = HINT_TEXT_KEYS[failure.hint];
+  const hint = HINTS[failure.hint];
 
   return (
     <>
@@ -35,10 +37,10 @@ export default function LaunchFailedDialog({ failure, onClose, onOpenProtonSetti
           </div>
           <div className="launch-failed__body">
             <div className="launch-failed__exit">{exitText}</div>
-            {hintKey && (
+            {hint && (
               <div className="launch-failed__hint">
-                <div className="launch-failed__hint-text">{t(hintKey)}</div>
-                {onOpenProtonSettings && (
+                <div className="launch-failed__hint-text">{t(hint.key)}</div>
+                {hint.proton && onOpenProtonSettings && (
                   <button
                     className="launch-failed__btn launch-failed__btn--primary"
                     onClick={onOpenProtonSettings}
