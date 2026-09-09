@@ -1,6 +1,6 @@
-import useModalDismiss from '../../hooks/useModalDismiss';
-import { useTranslation } from '../../i18n';
-import './ConfirmDialog.css';
+import useModalDismiss from "../../hooks/useModalDismiss";
+import { useTranslation } from "../../i18n";
+import "./ConfirmDialog.css";
 
 // The app's own confirmation dialog, replacing the native confirm()/alert()
 // which render as unstyled WebKit chrome in a decorations-off window and are
@@ -25,6 +25,7 @@ export default function ConfirmDialog({
         className="confirm-dialog"
         role="dialog"
         aria-modal="true"
+        aria-label={title}
         onClick={(e) => e.stopPropagation()}
       >
         {title && <div className="confirm-dialog__title">{title}</div>}
@@ -34,16 +35,16 @@ export default function ConfirmDialog({
             <button
               className="confirm-dialog__btn confirm-dialog__btn--secondary"
               onClick={onCancel}
+              data-initial-focus
             >
-              {cancelLabel || t('common.cancel')}
+              {cancelLabel || t("common.cancel")}
             </button>
           )}
           <button
-            className={`confirm-dialog__btn ${danger ? 'confirm-dialog__btn--danger' : 'confirm-dialog__btn--primary'}`}
+            className={`confirm-dialog__btn ${danger ? "confirm-dialog__btn--danger" : "confirm-dialog__btn--primary"}`}
             onClick={onConfirm}
-            autoFocus
           >
-            {confirmLabel || t('common.confirm')}
+            {confirmLabel || t("common.confirm")}
           </button>
         </div>
       </div>

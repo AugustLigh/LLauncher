@@ -1,253 +1,601 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { open } from '@tauri-apps/plugin-dialog';
-import SystemWarning from '../common/SystemWarning';
-import ActionButton from './ActionButton';
-import ProgressBar from './ProgressBar';
-import GameStatus from './GameStatus';
-import NewsPanel from './NewsPanel';
-import SingleEntCard from './SingleEntCard';
-import SocialSidebar from './SocialSidebar';
-import ProtonPrompt from './ProtonPrompt';
-import ConfirmDialog from '../common/ConfirmDialog';
-import useDownload from '../../hooks/useDownload';
-import useGameRunning from '../../hooks/useGameRunning';
-import useGameStats from '../../hooks/useGameStats';
-import { useTranslation } from '../../i18n';
-import { notify } from '../../utils/notify';
-import './HomePage.css';
-
-// `onSync` re-reads settings, the system check and the game state from the
-// backend; call it after anything that changes backend state behind the
-// frontend's back (import, finished install, Proton download).
+import { useState, useCallback, useEffect, useRef } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { open } from "@tauri-apps/plugin-dialog";
+import ActionButton from "./ActionButton";
+import ProgressBar from "./ProgressBar";
+import NewsPanel from "./NewsPanel";
+import BannerCarousel from "./BannerCarousel";
+import ActionMenu from "./ActionMenu";
+import ConfirmDialog from "../common/ConfirmDialog";
+import ErrorNotice from "../common/ErrorNotice";
+import { Button, Status } from "../common/Controls";
+import Icon from "../common/Icon";
+import useTasks, { taskActive } from "../../hooks/useTasks";
+import useGameStats from "../../hooks/useGameStats";
+import { launcherState } from "../../utils/launcherState";
+import { formatSize, formatPlaytime, formatDate } from "../../utils/format";
+import { useTranslation } from "../../i18n";
+import "./HomePage.css";
 export default function HomePage({
   content,
+  contentLoading,
+  contentError,
+  onRetryContent,
   settings,
   systemCheck,
+  systemLoading,
+  systemError,
+  onRetrySystem,
   gameState,
   gameLoading,
+  gameError,
+  onRetryGameState,
+  gameRunning,
+  markRunning,
   onSync,
+  onSaveSettings,
   onOpenSettings,
+  hidden,
 }) {
-  const { t } = useTranslation();
-  const { running: gameRunning, markRunning } = useGameRunning();
-  const stats = useGameStats();
-  const [showProtonPrompt, setShowProtonPrompt] = useState(false);
-  const [importError, setImportError] = useState(null);
-  // Pre-spawn launch failures (missing exe, unreadable prefix, "already
-  // running") come back as a rejected invoke, not as launch://failed, and
-  // used to vanish into console.error — the button just did nothing.
-  const [launchError, setLaunchError] = useState(null);
-  const [confirmStop, setConfirmStop] = useState(false);
-
-  const handleImport = async () => {
-    setImportError(null);
-    try {
-      const dir = await open({ directory: true });
-      if (!dir) return;
-      await invoke('import_existing_game', { path: dir });
-      onSync();
-    } catch (e) {
-      setImportError(typeof e === 'string' ? e : e.message || t('errors.importFailed'));
-    }
-  };
-
-  const handleStopGame = async () => {
-    setConfirmStop(false);
-    try {
-      await invoke('stop_game');
-    } catch (e) {
-      setLaunchError(`${t('errors.stopFailed')}: ${typeof e === 'string' ? e : e.message || e}`);
-    }
-  };
-
-  const onDownloadComplete = useCallback(async (version) => {
-    notify('LLauncher', t('notify.downloadComplete'));
-    try {
-      await invoke('update_installed_version', { version });
-    } catch (e) {
-      console.error('Failed to update version:', e);
-    }
-    // The backend already recorded the version itself; either way, re-read.
-    onSync();
-  }, [onSync, t]);
-
-  const { downloading, progress, error: dlError, startDownload, startUpdate, pauseDownload, cancelDownload } =
-    useDownload(onDownloadComplete);
-
+  const { t, locale } = useTranslation(),
+    stats = useGameStats();
+  const {
+    tasks,
+    loading: tasksLoading,
+    loadError: tasksError,
+    start,
+    stop,
+    refresh: refreshTasks,
+    busy,
+  } = useTasks();
+  const [launching, setLaunching] = useState(false),
+    [importing, setImporting] = useState(false),
+    [localError, setLocalError] = useState(null),
+    [confirmation, setConfirmation] = useState(null),
+    [plan, setPlan] = useState(null),
+    [planError, setPlanError] = useState(null),
+    [planLoading, setPlanLoading] = useState(false);
+  const launchLock = useRef(false),
+    installLock = useRef(false),
+    planRequest = useRef(0),
+    latestSync = useRef(onSync);
+  const installDetails = useRef(null);
   useEffect(() => {
-    if (dlError) notify('LLauncher', t('notify.downloadError', { message: dlError }));
-  }, [dlError, t]);
-
-  // A tray / --play launch refused because the game is out of date: show why
-  // and re-read the state so the main button flips to "Update".
-  const onSyncRef = useRef(onSync);
-  onSyncRef.current = onSync;
-  const tRef = useRef(t);
-  tRef.current = t;
+    const close = (event) => {
+      const details = installDetails.current;
+      if (details?.open && !details.contains(event.target))
+        details.open = false;
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, []);
   useEffect(() => {
-    const pending = listen('launch://update-required', (event) => {
-      const { installed_version, latest_version } = event.payload || {};
-      setLaunchError(tRef.current('home.updateRequired', { installed: installed_version, latest: latest_version }));
-      onSyncRef.current();
-    });
+    if (hidden && installDetails.current) installDetails.current.open = false;
+  }, [hidden]);
+  latestSync.current = onSync;
+  const task =
+    tasks.game &&
+    (!tasks.game.game_dir ||
+      tasks.game.game_dir === settings?.game_dir ||
+      taskActive(tasks.game))
+      ? tasks.game
+      : null;
+  const protonTask = tasks.proton?.status === "completed" ? null : tasks.proton;
+  const state = launcherState({
+    running: gameRunning,
+    launching,
+    importing,
+    gameLoading,
+    gameError,
+    systemLoading,
+    systemError,
+    systemCheck,
+    gameState,
+    task,
+    protonTask,
+    tasksLoading,
+    tasksError,
+  });
+  const isLinux = systemCheck?.platform !== "windows";
+  const needsProton = isLinux && systemCheck && !systemCheck.has_proton;
+  const loadPlan = useCallback(async () => {
+    const id = ++planRequest.current;
+    setPlanLoading(true);
+    setPlanError(null);
+    setPlan(null);
+    try {
+      const next = await invoke("get_install_plan");
+      if (id === planRequest.current) setPlan(next);
+    } catch (e) {
+      if (id === planRequest.current) setPlanError(e);
+    } finally {
+      if (id === planRequest.current) setPlanLoading(false);
+    }
+  }, [settings?.game_dir, settings?.download_dir]);
+  useEffect(() => {
+    if (gameState?.status === "not_installed" && settings) loadPlan();
+    return () => {
+      planRequest.current++;
+    };
+  }, [gameState?.status, loadPlan]);
+  useEffect(() => {
+    const pending = listen("launch://update-required", () =>
+      latestSync.current(),
+    );
     return () => {
       pending.then((u) => u());
     };
   }, []);
-
-  const handleAction = async (withMods = false) => {
-    if (!gameState) return;
-    switch (gameState.status) {
-      case 'not_installed':
-        startDownload();
-        break;
-      case 'update_available':
-        // Smart update: backend downloads only changed files when safe,
-        // otherwise the full packs.
-        startUpdate();
-        break;
-      case 'ready':
-        if (systemCheck && !systemCheck.has_proton) {
-          setShowProtonPrompt(true);
-          return;
-        }
-        setLaunchError(null);
-        try {
-          await invoke('launch_game', { withMods });
-          markRunning();
-          const action = settings?.on_launch_action || 'hide';
-          // "close" also just hides: the backend keeps the window alive so
-          // the game watcher (playtime, exit handling, Flatpak wineserver
-          // clean-up) survives, and the tray is where quitting happens.
-          if (action === 'hide' || action === 'close') getCurrentWindow().hide();
-        } catch (e) {
-          const message = typeof e === 'string' ? e : e.message || t('errors.launchFailed');
-          // The update-required case arrives as a translated message through
-          // launch://update-required; don't overwrite it with the raw error.
-          if (/update required/i.test(message)) {
-            onSync();
-            break;
-          }
-          setLaunchError(message);
-        }
-        break;
+  const chooseFolder = async (existing = false) => {
+    if (busy || importing) return;
+    setLocalError(null);
+    try {
+      const dir = await open({
+        directory: true,
+        title: t(existing ? "ui.existingGame" : "ui.chooseFolder"),
+      });
+      if (!dir) return;
+      setImporting(true);
+      if (existing) await invoke("import_existing_game", { path: dir });
+      else {
+        const fresh = await invoke("get_settings");
+        const sep = dir.includes("\\") ? "\\" : "/";
+        const oldDefault =
+          fresh.download_dir.replace(/\\/g, "/") ===
+          `${fresh.game_dir.replace(/\\/g, "/")}/_download`;
+        await onSaveSettings({
+          ...fresh,
+          game_dir: dir,
+          download_dir: oldDefault
+            ? `${dir}${sep}_download`
+            : fresh.download_dir,
+        });
+      }
+      await onSync();
+    } catch (e) {
+      setLocalError({ title: t("errors.importFailed"), error: e });
+    } finally {
+      setImporting(false);
     }
   };
-
-  // The backend has switched `proton_dir` to the fresh build; pull the new
-  // settings and system check so "Play" no longer trips the prompt.
-  const handleProtonDownloadComplete = useCallback(() => {
-    setShowProtonPrompt(false);
-    onSync();
-  }, [onSync]);
-
+  const launch = async (withMods = false) => {
+    if (launchLock.current || state !== "ready") return;
+    launchLock.current = true;
+    setLaunching(true);
+    setLocalError(null);
+    try {
+      await invoke("launch_game", { withMods });
+      markRunning();
+      if (["hide", "close"].includes(settings?.on_launch_action || "hide"))
+        await getCurrentWindow().hide();
+    } catch (e) {
+      setLocalError({ title: t("ui.launchFailed"), error: e });
+      await onSync();
+    } finally {
+      launchLock.current = false;
+      setLaunching(false);
+    }
+  };
+  const install = async () => {
+    if (installLock.current || busy) return;
+    installLock.current = true;
+    setLocalError(null);
+    try {
+      if (needsProton) {
+        if (!(await start("proton"))) return;
+        await onSync();
+      }
+      await start("install");
+    } finally {
+      installLock.current = false;
+    }
+  };
+  const stopTask = async (slot, discard = false) => {
+    try {
+      await stop(slot, discard);
+    } catch (e) {
+      setLocalError({ title: t("ui.downloadFailed"), error: e });
+    }
+  };
+  const confirmCancel = (slot) =>
+    setConfirmation({
+      title: t(slot === "proton" ? "ui.protonCancel" : "ui.cancelTitle"),
+      message: t(slot === "proton" ? "ui.protonCancelBody" : "ui.cancelBody"),
+      label: t(slot === "proton" ? "ui.stop" : "ui.cancelConfirm"),
+      run: () => stopTask(slot, true),
+    });
+  const resume = () =>
+    start(
+      task?.kind ||
+        (gameState?.status === "update_available" ? "update" : "install"),
+    );
+  const version =
+    gameState?.version ||
+    gameState?.installed_version ||
+    gameState?.latest_version;
+  const labels = {
+    versionError: "versionFailed",
+    systemError: "systemFailed",
+    downloadError: "downloadFailed",
+    protonError: "needsProton",
+    taskError: "tasksFailed",
+    update: "updateTitle",
+  };
+  const progressState = [
+    "downloading",
+    "fetching",
+    "verifying",
+    "extracting",
+    "pausing",
+    "paused",
+  ].includes(state);
+  const errorState = [
+    "versionError",
+    "systemError",
+    "downloadError",
+    "protonError",
+    "taskError",
+  ].includes(state);
+  const primaryAction =
+    state === "ready"
+      ? () => launch(false)
+      : state === "notInstalled"
+        ? install
+        : state === "update"
+          ? () => start("update")
+          : state === "needsProton" || state === "protonError"
+            ? () => start("proton")
+            : state === "downloadError"
+              ? resume
+              : state === "versionError"
+                ? onRetryGameState
+                : state === "systemError"
+                  ? onRetrySystem
+                  : state === "taskError"
+                    ? refreshTasks
+                    : null;
+  const primaryLabel =
+    state === "ready"
+      ? t("home.action.launch")
+      : state === "notInstalled"
+        ? t(needsProton ? "ui.installBoth" : "home.action.install")
+        : state === "update"
+          ? t("ui.updateAction")
+          : ["needsProton", "protonError"].includes(state)
+            ? t("ui.installProton")
+            : errorState
+              ? t("common.retry")
+              : t(`ui.${labels[state] || state}`);
+  const menuItems = [
+    ...(state === "ready" && settings?.mods_enabled
+      ? [
+          {
+            label: t("home.action.launchMods"),
+            icon: "mods",
+            onSelect: () => launch(true),
+          },
+        ]
+      : []),
+    {
+      label: t("ui.gameSettings"),
+      icon: "settings",
+      onSelect: () => onOpenSettings("files"),
+    },
+    ...(state === "notInstalled"
+      ? [
+          {
+            label: t("ui.existingGame"),
+            icon: "folder",
+            onSelect: () => chooseFolder(true),
+            disabled: busy,
+          },
+        ]
+      : []),
+  ];
   return (
-    <div className="home-page">
-      <div className="home-page__main">
-        {content?.single_ent && (
-          <SingleEntCard singleEnt={content.single_ent} />
+    <main className="home-page" data-state={state} hidden={hidden}>
+      <h1 className="home-page__hero">Arknights: Endfield</h1>
+      <div className="home-page__news">
+        <BannerCarousel banners={content?.banners} />
+        <NewsPanel
+          tabs={content?.news_tabs}
+          loading={contentLoading}
+          error={contentError}
+          onRetry={onRetryContent}
+        />
+      </div>
+      <section
+        className="home-page__action-area"
+        data-state={state}
+        aria-label={t("ui.gameSettings")}
+      >
+        {!progressState &&
+          !errorState &&
+          !["update", "protonDownloading"].includes(state) && (
+            <div className="home-page__card-meta">
+              <Status
+                kind={
+                  errorState
+                    ? "error"
+                    : state === "ready"
+                      ? "success"
+                      : ["needsProton", "paused", "update"].includes(state)
+                        ? "warning"
+                        : "neutral"
+                }
+                busy={[
+                  "checking",
+                  "systemChecking",
+                  "importing",
+                  "launching",
+                ].includes(state)}
+              >
+                {t(`ui.${labels[state] || state}`)}
+              </Status>
+              {version && (
+                <span className="home-page__version">v{version}</span>
+              )}
+            </div>
+          )}
+        {localError && <ErrorNotice {...localError} />}
+        {state === "notInstalled" && (
+          <details
+            ref={installDetails}
+            className="home-page__install-details"
+            open={plan?.blocked || !!planError || undefined}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && event.currentTarget.open) {
+                event.stopPropagation();
+                event.currentTarget.open = false;
+                event.currentTarget.querySelector("summary").focus();
+              }
+            }}
+          >
+            <summary>
+              <span>
+                {t("ui.installTitle")}
+                {plan?.download_bytes != null &&
+                  ` · ${formatSize(plan.download_bytes)}`}
+              </span>
+              <Icon name="chevron" size={14} />
+            </summary>
+            <div className="home-page__install-popover">
+              <h2>{t("ui.installTitle")}</h2>
+              <div className="home-page__folder">
+                <Icon name="folder" />
+                <div>
+                  <span>
+                    {settings?.game_dir?.split(/[\\/]/).filter(Boolean).pop()}
+                  </span>
+                  <small title={settings?.game_dir}>{settings?.game_dir}</small>
+                </div>
+                <Button
+                  variant="ghost"
+                  onClick={() => chooseFolder(false)}
+                  disabled={busy}
+                >
+                  {t("ui.change")}
+                </Button>
+              </div>
+              {planLoading && <small>{t("ui.sizeUnknown")}</small>}
+              {plan && (
+                <div className="home-page__installation">
+                  <div>
+                    <span>{t("ui.downloadSize")}</span>
+                    <span>{formatSize(plan.download_bytes)}</span>
+                  </div>
+                  {plan.unpacked_bytes != null && (
+                    <div>
+                      <span>{t("ui.gameSpace")}</span>
+                      <span>{formatSize(plan.unpacked_bytes)}</span>
+                    </div>
+                  )}
+                  {plan.disks?.map((disk, i) => (
+                    <div className="home-page__disk" key={i} title={disk.path}>
+                      <span>{t("ui.diskFree")}</span>
+                      <span>
+                        {disk.available == null
+                          ? t("ui.unknown")
+                          : formatSize(disk.available)}
+                      </span>
+                      <div className="home-page__disk-bar">
+                        <span
+                          style={{
+                            width:
+                              disk.available > 0
+                                ? `${Math.min(100, (disk.required / disk.available) * 100)}%`
+                                : "0%",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  {plan.unpacked_bytes == null && (
+                    <small>{t("ui.totalSpaceUnknown")}</small>
+                  )}
+                  {plan.blocked && (
+                    <span className="home-page__space-error">
+                      {t("ui.notEnoughSpace")}
+                    </span>
+                  )}
+                </div>
+              )}
+              {systemError && (
+                <ErrorNotice
+                  title={t("ui.systemFailed")}
+                  error={systemError}
+                  onRetry={onRetrySystem}
+                />
+              )}
+              {planError && (
+                <ErrorNotice
+                  title={t("ui.planFailed")}
+                  error={planError}
+                  onRetry={loadPlan}
+                />
+              )}
+              {needsProton && (
+                <div className="home-page__runtime-line">
+                  <Icon name="download" size={15} />
+                  <span>Proton</span>
+                  <small>{t("ui.recommendedBuild")}</small>
+                </div>
+              )}
+            </div>
+          </details>
         )}
-        {content?.news_tabs?.length > 0 && (
-          <div className="home-page__news">
-            <NewsPanel tabs={content.news_tabs} />
+        {["needsProton", "protonError"].includes(state) && (
+          <>
+            <h2>{t("ui.protonTitle")}</h2>
+            <div className="home-page__checklist">
+              <Status kind="success">{t("ui.gameFound")}</Status>
+              <span>{t("ui.runtime")} · Proton</span>
+            </div>
+          </>
+        )}
+        {state === "update" && (
+          <div className="home-page__update">
+            <h2>{t("ui.updateTitle")}</h2>
+            <span>
+              v{gameState?.installed_version} <Icon name="arrow" size={15} /> v
+              {gameState?.latest_version}
+            </span>
           </div>
         )}
-        <div className="home-page__warnings">
-          {systemCheck && !systemCheck.has_proton && (
-            <SystemWarning message={t('home.warning.noProton')} type="warn" />
-          )}
-          {systemCheck && !systemCheck.has_ntsync && (
-            <SystemWarning message={t('home.warning.noNtsync')} type="warn" />
-          )}
-        </div>
-      </div>
-
-      <SocialSidebar sidebars={content?.sidebars} />
-
-      <div className="home-page__bottom">
-        <div className="home-page__bottom-left">
-          <GameStatus gameState={gameState} stats={stats} />
-          <button
-            className="home-page__settings-btn"
-            onClick={onOpenSettings}
-            title={t('home.settingsTooltip')}
-          >
-            {'⚙'}
-          </button>
-        </div>
-
-        <div className="home-page__action-area">
-          {downloading && progress && (
-            <ProgressBar progress={progress} onPause={pauseDownload} onCancel={cancelDownload} />
-          )}
-          {dlError && (
-            <div className="home-page__error">
-              <span className="home-page__error-text">{dlError}</span>
-            </div>
-          )}
-          {importError && (
-            <div className="home-page__error">
-              <span className="home-page__error-text">{importError}</span>
-              <button className="home-page__error-dismiss" onClick={() => setImportError(null)} title={t('common.dismiss')}>{'✕'}</button>
-            </div>
-          )}
-          {launchError && (
-            <div className="home-page__error">
-              <span className="home-page__error-text">{launchError}</span>
-              <button className="home-page__error-dismiss" onClick={() => setLaunchError(null)} title={t('common.dismiss')}>{'✕'}</button>
-            </div>
-          )}
-          <ActionButton
-            gameState={gameState}
-            downloading={downloading}
-            extracting={progress?.stage === 'extracting'}
-            verifying={progress?.stage === 'verifying'}
-            running={gameRunning}
-            onAction={() => handleAction(false)}
-            disabled={gameLoading}
+        {progressState && (
+          <ProgressBar
+            progress={task?.progress}
+            paused={state === "paused"}
+            stopping={state === "pausing"}
+            onResume={state === "paused" ? resume : null}
+            onPause={
+              taskActive(task) && task?.progress?.stage !== "extracting"
+                ? () => stopTask("game")
+                : null
+            }
+            onCancel={
+              state !== "extracting" ? () => confirmCancel("game") : null
+            }
           />
-          {settings?.mods_enabled && !downloading && !gameRunning && gameState?.status === 'ready' && (
-            <button className="home-page__mods-btn" onClick={() => handleAction(true)} disabled={gameLoading}>
-              {t('home.action.launchMods')}
-            </button>
+        )}
+        {state === "protonDownloading" && (
+          <ProgressBar
+            progress={protonTask?.progress}
+            proton
+            stopping={protonTask?.status !== "running"}
+            onCancel={
+              protonTask?.progress?.stage !== "extracting"
+                ? () => confirmCancel("proton")
+                : null
+            }
+          />
+        )}
+        {errorState && (
+          <ErrorNotice
+            title={t(`ui.${labels[state] || state}`)}
+            error={
+              state === "versionError"
+                ? gameError
+                : state === "systemError"
+                  ? systemError
+                  : state === "taskError"
+                    ? tasksError
+                    : state === "protonError"
+                      ? protonTask?.error
+                      : task?.error
+            }
+          />
+        )}
+        {!progressState &&
+          state !== "protonDownloading" &&
+          state !== "running" && (
+            <div className="home-page__launch-controls">
+              <ActionButton
+                onClick={primaryAction}
+                disabled={
+                  !primaryAction ||
+                  (state === "notInstalled" &&
+                    (planLoading ||
+                      !!planError ||
+                      plan?.blocked ||
+                      systemLoading ||
+                      !!systemError))
+                }
+                busy={!primaryAction}
+              >
+                {primaryLabel}
+              </ActionButton>
+              <ActionMenu items={menuItems} />
+            </div>
           )}
-          {gameRunning && (
-            <button className="home-page__stop-btn" onClick={() => setConfirmStop(true)}>
-              {t('home.stopGame')}
-            </button>
+        {state === "running" && (
+          <Button
+            variant="danger"
+            icon="stop"
+            onClick={() =>
+              setConfirmation({
+                title: t("home.stopGame"),
+                message: t("home.stopConfirm"),
+                label: t("home.stopGame"),
+                run: async () => {
+                  try {
+                    await invoke("stop_game");
+                  } catch (e) {
+                    setLocalError({ title: t("errors.stopFailed"), error: e });
+                  }
+                },
+              })
+            }
+          >
+            {t("home.stopGame")}…
+          </Button>
+        )}
+        {["needsProton", "protonError"].includes(state) && (
+          <button
+            className="home-page__subaction"
+            onClick={() => onOpenSettings("proton")}
+          >
+            {t("ui.selectProton")}
+            <Icon name="arrow" size={14} />
+          </button>
+        )}
+      </section>
+      <footer className="home-page__footer">
+        <span>
+          {stats?.totalPlaytimeSecs > 0 && (
+            <>
+              {t("ui.stats", {
+                time: formatPlaytime(stats.totalPlaytimeSecs, locale),
+              })}
+              {stats.lastPlayed > 0 && (
+                <>
+                  {" "}
+                  ·{" "}
+                  {t("ui.lastPlayed", {
+                    date: formatDate(stats.lastPlayed, locale),
+                  })}
+                </>
+              )}
+            </>
           )}
-          {!downloading && !gameRunning && gameState?.status === 'not_installed' && (
-            <button className="home-page__import-link" onClick={handleImport}>
-              {t('home.importLink')}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {confirmStop && (
+        </span>
+      </footer>
+      {confirmation && (
         <ConfirmDialog
-          title={t('home.stopGame')}
-          message={t('home.stopConfirm')}
-          confirmLabel={t('home.stopGame')}
+          title={confirmation.title}
+          message={confirmation.message}
+          confirmLabel={confirmation.label}
           danger
-          onConfirm={handleStopGame}
-          onCancel={() => setConfirmStop(false)}
-        />
-      )}
-
-      {showProtonPrompt && (
-        <ProtonPrompt
-          onClose={() => setShowProtonPrompt(false)}
-          onConfigureManually={() => {
-            setShowProtonPrompt(false);
-            onOpenSettings();
+          onCancel={() => setConfirmation(null)}
+          onConfirm={() => {
+            const run = confirmation.run;
+            setConfirmation(null);
+            run();
           }}
-          onDownloadComplete={handleProtonDownloadComplete}
         />
       )}
-    </div>
+    </main>
   );
 }

@@ -1,104 +1,323 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+}
+html,
+body,
+#root {
   margin: 0;
-  padding: 0;
-}
-
-html {
   width: 100%;
   height: 100%;
   overflow: hidden;
 }
-
 body {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
   font-family: var(--font-family);
   font-size: var(--font-size-base);
   color: var(--color-text-primary);
   background: transparent;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   user-select: none;
 }
-
 #root {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  border-radius: 10px;
   background: var(--color-bg);
+  border-radius: 8px;
 }
-
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+h1,
+h2,
+h3 {
+  font-weight: 600;
+}
 a {
-  color: var(--color-accent);
+  color: var(--color-accent-text);
   text-decoration: none;
 }
-
 a:hover {
-  color: var(--color-accent-hover);
+  color: var(--color-text-primary);
 }
-
-button {
-  font-family: var(--font-family);
-  cursor: pointer;
-  border: none;
-  outline: none;
-  background: none;
+button,
+input,
+select,
+textarea {
+  font: inherit;
   color: inherit;
 }
-
-/* Keyboard / gamepad users (Steam Deck) need to see where focus is. The
-   global outline reset above hides it for mouse clicks; :focus-visible only
-   fires for keyboard navigation, so mouse users keep the clean look. */
-button:focus-visible,
-select:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-[tabindex]:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+button {
+  cursor: pointer;
+  border: 0;
+  background: none;
 }
-
-/* Error text must be selectable so it can be pasted into a bug report, and
-   must wrap long paths/URLs instead of being clipped by overflow: hidden. */
+button:disabled {
+  cursor: default;
+  color: var(--color-disabled-text);
+  opacity: 1;
+}
+button,
+a,
+input,
+textarea,
+select,
+summary,
+[tabindex] {
+  outline-offset: 4px;
+}
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+}
+input,
+select,
+textarea {
+  min-height: 40px;
+  background: var(--color-input-bg);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border-hover);
+  border-radius: 4px;
+  padding: 9px 12px;
+  min-width: 0;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--color-focus);
+}
+option,
+optgroup {
+  background: var(--color-input-bg);
+  color: var(--color-text-primary);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+input:disabled,
+select:disabled,
+textarea:disabled {
+  color: var(--color-disabled-text);
+  -webkit-text-fill-color: var(--color-disabled-text);
+  opacity: 1;
+}
+textarea {
+  resize: vertical;
+  min-height: 96px;
+}
+select {
+  cursor: pointer;
+}
+input[type="number"] {
+  width: 110px;
+}
+small {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
 .selectable,
-pre {
+pre,
+.ui-error {
   user-select: text;
   overflow-wrap: anywhere;
 }
-
-input, select {
-  font-family: var(--font-family);
+pre {
+  white-space: pre-wrap;
+  font:
+    12px/1.7 ui-monospace,
+    monospace;
+}
+.icon {
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.ui-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 9px 16px;
+  border: 1px solid var(--color-border-hover);
+  border-radius: 4px;
+  font-size: 13px;
   color: var(--color-text-primary);
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-sm) var(--space-md);
-  outline: none;
-  transition: border-color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    border-color var(--transition-fast);
 }
-
-input:focus, select:focus {
+.ui-button:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  border-color: var(--color-text-muted);
+}
+.ui-button--primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 600;
+}
+.ui-button--primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+.ui-button--ghost {
+  border-color: transparent;
+  color: var(--color-text-secondary);
+}
+.ui-button--danger {
+  color: var(--color-error);
+  border-color: var(--color-error);
+}
+.ui-button:disabled {
+  color: var(--color-disabled-text);
+  border-color: var(--color-border);
+}
+.ui-button--primary:disabled {
+  background: var(--color-disabled-bg);
+}
+.ui-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ui-status--success {
+  color: var(--color-success);
+}
+.ui-status--warning {
+  color: var(--color-warning);
+}
+.ui-status--error {
+  color: var(--color-error);
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 66px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.setting-row__label {
+  min-width: 0;
+}
+.setting-row__label small {
+  display: block;
+  margin-top: 5px;
+}
+.ui-switch {
+  width: 44px;
+  height: 26px;
+  padding: 3px;
+  border: 1px solid var(--color-border-hover);
+  border-radius: 20px;
+  background: var(--color-bg-tertiary);
+  flex-shrink: 0;
+}
+.ui-switch span {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-switch-thumb);
+  transition: transform var(--transition-fast);
+}
+.ui-switch[aria-checked="true"] {
+  background: var(--color-accent);
   border-color: var(--color-accent);
 }
-
+.ui-switch[aria-checked="true"] span {
+  background: var(--color-on-accent);
+  transform: translateX(18px);
+}
+.setting-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.setting-field label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+.ui-details {
+  border-top: 1px solid var(--color-border);
+  margin-top: 24px;
+}
+.ui-details > summary {
+  cursor: pointer;
+  padding: 18px 2px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+.ui-details[open] > summary {
+  color: var(--color-accent-text);
+}
+.ui-details__body {
+  padding: 8px 0 16px;
+}
+.ui-error {
+  border-left: 2px solid var(--color-error);
+  padding: 12px 16px;
+  color: var(--color-error);
+  font-size: 13px;
+  line-height: 1.6;
+  background: var(--color-error-bg);
+}
+.ui-error details {
+  margin-top: 6px;
+  color: var(--color-text-secondary);
+}
+.ui-error summary {
+  cursor: pointer;
+}
+.ui-error pre {
+  margin: 8px 0;
+}
+.ui-error .ui-button {
+  margin-top: 8px;
+}
+.is-spinning {
+  animation: ui-spin 1.2s linear infinite;
+}
+@keyframes ui-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
-
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-hover);
+  border-radius: 4px;
+}
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 3px;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+@media (max-height: 620px) {
+  :root {
+    --titlebar-height: 48px;
+  }
+  .setting-row {
+    min-height: 58px;
+    padding: 12px 0;
+  }
 }

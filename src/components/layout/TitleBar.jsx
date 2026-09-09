@@ -1,46 +1,56 @@
-import { getCurrentWindow } from '@tauri-apps/api/window';
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { useTranslation } from '../../i18n';
-import useLauncherUpdate from '../../hooks/useLauncherUpdate';
-import './TitleBar.css';
-
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { useTranslation } from "../../i18n";
+import useLauncherUpdate from "../../hooks/useLauncherUpdate";
+import Icon from "../common/Icon";
+import "./TitleBar.css";
 const appWindow = getCurrentWindow();
-
-export default function TitleBar() {
+export default function TitleBar({ onOpenSettings, settingsOpen }) {
   const { t } = useTranslation();
   const update = useLauncherUpdate();
   return (
-    <div className="titlebar" data-tauri-drag-region>
-      <span className="titlebar__title">LLauncher</span>
+    <header
+      className={`titlebar${settingsOpen ? " titlebar--settings" : ""}`}
+      data-tauri-drag-region
+    >
       <div className="titlebar__controls">
         {update && (
           <button
             className="titlebar__update"
             onClick={() => openUrl(update.url)}
-            title={t('titlebar.updateTooltip')}
+            title={t("titlebar.updateTooltip")}
           >
-            {t('titlebar.update', { version: update.version })}
+            <Icon name="download" size={15} />
+            LLauncher {update.version}
+          </button>
+        )}
+        {!settingsOpen && (
+          <button
+            className="titlebar__settings"
+            onClick={onOpenSettings}
+            aria-label={t("settings.title")}
+            title={t("settings.title")}
+          >
+            <Icon name="settings" />
           </button>
         )}
         <button
           className="titlebar__btn"
           onClick={() => appWindow.minimize()}
-          title={t('titlebar.minimize')}
+          aria-label={t("titlebar.minimize")}
+          title={t("titlebar.minimize")}
         >
-          <svg viewBox="0 0 16 16">
-            <rect x="3" y="7.5" width="10" height="1" />
-          </svg>
+          <Icon name="minus" size={17} />
         </button>
         <button
           className="titlebar__btn titlebar__btn--close"
           onClick={() => appWindow.hide()}
-          title={t('titlebar.close')}
+          aria-label={t("ui.shutdownHint")}
+          title={t("ui.shutdownHint")}
         >
-          <svg viewBox="0 0 16 16">
-            <path d="M4.5 3.5l7 7m0-7l-7 7" stroke="currentColor" strokeWidth="1.2" fill="none" />
-          </svg>
+          <Icon name="close" size={17} />
         </button>
       </div>
-    </div>
+    </header>
   );
 }

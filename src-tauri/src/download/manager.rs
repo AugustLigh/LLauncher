@@ -27,7 +27,10 @@ pub async fn start_download(
     speed_limit: u64,
     max_concurrent: u32,
 ) -> Result<String, AppError> {
-    download_active.store(true, Ordering::SeqCst);
+    // The transfer registry owns activation, so a late worker cannot undo Pause.
+    if !download_active.load(Ordering::SeqCst) {
+        return Err(AppError::Cancelled);
+    }
 
     let download_path = Path::new(download_dir);
     let game_path = Path::new(game_dir);
@@ -38,14 +41,19 @@ pub async fn start_download(
     // If API returned no packs (e.g. version already matches latest but game files are missing),
     // retry with empty version to request a full download
     if version_info.pkg.packs.is_empty() && !current_version.is_empty() {
-        version_info =
-            crate::api::client::get_latest_game_version(&client, "").await?;
+        version_info = crate::api::client::get_latest_game_version(&client, "").await?;
     }
 
     if version_info.pkg.packs.is_empty() {
         download_active.store(false, Ordering::SeqCst);
         let msg = "No download packages available from server".to_string();
-        app.emit("download://error", DownloadError { message: msg.clone() }).ok();
+        app.emit(
+            "download://error",
+            DownloadError {
+                message: msg.clone(),
+            },
+        )
+        .ok();
         return Err(AppError::Api(msg));
     }
 
@@ -65,7 +73,9 @@ pub async fn start_download(
         .iter()
         .filter_map(|p| {
             let name = safe_pack_file_name(&p.url);
-            std::fs::metadata(download_path.join(name)).ok().map(|m| m.len())
+            std::fs::metadata(download_path.join(name))
+                .ok()
+                .map(|m| m.len())
         })
         .sum();
     let needed = total_size.saturating_sub(existing_parts);
@@ -78,7 +88,13 @@ pub async fn start_download(
                 needed_mib: needed / (1024 * 1024),
                 available_mib: available / (1024 * 1024),
             };
-            app.emit("download://error", DownloadError { message: err.to_string() }).ok();
+            app.emit(
+                "download://error",
+                DownloadError {
+                    message: err.to_string(),
+                },
+            )
+            .ok();
             return Err(err);
         }
     }
@@ -128,7 +144,16 @@ pub async fn start_download(
                 crate::download::retry::RETRY_DELAY,
                 || {
                     crate::download::worker::download_file(
-                        &app2, &client2, &pack2, &dest, i, total_files, &active2, start, &agg2, ts,
+                        &app2,
+                        &client2,
+                        &pack2,
+                        &dest,
+                        i,
+                        total_files,
+                        &active2,
+                        start,
+                        &agg2,
+                        ts,
                         per_worker_limit,
                     )
                 },
@@ -157,8 +182,13 @@ pub async fn start_download(
             Err(e) => {
                 download_active.store(false, Ordering::SeqCst);
                 let msg = format!("Download task failed: {}", e);
-                app.emit("download://error", DownloadError { message: msg.clone() })
-                    .ok();
+                app.emit(
+                    "download://error",
+                    DownloadError {
+                        message: msg.clone(),
+                    },
+                )
+                .ok();
                 return Err(AppError::Api(msg));
             }
         }
@@ -226,7 +256,13 @@ pub async fn start_download(
 
     download_active.store(false, Ordering::SeqCst);
 
-    app.emit("download://complete", DownloadComplete { version: version.clone() }).ok();
+    app.emit(
+        "download://complete",
+        DownloadComplete {
+            version: version.clone(),
+        },
+    )
+    .ok();
 
     Ok(version)
 }
@@ -243,8 +279,14 @@ mod tests {
             safe_pack_file_name("https://cdn.example.com/packs/.."),
             "unknown"
         );
-        assert_eq!(safe_pack_file_name("https://cdn.example.com/packs/."), "unknown");
-        assert_eq!(safe_pack_file_name("https://cdn.example.com/packs/"), "unknown");
+        assert_eq!(
+            safe_pack_file_name("https://cdn.example.com/packs/."),
+            "unknown"
+        );
+        assert_eq!(
+            safe_pack_file_name("https://cdn.example.com/packs/"),
+            "unknown"
+        );
         assert_eq!(
             safe_pack_file_name("https://cdn.example.com/packs/pack01.zip"),
             "pack01.zip"

@@ -35,3 +35,6 @@ aur_key*
 # local UI smoke-test artifacts
 .playwright-mcp/
 smoke-*.png
+
+# design-process screenshots (kept locally, too heavy for history)
+docs/design/**/*.png

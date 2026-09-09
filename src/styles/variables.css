@@ -1,68 +1,63 @@
 :root {
-  /* Base colors */
-  --color-bg: #0a0a0f;
-  --color-bg-secondary: #12121a;
-  --color-bg-tertiary: #1a1a25;
-  --color-surface: rgba(255, 255, 255, 0.05);
-  --color-surface-hover: rgba(255, 255, 255, 0.08);
-  --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-hover: rgba(255, 255, 255, 0.15);
-
-  /* Text */
-  --color-text-primary: #e8e8ec;
-  --color-text-secondary: rgba(232, 232, 236, 0.65);
-  --color-text-muted: rgba(232, 232, 236, 0.4);
-
-  /* Accent — Endfield gold/orange */
-  --color-accent: #f0b232;
-  --color-accent-hover: #f5c44e;
-  --color-accent-glow: rgba(240, 178, 50, 0.3);
-  --color-accent-dim: rgba(240, 178, 50, 0.15);
-
-  /* Status */
-  --color-success: #4ade80;
-  --color-warning: #f0b232;
-  --color-error: #ef4444;
-
-  /* Glass */
-  --glass-bg: rgba(18, 18, 26, 0.75);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --glass-blur: 20px;
-
-  /* Typography */
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-size-xs: 0.7rem;
-  --font-size-sm: 0.8rem;
+  color-scheme: dark;
+  --color-bg: #1e1e1e;
+  --color-bg-secondary: #252525;
+  --color-bg-tertiary: #303033;
+  --color-surface: #ffffff06;
+  --color-surface-hover: #ffffff10;
+  --color-border: #414145;
+  --color-border-hover: #77777b;
+  --color-text-primary: #f5f5f3;
+  --color-text-secondary: #c8c8cc;
+  --color-text-muted: #aaaab0;
+  --color-accent: #f1fa00;
+  --color-accent-hover: #f8ff52;
+  --color-accent-text: #f1fa00;
+  --color-on-accent: #18191b;
+  --color-focus: #f1fa00;
+  --color-accent-dim: #f1fa0012;
+  --color-accent-glow: transparent;
+  --color-success: #abd9b2;
+  --color-warning: #f1fa00;
+  --color-error: #ffb4ae;
+  --color-on-error: #29100e;
+  --color-error-bg: #ffb4ae0a;
+  --color-input-bg: #252527;
+  --color-disabled-bg: #343437;
+  --color-disabled-text: #aaaab0;
+  --color-track: #515156;
+  --color-switch-thumb: #d1d1d4;
+  --glass-bg: #232325;
+  --glass-border: #414145;
+  --glass-blur: 0px;
+  --font-family:
+    Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.8125rem;
   --font-size-base: 0.875rem;
   --font-size-lg: 1rem;
   --font-size-xl: 1.25rem;
   --font-size-2xl: 1.5rem;
-
-  /* Spacing */
   --space-xs: 4px;
   --space-sm: 8px;
   --space-md: 12px;
   --space-lg: 16px;
   --space-xl: 24px;
   --space-2xl: 32px;
-
-  /* Border radius */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
-
-  /* Shadows */
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 20px var(--color-accent-glow);
-
-  /* Transitions */
-  --transition-fast: 150ms ease;
-  --transition-base: 250ms ease;
-  --transition-slow: 400ms ease;
-
-  /* Title bar height */
-  --titlebar-height: 36px;
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --shadow-sm: 0 2px 4px #0002;
+  --shadow-md: 0 8px 24px #0002;
+  --shadow-lg: 0 24px 64px #0004;
+  --shadow-glow: none;
+  --transition-fast: 120ms ease;
+  --transition-base: 180ms ease;
+  --transition-slow: 300ms ease;
+  --titlebar-height: 52px;
+  --sidebar-width: 64px;
+  --news-height: 144px;
+  --banner-width: 240px;
+  --home-base-height: 198px;
 }

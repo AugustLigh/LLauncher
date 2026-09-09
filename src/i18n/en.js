@@ -1,4 +1,6 @@
+import ui from './ui.en';
 export default {
+  ui,
   common: {
     cancel: 'Cancel',
     save: 'Save',
@@ -21,6 +23,7 @@ export default {
     updateTooltip: 'A new LLauncher version is available — click to open the release page',
   },
   home: {
+    stateCheckFailed: 'Could not check the game version. Check your connection and retry.',
     gameSubtitle: 'Arknights: Endfield',
     gameTitle: 'Endfield',
     badge: {
@@ -29,9 +32,10 @@ export default {
       notInstalled: 'Not installed',
     },
     action: {
+      launching: 'Starting game...',
       install: 'Install',
       update: 'Update',
-      launch: 'Launch',
+      launch: 'Play',
       downloading: 'Downloading...',
       verifying: 'Verifying...',
       extracting: 'Extracting...',
@@ -58,6 +62,8 @@ export default {
     },
   },
   progress: {
+    fetchLabel: 'Fetching file manifest...',
+    filesChecked: '{current} / {total} files checked',
     fileLabel: 'File {current}/{total}: {name}',
     verifyLabel: 'Verifying {current}/{total}: {name}',
     extractLabel: 'Extracting archive...',
@@ -103,7 +109,7 @@ export default {
     tab: {
       paths: 'Paths',
       proton: 'Proton',
-      launch: 'Launch',
+      launch: 'Play',
       downloads: 'Downloads',
       game: 'Game',
       mods: 'Mods',
@@ -112,10 +118,8 @@ export default {
       noGame: 'Install the game first.',
       skins: {
         title: 'Models and skins',
-        cost: 'costs frames',
-        sub: 'How characters, weapons and the interface look. They add no characters or mechanics.',
         loader: 'EFMI mod loader',
-        legacy: 'older loader — reinstall to move to EFMI',
+        legacy: 'Update required',
         upgrade: 'Update',
         install: 'Install',
         installing: 'Installing…',
@@ -124,23 +128,20 @@ export default {
         open: 'Open',
         catalog: 'Catalogue',
         count: 'mods: {count}',
-        empty: 'empty — drop a mod folder in here',
-        button: '"Play with mods" button on the home screen',
+        empty: 'Mods: 0',
+        button: '"Play with mods" button',
       },
       looks: {
         title: 'Image and colour',
-        free: 'no frame cost',
-        sub: 'Sharpening, colour, HDR. These work on a normal launch, on native Vulkan.',
         vkbasalt: 'vkBasalt',
-        vkbasaltMissing: 'not on this system — install the vkbasalt package',
-        howto: 'How to install',
+        vkbasaltMissing: 'Not installed',
+        howto: 'Installation',
         reshade: 'ReShade / RenoDX',
-        reshadeFound: 'found, enabled on a modded launch',
-        reshadeHint: 'put ReShade in the game folder as dxgi.dll',
+        reshadeFound: 'Detected',
+        reshadeHint: 'Not detected',
       },
       installed: 'Loader installed ({version})',
       uninstalled: 'Loader removed, your mods were left alone',
-      risk: 'The game ships the ACE anti-cheat. No wave of bans over cosmetic mods has been documented, but nobody guarantees anything.',
     },
     gameDir: 'Game directory',
     downloadDir: 'Download directory',
@@ -313,6 +314,10 @@ export default {
     openProtonSettings: 'Open Proton settings',
   },
   logViewer: {
+    copy: 'Copy log',
+    copied: 'Log copied.',
+    copyFailed: 'Could not copy. Select the log text and copy it manually.',
+    readFailed: 'Could not read the log',
     title: 'Launch log',
     empty: 'No log available — the game has not been launched yet.',
     refresh: 'Refresh',

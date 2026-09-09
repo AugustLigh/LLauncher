@@ -1,74 +1,28 @@
 .action-button {
-  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 50px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
-  font-size: var(--font-size-2xl);
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--color-bg);
-  background: linear-gradient(135deg, var(--color-accent), #e09a1a);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  transition: all var(--transition-base);
-  animation: glow 3s ease-in-out infinite;
-  width: 320px;
-  height: 64px;
-  flex-shrink: 0;
-  box-sizing: border-box;
-  white-space: nowrap;
-  text-align: center;
+  gap: 10px;
+  padding: 10px 16px 10px 24px;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  border-radius: 28px 0 0 28px;
+  font-size: 16px;
+  font-weight: 650;
+  transition: background var(--transition-fast);
 }
-
-.action-button::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 200%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.15) 50%,
-    transparent 100%
-  );
-  animation: shimmer 3s ease-in-out infinite;
+.action-button:hover:not(:disabled) {
+  background: var(--color-accent-hover);
 }
-
-.action-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 30px var(--color-accent-glow);
+.action-button:active:not(:disabled) {
+  background: #dfe800;
 }
-
-.action-button:active {
-  transform: translateY(0);
-}
-
-.action-button--disabled {
-  opacity: 0.5;
-  pointer-events: none;
-  animation: none;
-}
-
-.action-button--disabled::before {
-  animation: none;
-}
-
-.action-button--downloading {
-  background: var(--color-bg-tertiary);
-  color: var(--color-text-primary);
-  animation: none;
-  cursor: default;
-}
-
-.action-button--downloading::before {
-  animation: none;
-}
-
-.action-button--downloading:hover {
-  transform: none;
-  box-shadow: none;
+.action-button:disabled {
+  background: var(--color-disabled-bg);
+  color: var(--color-disabled-text);
+  opacity: 1;
+  font-size: 14px;
 }

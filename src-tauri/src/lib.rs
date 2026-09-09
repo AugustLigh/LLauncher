@@ -4,9 +4,11 @@ mod config;
 mod download;
 mod error;
 mod game;
+mod install_plan;
 mod logging;
 mod media;
 mod state;
+mod tasks;
 mod util;
 
 use config::settings::AppSettings;
@@ -24,9 +26,7 @@ use tauri::{
 #[cfg(windows)]
 fn attach_parent_console() {
     use windows_sys::Win32::Foundation::{GENERIC_WRITE, INVALID_HANDLE_VALUE};
-    use windows_sys::Win32::Storage::FileSystem::{
-        CreateFileW, FILE_SHARE_WRITE, OPEN_EXISTING,
-    };
+    use windows_sys::Win32::Storage::FileSystem::{CreateFileW, FILE_SHARE_WRITE, OPEN_EXISTING};
     use windows_sys::Win32::System::Console::{
         AttachConsole, SetStdHandle, ATTACH_PARENT_PROCESS, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE,
     };
@@ -94,9 +94,7 @@ pub fn run() {
             candidates.extend(GIO_MODULE_DIRS.iter().map(std::path::PathBuf::from));
 
             for dir in candidates {
-                if dir.join("libgiognutls.so").exists()
-                    || dir.join("libgioopenssl.so").exists()
-                {
+                if dir.join("libgiognutls.so").exists() || dir.join("libgioopenssl.so").exists() {
                     std::env::set_var("GIO_MODULE_DIR", &dir);
                     break;
                 }
@@ -151,7 +149,10 @@ pub fn run() {
                 tauri::async_runtime::spawn(async move {
                     // Immediate failures (not installed, no Proton) have no
                     // dialog of their own — fall back to showing the window.
-                    if commands::launch_and_watch(app.clone(), false).await.is_err() {
+                    if commands::launch_and_watch(app.clone(), false)
+                        .await
+                        .is_err()
+                    {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
@@ -174,6 +175,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .manage(app_state)
         .setup(move |app| {
+            tasks::register(app.handle());
             let launch = MenuItem::with_id(app, "launch", "Launch Game", true, None::<&str>)?;
             let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -241,7 +243,10 @@ pub fn run() {
                     // Crashes after spawn reopen the window via launch://failed;
                     // immediate failures (not installed, no Proton) get no
                     // dialog, so bring the window back for those.
-                    if commands::launch_and_watch(app_handle.clone(), false).await.is_err() {
+                    if commands::launch_and_watch(app_handle.clone(), false)
+                        .await
+                        .is_err()
+                    {
                         if let Some(window) = app_handle.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
@@ -266,6 +271,9 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_settings,
+            tasks::get_transfers,
+            tasks::stop_transfer,
+            install_plan::get_install_plan,
             commands::save_settings,
             commands::get_game_version,
             commands::get_launcher_content,

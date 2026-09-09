@@ -1,37 +1,25 @@
+.path-field {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.path-field > label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
 .path-selector {
   display: flex;
-  gap: var(--space-sm);
-}
-
-.path-selector__input {
-  flex: 1;
-  font-size: var(--font-size-sm);
-  padding: var(--space-sm) var(--space-md);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-primary);
-  outline: none;
+  gap: 8px;
   min-width: 0;
 }
-
-.path-selector__input:focus {
-  border-color: var(--color-accent);
+.path-selector input {
+  flex: 1;
+  width: 0;
+  font:
+    12px ui-monospace,
+    monospace;
 }
-
-.path-selector__btn {
-  padding: var(--space-sm) var(--space-md);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  white-space: nowrap;
-  transition: all var(--transition-fast);
-}
-
-.path-selector__btn:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-border-hover);
-  color: var(--color-text-primary);
+.path-selector .ui-button {
+  flex-shrink: 0;
 }

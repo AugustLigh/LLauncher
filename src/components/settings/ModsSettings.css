@@ -1,159 +1,25 @@
-/* Mods tab: two cards, one per kind of mod, each a short list of rows with a
-   tick in front. The tag in the header carries the one fact that decides
-   between them — whether it costs performance. */
-
-.mods__card {
-  padding: var(--space-md) var(--space-lg) var(--space-lg);
-  margin-bottom: var(--space-lg);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-}
-
-.mods__card-head {
+.mods-row {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--color-border);
 }
-
-.mods__card-title {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.mods__tag {
-  padding: 2px 8px;
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-.mods__tag--cost {
-  color: var(--color-warning);
-  background: var(--color-accent-dim);
-}
-
-.mods__tag--free {
-  color: var(--color-success);
-  background: rgba(74, 222, 128, 0.14);
-}
-
-.mods__card-sub {
-  display: block;
-  margin: var(--space-xs) 0 var(--space-md);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-}
-
-/* ── Rows ── */
-
-.mods__row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-sm) 0;
-  border-top: 1px solid var(--color-border);
-}
-
-.mods__dot {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--color-bg);
-  background: transparent;
-  border: 1px solid var(--color-border-hover);
-  border-radius: 50%;
-  transition: all var(--transition-fast);
-}
-
-.mods__dot--on {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-}
-
-.mods__row-label {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  font-size: var(--font-size-base);
-  color: var(--color-text-primary);
-}
-
-.mods__row-note {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-}
-
-.mods__row-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  flex-shrink: 0;
-}
-
-/* ── Buttons ── */
-
-.mods__btn {
-  padding: 5px 12px;
-  font-size: var(--font-size-sm);
+.mods-row strong {
+  font-size: 14px;
   font-weight: 500;
-  color: var(--color-text-primary);
-  background: var(--color-surface-hover);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  white-space: nowrap;
-  transition: all var(--transition-fast);
 }
-
-.mods__btn:hover:not(:disabled) {
-  background: var(--color-bg-tertiary);
-  border-color: var(--color-border-hover);
-}
-
-.mods__btn:disabled {
-  opacity: 0.5;
-  pointer-events: none;
-}
-
-.mods__btn--go {
-  color: var(--color-bg);
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-  font-weight: 600;
-}
-
-.mods__btn--go:hover:not(:disabled) {
-  background: var(--color-accent-hover);
-  border-color: var(--color-accent-hover);
-}
-
-.mods__btn--quiet {
-  color: #f0a0a0;
-  background: rgba(239, 68, 68, 0.1);
-  border-color: rgba(239, 68, 68, 0.3);
-}
-
-.mods__btn--quiet:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.2);
-  border-color: rgba(239, 68, 68, 0.45);
-}
-
-/* ── Footer ── */
-
-.mods__risk {
+.mods-row small {
   display: block;
-  padding-left: var(--space-md);
-  font-size: var(--font-size-sm);
-  line-height: 1.5;
-  color: var(--color-text-muted);
-  border-left: 2px solid var(--color-error);
+  margin-top: 7px;
+}
+.mods-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.mods-message {
+  margin-top: 20px;
 }

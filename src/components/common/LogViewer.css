@@ -48,6 +48,7 @@
 }
 
 .log-viewer__refresh {
+  min-height: 40px;
   font-size: var(--font-size-xs);
   color: var(--color-accent);
   background: none;
@@ -66,8 +67,8 @@
 }
 
 .log-viewer__close {
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -89,7 +90,7 @@
 }
 
 .log-viewer__pre {
-  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-family: "SF Mono", "Fira Code", monospace;
   font-size: var(--font-size-xs);
   line-height: 1.5;
   color: var(--color-text-primary);
@@ -102,4 +103,18 @@
   font-size: var(--font-size-sm);
   text-align: center;
   padding: var(--space-xl);
+}
+
+.log-viewer__error,
+.log-viewer__status {
+  margin-bottom: var(--space-md);
+  font-size: var(--font-size-sm);
+}
+
+.log-viewer__error {
+  color: var(--color-error);
+}
+
+.log-viewer__status {
+  color: var(--color-success);
 }

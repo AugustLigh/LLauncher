@@ -1,74 +1,46 @@
 .titlebar {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 15;
+  height: var(--titlebar-height);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  height: var(--titlebar-height);
-  padding: 0 var(--space-sm);
-  background: rgba(10, 10, 15, 0.6);
-  backdrop-filter: blur(10px);
-  -webkit-app-region: drag;
-  position: relative;
-  z-index: 100;
-  border-radius: 10px 10px 0 0;
+  justify-content: flex-end;
+  padding: 10px 18px;
 }
-
-.titlebar__title {
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  margin-left: var(--space-sm);
-  letter-spacing: 0.5px;
+.titlebar--settings {
+  background: var(--color-bg);
 }
-
 .titlebar__controls {
   display: flex;
   align-items: center;
-  gap: 2px;
-  -webkit-app-region: no-drag;
+  gap: 8px;
 }
-
-.titlebar__update {
-  -webkit-app-region: no-drag;
-  margin-right: var(--space-sm);
-  padding: 2px 10px;
-  font-size: var(--font-size-xs, 11px);
-  font-weight: 500;
-  color: #9be29b;
-  background: rgba(110, 220, 110, 0.12);
-  border: 1px solid rgba(110, 220, 110, 0.35);
-  border-radius: 999px;
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.titlebar__update:hover {
-  background: rgba(110, 220, 110, 0.25);
-}
-
-.titlebar__btn {
-  display: flex;
+.titlebar__controls button {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: var(--titlebar-height);
-  border-radius: 0;
-  transition: background var(--transition-fast);
+  width: 32px;
+  height: 32px;
+  color: #f5f5f3;
+  background: #1e1e1edb;
+  border-radius: 50%;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
-
-.titlebar__btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+.titlebar__controls button:hover {
+  background: #3b3b3b;
+  color: #ffffff;
 }
-
-.titlebar__btn--close:hover {
-  background: var(--color-error);
+.titlebar__controls .titlebar__update {
+  width: auto;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  color: var(--color-accent-text);
 }
-
-.titlebar__btn svg {
-  width: 14px;
-  height: 14px;
-  fill: var(--color-text-secondary);
-}
-
-.titlebar__btn--close:hover svg {
-  fill: white;
+.titlebar__controls .titlebar__btn--close:hover {
+  background: #a63229;
 }

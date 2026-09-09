@@ -1,0 +1,80 @@
+.banner-carousel {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  width: var(--banner-width);
+  height: var(--news-height);
+  overflow: hidden;
+}
+.banner-carousel__viewport {
+  position: absolute;
+  inset: 0 0 10px;
+  overflow: hidden;
+  border-radius: 4px;
+}
+.banner-carousel__track {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  transition: transform 240ms ease;
+}
+.banner-carousel__slide {
+  display: block;
+  flex: 0 0 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  background: #292929;
+}
+.banner-carousel__slide img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.banner-carousel__slide:focus-visible {
+  outline-offset: -3px;
+}
+.banner-carousel__controls {
+  position: absolute;
+  inset: 8px 8px auto auto;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.banner-carousel:hover .banner-carousel__controls,
+.banner-carousel:focus-within .banner-carousel__controls {
+  opacity: 1;
+}
+.banner-carousel__controls button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: #ffffff;
+  background: #171717e6;
+  border-radius: 3px;
+}
+.banner-carousel__controls button:hover {
+  background: #353535;
+}
+.banner-carousel__indicators {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  height: 10px;
+  position: absolute;
+  inset: auto 0 0;
+}
+.banner-carousel__indicators span {
+  width: 5px;
+  height: 3px;
+  border-radius: 2px;
+  background: #777777;
+}
+.banner-carousel__indicators .active {
+  width: 18px;
+  background: var(--color-accent);
+}

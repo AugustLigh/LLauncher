@@ -20,6 +20,7 @@ export async function copyText(text) {
 }
 
 function legacyCopy(text) {
+  const previousFocus = document.activeElement;
   const area = document.createElement('textarea');
   area.value = text;
   // Off-screen but still focusable: `display: none` would make the selection
@@ -37,5 +38,6 @@ function legacyCopy(text) {
     return false;
   } finally {
     area.remove();
+    previousFocus?.focus({ preventScroll: true });
   }
 }

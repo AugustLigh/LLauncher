@@ -49,6 +49,7 @@ jobs:
       - name: Frontend
         run: |
           yarn install --frozen-lockfile
+          yarn test
           yarn build
 
       # The Tauri context embeds ../dist at compile time, so the frontend

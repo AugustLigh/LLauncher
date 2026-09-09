@@ -308,7 +308,10 @@ pub async fn verify_and_repair(
     max_concurrent: u32,
     channel: String,
 ) -> Result<IntegrityComplete, AppError> {
-    active_flag.store(true, Ordering::SeqCst);
+    // The transfer registry owns activation, so a late worker cannot undo Pause.
+    if !active_flag.load(Ordering::SeqCst) {
+        return Err(AppError::Cancelled);
+    }
     let max_concurrent = max_concurrent.clamp(1, 8) as usize;
 
     // 1–3. Resolve the manifest.
@@ -391,7 +394,16 @@ pub async fn verify_and_repair(
     if !active_flag.load(Ordering::SeqCst) {
         return Err(AppError::Cancelled);
     }
-    emit_progress(&app, &channel, "verifying", total_files, total_files, 0, 0, 0);
+    emit_progress(
+        &app,
+        &channel,
+        "verifying",
+        total_files,
+        total_files,
+        0,
+        0,
+        0,
+    );
 
     // 5. Download the mismatched / missing files.
     let repaired = to_download.len();
@@ -473,7 +485,16 @@ pub async fn verify_and_repair(
             }
         }
         let total_dl = downloaded.load(Ordering::Relaxed);
-        emit_progress(&app, &channel, "downloading", repaired, repaired, total_dl, bytes_total, 0);
+        emit_progress(
+            &app,
+            &channel,
+            "downloading",
+            repaired,
+            repaired,
+            total_dl,
+            bytes_total,
+            0,
+        );
     }
 
     let report = IntegrityComplete {
@@ -481,7 +502,8 @@ pub async fn verify_and_repair(
         repaired,
         bytes_downloaded: bytes_total,
     };
-    app.emit(&format!("{}://complete", channel), report.clone()).ok();
+    app.emit(&format!("{}://complete", channel), report.clone())
+        .ok();
     Ok(report)
 }
 
@@ -501,16 +523,19 @@ async fn download_one(
 ) -> Result<(), AppError> {
     let local = assets_root.join(&mf.name);
     if let Some(parent) = local.parent() {
-        tokio::fs::create_dir_all(parent).await.map_err(AppError::Io)?;
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(AppError::Io)?;
     }
     let tmp = local.with_file_name(format!(
         "{}.llauncher_tmp",
         local.file_name().unwrap_or_default().to_string_lossy()
     ));
 
-    let response = crate::util::send_with_stall_timeout(client.get(&mf.url), DOWNLOAD_STALL_TIMEOUT)
-        .await?
-        .error_for_status()?;
+    let response =
+        crate::util::send_with_stall_timeout(client.get(&mf.url), DOWNLOAD_STALL_TIMEOUT)
+            .await?
+            .error_for_status()?;
     let mut stream = response.bytes_stream();
     let file = tokio::fs::File::create(&tmp).await.map_err(AppError::Io)?;
     let mut writer = BufWriter::with_capacity(1024 * 1024, file);
@@ -526,7 +551,8 @@ async fn download_one(
         let chunk = chunk.map_err(AppError::Http)?;
         writer.write_all(&chunk).await.map_err(AppError::Io)?;
         hasher.update(&chunk);
-        let total_dl = downloaded.fetch_add(chunk.len() as u64, Ordering::Relaxed) + chunk.len() as u64;
+        let total_dl =
+            downloaded.fetch_add(chunk.len() as u64, Ordering::Relaxed) + chunk.len() as u64;
 
         if last_emit.elapsed().as_millis() >= 150 {
             let elapsed = start.elapsed().as_secs_f64();
@@ -561,7 +587,9 @@ async fn download_one(
         });
     }
 
-    tokio::fs::rename(&tmp, &local).await.map_err(AppError::Io)?;
+    tokio::fs::rename(&tmp, &local)
+        .await
+        .map_err(AppError::Io)?;
     Ok(())
 }
 

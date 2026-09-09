@@ -17,6 +17,16 @@ pub async fn save_settings(
     mut settings: AppSettings,
 ) -> Result<(), AppError> {
     let mut current = state.settings.lock().await;
+    if (state.transfers.busy("game") || state.transfers.busy("proton"))
+        && (settings.game_dir != current.game_dir
+            || settings.download_dir != current.download_dir
+            || settings.proton_dir != current.proton_dir
+            || settings.proton_prefix_dir != current.proton_prefix_dir)
+    {
+        return Err(AppError::Api(
+            "Wait for the current transfer before changing folders".into(),
+        ));
+    }
     // The frontend edits a snapshot of the settings; fields the backend owns
     // (install bookkeeping, play statistics) may have moved on since that
     // snapshot was taken — an install, an import, a play session. Keep our
@@ -82,16 +92,11 @@ pub async fn check_game_state(
         installed_version = version_info.version;
     }
 
-    crate::game::state::determine_game_state(
-        &state.http_client,
-        &game_dir,
-        &installed_version,
-    )
-    .await
+    crate::game::state::determine_game_state(&state.http_client, &game_dir, &installed_version)
+        .await
 }
 
-#[tauri::command]
-pub async fn start_download(
+async fn run_start_download(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
@@ -168,8 +173,7 @@ pub async fn clear_download_cache(state: State<'_, AppState>) -> Result<(), AppE
 /// hashes what is already on disk and pulls just the deltas — the same
 /// mechanism the official launcher uses for updates. Reuses `download_active`
 /// for cancellation, so `cancel_download` stops it too.
-#[tauri::command]
-pub async fn verify_game_integrity(
+async fn run_verify_game_integrity(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<crate::download::resources::IntegrityComplete, AppError> {
@@ -180,7 +184,9 @@ pub async fn verify_game_integrity(
     drop(settings);
 
     if installed_version.is_empty()
-        || !std::path::Path::new(&game_dir).join("Endfield.exe").exists()
+        || !std::path::Path::new(&game_dir)
+            .join("Endfield.exe")
+            .exists()
     {
         return Err(AppError::GameNotFound(
             "Game is not installed; nothing to verify".to_string(),
@@ -222,8 +228,7 @@ pub async fn verify_game_integrity(
 ///   - engine changed, or the check is inconclusive → full pack download.
 /// Either way the resulting install is complete. Progress for the delta path is
 /// emitted on the `update://` channel; the pack path uses `download://`.
-#[tauri::command]
-pub async fn start_update(
+async fn run_start_update(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
@@ -237,14 +242,15 @@ pub async fn start_update(
 
     let client = state.http_client.clone();
     let download_active = state.download_active.clone();
-    download_active.store(true, std::sync::atomic::Ordering::SeqCst);
 
     // Decide engine vs assets: is every non-VFS file already current?
     crate::download::packindex::emit_checking(&app);
-    let version_info =
-        crate::api::client::get_latest_game_version(&client, "").await?;
-    let cd = crate::download::packindex::fetch_central_directory(&client, &version_info.pkg.packs)
-        .await;
+    let version_info = crate::api::client::get_latest_game_version(&client, "").await?;
+    if state.transfers.cancelled("game") {
+        return Err(AppError::Cancelled);
+    }
+    let cd =
+        crate::download::packindex::fetch_central_directory(&client, &version_info.pkg.packs).await;
     let engine_current = match cd {
         Ok(entries) => {
             // CRC-checking the non-VFS files reads ~1.4 GB; keep it off the async runtime.
@@ -258,6 +264,9 @@ pub async fn start_update(
         Err(_) => false, // inconclusive → safe full update
     };
 
+    if state.transfers.cancelled("game") {
+        return Err(AppError::Cancelled);
+    }
     let result: Result<String, AppError> = if engine_current {
         crate::download::resources::verify_and_repair(
             app.clone(),
@@ -412,13 +421,17 @@ pub async fn launch_and_watch(app: tauri::AppHandle, with_mods: bool) -> Result<
             discord.store(false, std::sync::atomic::Ordering::SeqCst);
         }
 
-        let quick_exit = status.is_some()
-            && started.elapsed() < std::time::Duration::from_millis(3500);
+        let quick_exit =
+            status.is_some() && started.elapsed() < std::time::Duration::from_millis(3500);
         crate::logging::info(format!(
             "game exited after {}s (code {:?}){}",
             started.elapsed().as_secs(),
             status.and_then(|s| s.code),
-            if quick_exit { " — quick exit, treated as a failed launch" } else { "" }
+            if quick_exit {
+                " — quick exit, treated as a failed launch"
+            } else {
+                ""
+            }
         ));
 
         // Record playtime and last-played timestamp. Quick exits are failed
@@ -585,9 +598,7 @@ pub async fn stop_game(state: State<'_, AppState>) -> Result<(), AppError> {
 
 #[tauri::command]
 pub async fn is_game_running(state: State<'_, AppState>) -> Result<bool, AppError> {
-    Ok(state
-        .game_running
-        .load(std::sync::atomic::Ordering::SeqCst))
+    Ok(state.game_running.load(std::sync::atomic::Ordering::SeqCst))
 }
 
 /// Point the launcher at an already existing game installation (e.g. one made
@@ -607,8 +618,7 @@ pub async fn import_existing_game(
         )));
     }
 
-    let version_info =
-        crate::api::client::get_latest_game_version(&state.http_client, "").await?;
+    let version_info = crate::api::client::get_latest_game_version(&state.http_client, "").await?;
     let version = version_info.version.clone();
 
     let mut settings = state.settings.lock().await;
@@ -626,7 +636,9 @@ pub async fn import_existing_game(
 #[tauri::command]
 pub async fn uninstall_game(state: State<'_, AppState>) -> Result<(), AppError> {
     if state.game_running.load(std::sync::atomic::Ordering::SeqCst) {
-        return Err(AppError::Api("Cannot uninstall while the game is running".to_string()));
+        return Err(AppError::Api(
+            "Cannot uninstall while the game is running".to_string(),
+        ));
     }
 
     let settings = state.settings.lock().await;
@@ -719,16 +731,21 @@ fn debug_header(settings: &AppSettings) -> String {
     let os = std::fs::read_to_string("/etc/os-release")
         .ok()
         .and_then(|c| {
-            c.lines()
-                .find(|l| l.starts_with("PRETTY_NAME="))
-                .map(|l| l.trim_start_matches("PRETTY_NAME=").trim_matches('"').to_string())
+            c.lines().find(|l| l.starts_with("PRETTY_NAME=")).map(|l| {
+                l.trim_start_matches("PRETTY_NAME=")
+                    .trim_matches('"')
+                    .to_string()
+            })
         })
         .unwrap_or_else(|| "unknown".to_string());
 
     let kernel = run_capture("uname", &["-r"]);
     let gpu = run_capture(
         "sh",
-        &["-c", "lspci -nn 2>/dev/null | grep -Ei 'vga|3d' | sed 's/^[0-9a-f:.]* //'"],
+        &[
+            "-c",
+            "lspci -nn 2>/dev/null | grep -Ei 'vga|3d' | sed 's/^[0-9a-f:.]* //'",
+        ],
     );
     let proton = std::path::Path::new(&settings.proton_dir)
         .file_name()
@@ -796,9 +813,21 @@ fn debug_header(settings: &AppSettings) -> String {
          Game version: {game_version}\n\
          Flags: run_as_admin={admin} discord_rpc={discord} on_launch={on_launch}",
         version = env!("CARGO_PKG_VERSION"),
-        os = if os.is_empty() { "Windows (version unknown)".to_string() } else { os },
-        gpu = if gpu.is_empty() { "unknown".to_string() } else { gpu },
-        game_version = if settings.installed_version.is_empty() { "not installed" } else { &settings.installed_version },
+        os = if os.is_empty() {
+            "Windows (version unknown)".to_string()
+        } else {
+            os
+        },
+        gpu = if gpu.is_empty() {
+            "unknown".to_string()
+        } else {
+            gpu
+        },
+        game_version = if settings.installed_version.is_empty() {
+            "not installed"
+        } else {
+            &settings.installed_version
+        },
         admin = settings.windows_run_as_admin,
         discord = settings.use_discord_rpc,
         on_launch = settings.on_launch_action,
@@ -818,8 +847,7 @@ pub async fn read_launch_log() -> Result<String, AppError> {
     .map_err(|e| AppError::Api(format!("read log task failed: {}", e)))?
 }
 
-#[tauri::command]
-pub async fn repair_game(
+async fn run_repair_game(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
@@ -925,18 +953,14 @@ pub async fn list_installed_protons() -> Result<Vec<crate::api::types::Installed
 }
 
 #[tauri::command]
-pub async fn set_active_proton(
-    state: State<'_, AppState>,
-    path: String,
-) -> Result<(), AppError> {
+pub async fn set_active_proton(state: State<'_, AppState>, path: String) -> Result<(), AppError> {
     let mut settings = state.settings.lock().await;
     settings.proton_dir = path;
     settings.save_async().await?;
     Ok(())
 }
 
-#[tauri::command]
-pub async fn download_dwproton(
+async fn run_download_dwproton(
     app: tauri::AppHandle,
     state: State<'_, AppState>,
     release: Option<crate::api::types::ProtonReleaseInfo>,
@@ -948,11 +972,15 @@ pub async fn download_dwproton(
 
     let client = state.http_client.clone();
     let cancel_flag = state.proton_download_active.clone();
-    cancel_flag.store(true, std::sync::atomic::Ordering::SeqCst);
 
-    let result =
-        crate::download::proton::download_and_extract_dwproton(&app, &client, &cancel_flag, &base_dir, release)
-            .await;
+    let result = crate::download::proton::download_and_extract_dwproton(
+        &app,
+        &client,
+        &cancel_flag,
+        &base_dir,
+        release,
+    )
+    .await;
 
     cancel_flag.store(false, std::sync::atomic::Ordering::SeqCst);
 
@@ -1096,4 +1124,155 @@ pub async fn reset_prefix(state: State<'_, AppState>) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || crate::game::prefix::reset(&dir))
         .await
         .map_err(|e| AppError::Api(format!("Reset task failed: {}", e)))?
+}
+
+#[tauri::command]
+pub async fn start_download(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    let settings = state.settings.lock().await;
+    let id = state.transfers.begin(
+        &app,
+        "game",
+        "install",
+        &settings.game_dir,
+        &settings.download_dir,
+        &state.download_active,
+    )?;
+    drop(settings);
+    let result = run_start_download(app.clone(), state.clone()).await;
+    state
+        .download_active
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    state.transfers.finish(
+        &app,
+        "game",
+        &id,
+        result
+            .as_ref()
+            .map(|r| serde_json::to_value(r).unwrap_or_default()),
+    );
+    result
+}
+
+#[tauri::command]
+pub async fn start_update(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    let settings = state.settings.lock().await;
+    let id = state.transfers.begin(
+        &app,
+        "game",
+        "update",
+        &settings.game_dir,
+        &settings.download_dir,
+        &state.download_active,
+    )?;
+    drop(settings);
+    let result = run_start_update(app.clone(), state.clone()).await;
+    state
+        .download_active
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    state.transfers.finish(
+        &app,
+        "game",
+        &id,
+        result
+            .as_ref()
+            .map(|r| serde_json::to_value(r).unwrap_or_default()),
+    );
+    result
+}
+
+#[tauri::command]
+pub async fn verify_game_integrity(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<crate::download::resources::IntegrityComplete, AppError> {
+    let settings = state.settings.lock().await;
+    let id = state.transfers.begin(
+        &app,
+        "game",
+        "integrity",
+        &settings.game_dir,
+        &settings.download_dir,
+        &state.download_active,
+    )?;
+    drop(settings);
+    let result = run_verify_game_integrity(app.clone(), state.clone()).await;
+    state
+        .download_active
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    state.transfers.finish(
+        &app,
+        "game",
+        &id,
+        result
+            .as_ref()
+            .map(|r| serde_json::to_value(r).unwrap_or_default()),
+    );
+    result
+}
+
+#[tauri::command]
+pub async fn download_dwproton(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    release: Option<crate::api::types::ProtonReleaseInfo>,
+) -> Result<(), AppError> {
+    let settings = state.settings.lock().await;
+    let id = state.transfers.begin(
+        &app,
+        "proton",
+        "proton",
+        &settings.game_dir,
+        &settings.download_dir,
+        &state.proton_download_active,
+    )?;
+    drop(settings);
+    let result = run_download_dwproton(app.clone(), state.clone(), release).await;
+    state
+        .proton_download_active
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    state.transfers.finish(
+        &app,
+        "proton",
+        &id,
+        result
+            .as_ref()
+            .map(|r| serde_json::to_value(r).unwrap_or_default()),
+    );
+    result
+}
+
+#[tauri::command]
+pub async fn repair_game(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), AppError> {
+    let settings = state.settings.lock().await;
+    let id = state.transfers.begin(
+        &app,
+        "game",
+        "repair",
+        &settings.game_dir,
+        &settings.download_dir,
+        &state.download_active,
+    )?;
+    drop(settings);
+    let result = run_repair_game(app.clone(), state.clone()).await;
+    state
+        .download_active
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    state.transfers.finish(
+        &app,
+        "game",
+        &id,
+        result
+            .as_ref()
+            .map(|r| serde_json::to_value(r).unwrap_or_default()),
+    );
+    result
 }

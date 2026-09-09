@@ -1,956 +1,305 @@
-import { useState, useEffect, useCallback } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
-import PathSelector from './PathSelector';
-import LanguageSelector from './LanguageSelector';
-import LinuxLaunchOptions from './LinuxLaunchOptions';
-import ModsSettings from './ModsSettings';
-import LogViewer from '../common/LogViewer';
-import ConfirmDialog from '../common/ConfirmDialog';
-import useModalDismiss from '../../hooks/useModalDismiss';
-import useProtonDownload from '../../hooks/useProtonDownload';
-import useIntegrityCheck from '../../hooks/useIntegrityCheck';
-import { formatSize, formatSpeed, formatPercent } from '../../utils/format';
-import { copyText } from '../../utils/clipboard';
-import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
-import { useTranslation } from '../../i18n';
-import './SettingsModal.css';
-
-export default function SettingsModal({ settings, initialTab, systemCheck, onRefreshSystemCheck, onSync, onSave, onClose }) {
-  const { t } = useTranslation();
-  const [form, setForm] = useState(null);
-  const [activeTab, setActiveTab] = useState(initialTab || 'paths');
-  const [speedUnit, setSpeedUnit] = useState('MB/s');
-  const [releases, setReleases] = useState([]);
-  const [installedProtons, setInstalledProtons] = useState([]);
-  const [releasesLoading, setReleasesLoading] = useState(false);
-  const [autostart, setAutostart] = useState(false);
-  const [showLog, setShowLog] = useState(false);
-  const [repairing, setRepairing] = useState(false);
-  const [uninstalling, setUninstalling] = useState(false);
-  const [debugCopied, setDebugCopied] = useState(false);
-  const [latestVersion, setLatestVersion] = useState('');
-  const [recommendedTag, setRecommendedTag] = useState('');
-  const [prefixInfo, setPrefixInfo] = useState(null);
-  const [prefixBusy, setPrefixBusy] = useState(null);
-  const [prefixMsg, setPrefixMsg] = useState(null);
-  // Snapshot the form was loaded from, to detect unsaved edits on close.
-  const [loadedForm, setLoadedForm] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState(null);
-  // One transient status line per tab for actions that previously failed
-  // silently (set active Proton, autostart, repair, copy debug info).
-  const [tabMsg, setTabMsg] = useState(null);
-  // Pending confirmation: { key, title, message, danger, confirmLabel, onConfirm }
-  const [pendingConfirm, setPendingConfirm] = useState(null);
-
-  // Everything Proton-shaped — the compatibility layer, the Wine prefix and
-  // the Linux-only launch wrappers — is meaningless on Windows, where the game
-  // runs natively. The backend reports which platform it is on; until it
-  // answers, assume Linux (the historical behaviour).
-  const isLinux = (systemCheck?.platform || 'linux') !== 'windows';
-
-  const TABS = [
-    { id: 'paths', label: t('settings.tab.paths') },
-    ...(isLinux ? [{ id: 'proton', label: t('settings.tab.proton') }] : []),
-    { id: 'launch', label: t('settings.tab.launch') },
-    { id: 'downloads', label: t('settings.tab.downloads') },
-    { id: 'mods', label: t('settings.tab.mods') },
-    { id: 'game', label: t('settings.tab.game') },
-  ];
-
-  const fetchInstalled = useCallback(async () => {
-    try {
-      const list = await invoke('list_installed_protons');
-      setInstalledProtons(list);
-    } catch (e) {
-      console.error('Failed to list installed protons:', e);
-    }
-  }, []);
-
-  const onProtonComplete = useCallback((payload) => {
-    if (payload?.proton_dir) {
-      setForm((prev) => prev ? { ...prev, proton_dir: payload.proton_dir } : prev);
-    }
-    fetchInstalled();
-    if (onRefreshSystemCheck) onRefreshSystemCheck();
-  }, [fetchInstalled, onRefreshSystemCheck]);
-
-  const { downloading: protonDownloading, progress: protonProgress, error: protonError, startDownload: startProtonDownload, cancelDownload: cancelProtonDownload } =
-    useProtonDownload(onProtonComplete);
-
-  const {
-    checking: integrityChecking,
-    progress: integrityProgress,
-    result: integrityResult,
-    error: integrityError,
-    start: startIntegrity,
-    cancel: cancelIntegrity,
-  } = useIntegrityCheck();
-
-  const handleIntegrity = () => {
-    if (integrityChecking) return;
-    const installed = form?.installed_version || '—';
-    const latest = latestVersion || '—';
-    setPendingConfirm({
-      title: t('settings.integrity.name'),
-      message: t('settings.integrity.confirm', { installed, latest }),
-      confirmLabel: t('settings.integrity.button'),
-      onConfirm: () => { setPendingConfirm(null); startIntegrity(); },
-    });
+import { useState, useEffect, useRef } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
+import { useTranslation } from "../../i18n";
+import useTasks, { taskActive } from "../../hooks/useTasks";
+import useModalDismiss from "../../hooks/useModalDismiss";
+import { Button, Status } from "../common/Controls";
+import Icon from "../common/Icon";
+import ErrorNotice from "../common/ErrorNotice";
+import ConfirmDialog from "../common/ConfirmDialog";
+import LogViewer from "../common/LogViewer";
+import GeneralSettings from "./sections/GeneralSettings";
+import FilesSettings from "./sections/FilesSettings";
+import LaunchSettings from "./sections/LaunchSettings";
+import DiagnosticsSettings from "./sections/DiagnosticsSettings";
+import ModsSettings from "./ModsSettings";
+import "./SettingsModal.css";
+export default function SettingsModal({
+  settings,
+  initialTab,
+  systemCheck,
+  onRefreshSystemCheck,
+  onSync,
+  onSave,
+  onClose,
+  gameRunning,
+}) {
+  const { t } = useTranslation(),
+    { busy: transferring, tasks } = useTasks();
+  const busy = transferring || gameRunning;
+  const tabMap = {
+    paths: "files",
+    downloads: "files",
+    game: "files",
+    proton: "launch",
   };
-
-  const integrityPct = integrityProgress
-    ? integrityProgress.stage === 'downloading'
-      ? integrityProgress.bytes_total > 0
-        ? (integrityProgress.bytes_done / integrityProgress.bytes_total) * 100
-        : 0
-      : integrityProgress.total_files > 0
-        ? (integrityProgress.files_done / integrityProgress.total_files) * 100
-        : 0
-    : 0;
-
-  // Edit a snapshot taken when the dialog opens. Start from the frontend copy
-  // for an instant render, then replace it with the backend's current values:
-  // the frontend copy can lag behind commands that change settings on their
-  // own (a Proton download, a game import), and saving a stale snapshot would
-  // silently roll those back. Later prop updates are ignored on purpose so a
-  // background sync cannot wipe in-progress edits.
-  useEffect(() => {
-    let superseded = false;
-    const apply = (s) => {
-      setForm({ ...s });
-      setLoadedForm({ ...s });
-      if (s.download_speed_limit > 0 && s.download_speed_limit < 1024 * 1024) {
-        setSpeedUnit('KB/s');
+  const [tab, setTab] = useState(tabMap[initialTab] || initialTab || "general"),
+    [form, setForm] = useState(settings),
+    [baseline, setBaseline] = useState(settings),
+    [saving, setSaving] = useState(false),
+    [error, setError] = useState(null),
+    [loadError, setLoadError] = useState(null),
+    [confirmation, setConfirmation] = useState(null),
+    [showLog, setShowLog] = useState(false),
+    [autostart, setAutostart] = useState(null),
+    [baseAuto, setBaseAuto] = useState(null),
+    [autoError, setAutoError] = useState(null);
+  const gamePathChanged =
+    !!form &&
+    !!settings &&
+    (form.game_dir !== settings.game_dir ||
+      form.download_dir !== settings.download_dir);
+  const prefixPathChanged =
+    !!form &&
+    !!settings &&
+    (form.proton_dir !== settings.proton_dir ||
+      form.proton_prefix_dir !== settings.proton_prefix_dir);
+  const edited = useRef(false),
+    formRef = useRef(form),
+    baseRef = useRef(baseline);
+  formRef.current = form;
+  baseRef.current = baseline;
+  const dirty =
+    !!form &&
+    !!baseline &&
+    (JSON.stringify(form) !== JSON.stringify(baseline) ||
+      autostart !== baseAuto);
+  const load = async () => {
+    setLoadError(null);
+    try {
+      const fresh = await invoke("get_settings");
+      if (!edited.current) {
+        setForm(fresh);
+        setBaseline(fresh);
       }
-    };
-    if (settings) apply(settings);
-    invoke('get_settings')
-      .then((fresh) => {
-        if (!superseded && fresh) apply(fresh);
-      })
-      .catch((e) => console.error('Failed to load settings:', e));
-    return () => {
-      superseded = true;
-    };
-  }, []);
-
-  const fetchReleases = useCallback(async () => {
-    setReleasesLoading(true);
-    try {
-      const list = await invoke('list_dwproton_releases');
-      setReleases(list);
     } catch (e) {
-      console.error('Failed to list proton releases:', e);
-    } finally {
-      setReleasesLoading(false);
+      setLoadError(e);
     }
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'launch') {
-      isEnabled().then(setAutostart).catch(console.error);
-    }
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (activeTab === 'proton') {
-      fetchReleases();
-      fetchInstalled();
-      invoke('recommended_proton_tag').then(setRecommendedTag).catch(() => {});
-      invoke('get_prefix_info').then(setPrefixInfo).catch(() => {});
-    }
-  }, [activeTab, fetchReleases, fetchInstalled]);
-
-  // The integrity check can only compare against the latest version's manifest
-  // (the API exposes no older one), so surface the latest version up front.
-  useEffect(() => {
-    if (activeTab === 'game') {
-      invoke('get_game_version')
-        .then((r) => setLatestVersion(r?.version || ''))
-        .catch(() => {});
-    }
-  }, [activeTab]);
-
-  // Hooks must run on every render — keep these above the early return.
-  const isDirty = () => {
-    if (!form || !loadedForm) return false;
-    return JSON.stringify(form) !== JSON.stringify(loadedForm);
   };
-
-  // Backdrop click / Escape / X: a staged form must not lose edits to a stray
-  // click, so ask first when something changed.
-  const requestClose = () => {
-    if (saving) return;
-    if (isDirty()) {
-      setPendingConfirm({
-        title: t('settings.unsavedTitle'),
-        message: t('settings.unsavedBody'),
-        confirmLabel: t('settings.unsavedDiscard'),
-        danger: true,
-        onConfirm: () => { setPendingConfirm(null); onClose(); },
+  useEffect(() => {
+    let active = true;
+    invoke("get_settings")
+      .then((fresh) => {
+        if (active && !edited.current) {
+          setForm(fresh);
+          setBaseline(fresh);
+        }
+      })
+      .catch((e) => {
+        if (active) setLoadError(e);
       });
-      return;
-    }
-    onClose();
-  };
-  // Only the top-most overlay should react to Escape.
-  useModalDismiss(requestClose, !pendingConfirm && !showLog);
-
-  if (!form) return null;
-
-  const handleChange = (key, value) => {
+    isEnabled()
+      .then((value) => {
+        if (active) {
+          setAutostart(value);
+          setBaseAuto(value);
+        }
+      })
+      .catch((e) => {
+        if (active) setAutoError(String(e));
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  // Preserve edits while taking in fields changed by completed backend commands.
+  useEffect(() => {
+    if (!settings || !formRef.current || !baseRef.current) return;
+    const next = { ...formRef.current };
+    for (const key of Object.keys(settings))
+      if (next[key] === baseRef.current[key]) next[key] = settings[key];
+    setForm(next);
+    setBaseline(settings);
+  }, [settings]);
+  const onChange = (key, value) => {
+    edited.current = true;
     setForm((prev) => ({ ...prev, [key]: value }));
   };
-
-  const handleAutostartToggle = async () => {
-    try {
-      if (autostart) {
-        await disable();
-      } else {
-        await enable();
-      }
-      const status = await isEnabled();
-      setAutostart(status);
-    } catch (e) {
-      setTabMsg({ ok: false, text: `${t('errors.autostartFailed')}: ${typeof e === 'string' ? e : e.message || e}` });
-    }
-  };
-
-  // Awaited: a failed save used to close the dialog anyway and silently throw
-  // every edit away. Now the dialog stays open with the reason shown.
-  const handleSave = async () => {
+  const requestClose = () => {
     if (saving) return;
+    if (dirty)
+      setConfirmation({
+        title: t("settings.unsavedTitle"),
+        message: t("settings.unsavedBody"),
+        label: t("settings.unsavedDiscard"),
+        danger: true,
+        run: onClose,
+      });
+    else onClose();
+  };
+  useModalDismiss(requestClose, !confirmation && !showLog);
+  const handleSave = async () => {
+    if (saving || !dirty) return;
     setSaving(true);
-    setSaveError(null);
+    setError(null);
+    let autoChanged = false;
     try {
-      await onSave(form);
-      onClose();
+      const fresh = await invoke("get_settings");
+      const next = { ...fresh };
+      for (const key of Object.keys(form))
+        if (form[key] !== baseline[key]) next[key] = form[key];
+      if (autostart !== baseAuto && autostart != null) {
+        await (autostart ? enable() : disable());
+        autoChanged = true;
+      }
+      await onSave(next);
+      const saved = await invoke("get_settings");
+      setForm(saved);
+      setBaseline(saved);
+      setBaseAuto(autostart);
+      edited.current = false;
     } catch (e) {
-      setSaveError(`${t('errors.saveFailed')}: ${typeof e === 'string' ? e : e.message || e}`);
+      if (autoChanged) {
+        try {
+          await (baseAuto ? enable() : disable());
+        } catch (rollback) {
+          setAutoError(String(rollback));
+          const actual = await isEnabled().catch(() => null);
+          setAutostart(actual);
+          setBaseAuto(actual);
+        }
+      }
+      setError(e);
     } finally {
       setSaving(false);
     }
   };
-
-
-  const handleProtonDownload = (release) => {
-    startProtonDownload(release || undefined);
-  };
-
-  const handleSetActiveProton = async (path) => {
-    try {
-      await invoke('set_active_proton', { path });
-      setForm((prev) => prev ? { ...prev, proton_dir: path } : prev);
-      setLoadedForm((prev) => prev ? { ...prev, proton_dir: path } : prev);
-      if (onRefreshSystemCheck) onRefreshSystemCheck();
-    } catch (e) {
-      setTabMsg({ ok: false, text: `${t('errors.setProtonFailed')}: ${typeof e === 'string' ? e : e.message || e}` });
-    }
-  };
-
-  const handleRepair = () => {
-    if (repairing) return;
-    setPendingConfirm({
-      title: t('settings.repair.name'),
-      message: t('settings.repair.confirm'),
-      confirmLabel: t('settings.repair.button'),
-      onConfirm: async () => {
-        setPendingConfirm(null);
-        setRepairing(true);
-        setTabMsg(null);
-        try {
-          await invoke('repair_game');
-          if (onSync) onSync();
-          onClose();
-        } catch (e) {
-          setTabMsg({ ok: false, text: `${t('errors.repairFailed')}: ${typeof e === 'string' ? e : e.message || e}` });
-        } finally {
-          setRepairing(false);
-        }
-      },
-    });
-  };
-
-  const handleUninstall = () => {
-    if (uninstalling) return;
-    setPendingConfirm({
-      title: t('settings.uninstall.name'),
-      message: t('settings.uninstall.confirm'),
-      confirmLabel: t('settings.uninstall.button'),
-      danger: true,
-      onConfirm: async () => {
-        setPendingConfirm(null);
-        setUninstalling(true);
-        setTabMsg(null);
-        try {
-          await invoke('uninstall_game');
-          // Re-read backend state instead of reloading the whole webview,
-          // which re-fetched every remote asset and visibly flashed.
-          if (onSync) onSync();
-          onClose();
-        } catch (e) {
-          setTabMsg({ ok: false, text: `${t('errors.uninstallFailed')}: ${typeof e === 'string' ? e : e.message || e}` });
-        } finally {
-          setUninstalling(false);
-        }
-      },
-    });
-  };
-
-  const handleCopyDebugInfo = async () => {
-    try {
-      const info = await invoke('get_debug_info');
-      if (!(await copyText(info))) {
-        // Every clipboard route the webview offers was refused. The same
-        // block is on stdout of `llauncher --debug-info`, so say so instead
-        // of leaving the button looking dead (issue #33).
-        setTabMsg({ ok: false, text: `${t('errors.copyFailed')} — ${t('settings.debugInfo.fallback')}` });
-        return;
-      }
-      setDebugCopied(true);
-      setTimeout(() => setDebugCopied(false), 2000);
-    } catch (e) {
-      setTabMsg({ ok: false, text: `${t('errors.copyFailed')}: ${typeof e === 'string' ? e : e.message || e}` });
-    }
-  };
-
-  const runPrefixAction = async (kind, action, doneMsg) => {
-    if (prefixBusy) return;
-    setPrefixBusy(kind);
-    setPrefixMsg(null);
-    try {
-      const result = await action();
-      if (doneMsg) setPrefixMsg({ ok: true, text: doneMsg(result) });
-      invoke('get_prefix_info').then(setPrefixInfo).catch(() => {});
-    } catch (e) {
-      setPrefixMsg({ ok: false, text: typeof e === 'string' ? e : e.message || String(e) });
-    } finally {
-      setPrefixBusy(null);
-    }
-  };
-
-  const handleClearShaderCache = () =>
-    runPrefixAction('cache', () => invoke('clear_shader_cache'), (r) =>
-      t('settings.prefixTools.cacheDone', { files: r.files_removed, size: formatSize(r.bytes_freed) })
-    );
-
-  const handleBackupPrefix = async () => {
-    if (prefixBusy) return;
-    const stamp = new Date().toISOString().slice(0, 10);
-    const dest = await saveDialog({
-      defaultPath: `endfield-prefix-${stamp}.tar.gz`,
-      filters: [{ name: 'Prefix backup', extensions: ['tar.gz', 'gz'] }],
-    });
-    if (!dest) return;
-    await runPrefixAction('backup', () => invoke('backup_prefix', { dest }), () =>
-      t('settings.prefixTools.backupDone')
-    );
-  };
-
-  const handleRestorePrefix = async () => {
-    if (prefixBusy) return;
-    const archive = await openDialog({
-      filters: [{ name: 'Prefix backup', extensions: ['gz'] }],
-    });
-    if (!archive) return;
-    setPendingConfirm({
-      title: t('settings.prefixTools.restore'),
-      message: t('settings.prefixTools.restoreConfirm'),
-      confirmLabel: t('settings.prefixTools.restore'),
-      danger: true,
-      onConfirm: () => {
-        setPendingConfirm(null);
-        runPrefixAction('restore', () => invoke('restore_prefix', { archive }), () =>
-          t('settings.prefixTools.restoreDone')
-        );
-      },
-    });
-  };
-
-  const handleResetPrefix = () => {
-    if (prefixBusy) return;
-    setPendingConfirm({
-      title: t('settings.prefixTools.reset'),
-      message: t('settings.prefixTools.resetConfirm'),
-      confirmLabel: t('settings.prefixTools.reset'),
-      danger: true,
-      onConfirm: () => {
-        setPendingConfirm(null);
-        runPrefixAction('reset', () => invoke('reset_prefix'), () =>
-          t('settings.prefixTools.resetDone')
-        );
-      },
-    });
-  };
-
-  const findInstalled = (tagName) => {
-    return installedProtons.find((p) => p.name === tagName || p.name.startsWith(tagName + '-'));
-  };
-
-  const isInstalled = (tagName) => {
-    return !!findInstalled(tagName);
-  };
-
-  const getInstalledPath = (tagName) => {
-    return findInstalled(tagName)?.path || null;
-  };
-
-  const isActive = (tagName) => {
-    if (!form?.proton_dir) return false;
-    const installed = findInstalled(tagName);
-    return installed ? form.proton_dir.startsWith(installed.path) : false;
-  };
-
+  const tabs = [
+    ["general", "settings"],
+    ["files", "folder"],
+    ["launch", "play"],
+    ["mods", "mods"],
+    ["diagnostics", "file"],
+  ];
   return (
-    <div className="settings-overlay" onClick={requestClose}>
-      <div className="settings-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
-        <div className="settings-modal__header">
-          <span className="settings-modal__title">{t('settings.title')}</span>
-          <button className="settings-modal__close" onClick={requestClose}>
-            {'✕'}
+    <section className="settings-page" aria-label={t("settings.title")}>
+      <nav className="settings-nav" aria-label={t("settings.title")}>
+        <h2>{t("settings.title")}</h2>
+        {tabs.map(([id, icon]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id)}
+            aria-current={tab === id ? "page" : undefined}
+          >
+            <Icon name={icon} size={17} />
+            {t(`ui.${id}`)}
           </button>
-        </div>
-
-        <div className="settings-modal__tabs">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              className={`settings-modal__tab ${activeTab === tab.id ? 'settings-modal__tab--active' : ''}`}
-              onClick={() => { setActiveTab(tab.id); setTabMsg(null); }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="settings-modal__body" key={activeTab}>
-          {tabMsg && (
-            <span className={`settings-modal__msg ${tabMsg.ok ? 'settings-modal__msg--ok' : 'settings-modal__msg--err'}`}>
-              {tabMsg.text}
-            </span>
-          )}
-          {activeTab === 'paths' && (
-            <>
-              <div className="settings-modal__section">
-                <span className="settings-modal__label">{t('settings.gameDir')}</span>
-                <PathSelector
-                  value={form.game_dir}
-                  onChange={(v) => handleChange('game_dir', v)}
-                />
-              </div>
-
-              <div className="settings-modal__section">
-                <span className="settings-modal__label">{t('settings.downloadDir')}</span>
-                <PathSelector
-                  value={form.download_dir}
-                  onChange={(v) => handleChange('download_dir', v)}
-                />
-                <span className="settings-modal__hint">{t('settings.downloadDirHint')}</span>
-              </div>
-
-              <div className="settings-modal__section">
-                <span className="settings-modal__label">{t('settings.language')}</span>
-                <LanguageSelector
-                  value={form.language}
-                  onChange={(v) => handleChange('language', v)}
-                />
-              </div>
-            </>
-          )}
-
-          {activeTab === 'proton' && (
-            <>
-              <div className="settings-modal__section">
-                <span className="settings-modal__label">{t('settings.activeProton')}</span>
-                <PathSelector
-                  value={form.proton_dir}
-                  onChange={(v) => handleChange('proton_dir', v)}
-                />
-                <span className="settings-modal__hint">
-                  {t('settings.statusPrefix')} {systemCheck?.has_proton ? t('common.ready') : t('common.notFound')}
-                </span>
-              </div>
-
-              <div className="settings-modal__section">
-                <span className="settings-modal__label">{t('settings.prefixDir')}</span>
-                <PathSelector
-                  value={form.proton_prefix_dir}
-                  onChange={(v) => handleChange('proton_prefix_dir', v)}
-                />
-                <span className="settings-modal__hint">{t('settings.prefixDirHint')}</span>
-              </div>
-
-              <div className="settings-modal__section">
-                <span className="settings-modal__label">{t('settings.prefixTools.title')}</span>
-                <span className="settings-modal__hint">
-                  {prefixInfo?.exists
-                    ? prefixInfo.path
-                    : t('settings.prefixTools.noPrefix')}
-                </span>
-                <div className="settings-prefix-tools">
-                  <button
-                    className="settings-modal__btn settings-modal__btn--secondary"
-                    onClick={() => runPrefixAction('open', () => invoke('open_prefix_folder'))}
-                    disabled={!!prefixBusy || !prefixInfo?.exists}
-                  >
-                    {t('settings.prefixTools.open')}
-                  </button>
-                  <button
-                    className="settings-modal__btn settings-modal__btn--secondary"
-                    onClick={() => runPrefixAction('winecfg', () => invoke('run_prefix_tool', { tool: 'winecfg' }))}
-                    disabled={!!prefixBusy}
-                  >
-                    {t('settings.prefixTools.winecfg')}
-                  </button>
-                  <button
-                    className="settings-modal__btn settings-modal__btn--secondary"
-                    onClick={handleClearShaderCache}
-                    disabled={!!prefixBusy}
-                  >
-                    {prefixBusy === 'cache' ? t('common.loading') : t('settings.prefixTools.clearCache')}
-                  </button>
-                  <button
-                    className="settings-modal__btn settings-modal__btn--secondary"
-                    onClick={handleBackupPrefix}
-                    disabled={!!prefixBusy || !prefixInfo?.exists}
-                  >
-                    {prefixBusy === 'backup' ? t('common.loading') : t('settings.prefixTools.backup')}
-                  </button>
-                  <button
-                    className="settings-modal__btn settings-modal__btn--secondary"
-                    onClick={handleRestorePrefix}
-                    disabled={!!prefixBusy}
-                  >
-                    {prefixBusy === 'restore' ? t('common.loading') : t('settings.prefixTools.restore')}
-                  </button>
-                  <button
-                    className="settings-modal__btn settings-modal__btn--danger"
-                    onClick={handleResetPrefix}
-                    disabled={!!prefixBusy || !prefixInfo?.exists}
-                  >
-                    {prefixBusy === 'reset' ? t('common.loading') : t('settings.prefixTools.reset')}
-                  </button>
-                </div>
-                {prefixMsg && (
-                  <span className={prefixMsg.ok ? 'settings-modal__hint' : 'settings-proton__error'}>
-                    {prefixMsg.text}
-                  </span>
-                )}
-              </div>
-
-              <div className="settings-modal__section">
-                <div className="settings-proton__header">
-                  <span className="settings-modal__label">{t('settings.availableVersions')}</span>
-                  <button
-                    className="settings-proton__refresh-btn"
-                    onClick={() => { fetchReleases(); fetchInstalled(); }}
-                    disabled={releasesLoading}
-                  >
-                    {releasesLoading ? t('common.loading') : t('common.refresh')}
-                  </button>
-                </div>
-
-                {releasesLoading && releases.length === 0 ? (
-                  <span className="settings-modal__hint">{t('settings.loadingReleases')}</span>
-                ) : releases.length > 0 ? (
-                  <div className="settings-proton__list">
-                    {releases.map((r) => {
-                      const installed = isInstalled(r.tag_name);
-                      const active = isActive(r.tag_name);
-                      const recommended = recommendedTag && r.tag_name === recommendedTag;
-                      const majorMatch = r.tag_name.match(/dwproton-(\d+)/);
-                      const risky = majorMatch ? parseInt(majorMatch[1], 10) >= 11 : false;
-                      return (
-                        <div key={r.tag_name} className={`settings-proton__item ${active ? 'settings-proton__item--active' : ''}`}>
-                          <div className="settings-proton__item-info">
-                            <span className="settings-proton__item-name">
-                              {r.tag_name}
-                              {recommended && <span className="settings-proton__badge settings-proton__badge--recommended">{t('settings.badgeRecommended')}</span>}
-                              {active && <span className="settings-proton__badge settings-proton__badge--active">{t('settings.badgeActive')}</span>}
-                              {installed && !active && <span className="settings-proton__badge settings-proton__badge--installed">{t('settings.badgeInstalled')}</span>}
-                            </span>
-                            <span className="settings-proton__item-meta">
-                              {r.published_at || t('common.unknown')} &middot; {formatSize(r.size)}
-                            </span>
-                            {risky && <span className="settings-proton__warn">{t('settings.protonRiskyWarn')}</span>}
-                          </div>
-                          <div className="settings-proton__item-actions">
-                            {installed ? (
-                              !active && (
-                                <button
-                                  className="settings-proton__use-btn"
-                                  onClick={() => handleSetActiveProton(getInstalledPath(r.tag_name))}
-                                >
-                                  {t('settings.use')}
-                                </button>
-                              )
-                            ) : (
-                              <button
-                                className="settings-proton__dl-btn"
-                                onClick={() => handleProtonDownload(r)}
-                                disabled={protonDownloading}
-                              >
-                                {t('settings.download')}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <span className="settings-modal__hint">{t('settings.noReleases')}</span>
-                )}
-              </div>
-
-              {protonDownloading && protonProgress && (
-                <div className="settings-proton__progress">
-                  <div className="settings-proton__progress-info">
-                    <span>{protonProgress.stage === 'extracting' ? t('protonPrompt.extracting') : t('protonPrompt.downloading')}</span>
-                    <span>
-                      {formatPercent(protonProgress.bytes_downloaded, protonProgress.bytes_total)}
-                      {protonProgress.speed_bps > 0 && ` • ${formatSpeed(protonProgress.speed_bps)}`}
-                    </span>
-                  </div>
-                  <div className="settings-proton__progress-bar">
-                    <div
-                      className="settings-proton__progress-fill"
-                      style={{
-                        width: protonProgress.bytes_total > 0
-                          ? `${(protonProgress.bytes_downloaded / protonProgress.bytes_total) * 100}%`
-                          : '0%',
-                      }}
-                    />
-                  </div>
-                  <div className="settings-proton__progress-detail">
-                    {formatSize(protonProgress.bytes_downloaded)} / {formatSize(protonProgress.bytes_total)}
-                  </div>
-                  <button
-                    className="settings-modal__btn settings-modal__btn--cancel"
-                    onClick={cancelProtonDownload}
-                  >
-                    {t('common.cancel')}
-                  </button>
-                </div>
+        ))}
+        <button className="settings-nav__back" onClick={requestClose}>
+          <Icon name="back" size={17} />
+          {t("ui.back")}
+        </button>
+      </nav>
+      <div className="settings-main">
+        <div className="settings-content" key={tab}>
+          <h1>{t(`ui.${tab}`)}</h1>
+          <ErrorNotice
+            title={t("ui.settingsLoadFailed")}
+            error={loadError}
+            onRetry={load}
+          />
+          {form && (
+            <fieldset disabled={saving} className="settings-fields">
+              {(gamePathChanged || prefixPathChanged) && tab !== "general" && (
+                <Status kind="warning">{t("ui.savePathsFirst")}</Status>
               )}
-
-              {protonError && (
-                <div className="settings-proton__error">{protonError}</div>
-              )}
-            </>
-          )}
-
-          {activeTab === 'launch' && (
-            <>
-              <div className="settings-toggle">
-                <div className="settings-toggle__info">
-                  <span className="settings-toggle__name">{t('settings.autostart.name')}</span>
-                  <span className="settings-toggle__desc">
-                    {t('settings.autostart.desc')}
-                  </span>
-                </div>
-                <button
-                  className={`settings-toggle__switch ${autostart ? 'settings-toggle__switch--on' : ''}`}
-                  onClick={handleAutostartToggle}
-                />
-              </div>
-
-              <div className="settings-modal__section">
-                <span className="settings-modal__label">{t('settings.afterLaunch')}</span>
-                <select
-                  className="settings-proton__select"
-                  value={form.on_launch_action || 'hide'}
-                  onChange={(e) => handleChange('on_launch_action', e.target.value)}
-                >
-                  <option value="hide">{t('settings.afterLaunchHide')}</option>
-                  <option value="close">{t('settings.afterLaunchClose')}</option>
-                  <option value="nothing">{t('settings.afterLaunchKeep')}</option>
-                </select>
-              </div>
-
-              {isLinux ? (
-                <LinuxLaunchOptions
+              {tab === "general" && (
+                <GeneralSettings
                   form={form}
-                  onChange={handleChange}
+                  onChange={onChange}
+                  autostart={autostart}
+                  onAutostart={setAutostart}
+                  autoError={autoError}
+                />
+              )}
+              {tab === "files" && (
+                <FilesSettings
+                  pathsChanged={gamePathChanged}
+                  form={form}
+                  onChange={onChange}
+                  confirm={setConfirmation}
+                  onSync={onSync}
+                  busy={busy}
+                />
+              )}
+              {tab === "launch" && (
+                <LaunchSettings
+                  activeProton={settings?.proton_dir}
+                  form={form}
+                  onChange={onChange}
                   systemCheck={systemCheck}
+                  initialRuntime={initialTab === "proton"}
+                  busy={busy}
+                  onSync={onSync}
                 />
-              ) : (
-                <div className="settings-toggle">
-                  <div className="settings-toggle__info">
-                    <span className="settings-toggle__name">{t('settings.runAsAdmin.name')}</span>
-                    <span className="settings-toggle__desc">
-                      {t('settings.runAsAdmin.desc')}
-                    </span>
-                  </div>
-                  <button
-                    className={`settings-toggle__switch ${form.windows_run_as_admin ? 'settings-toggle__switch--on' : ''}`}
-                    onClick={() => handleChange('windows_run_as_admin', !form.windows_run_as_admin)}
-                  />
-                </div>
               )}
-
-              <div className="settings-toggle">
-                <div className="settings-toggle__info">
-                  <span className="settings-toggle__name">{t('settings.discord.name')}</span>
-                  <span className="settings-toggle__desc">
-                    {t('settings.discord.desc')}
-                  </span>
-                </div>
-                <button
-                  className={`settings-toggle__switch ${form.use_discord_rpc ? 'settings-toggle__switch--on' : ''}`}
-                  onClick={() => handleChange('use_discord_rpc', !form.use_discord_rpc)}
+              {tab === "mods" && (
+                <ModsSettings
+                  key={settings?.game_dir}
+                  form={form}
+                  onChange={onChange}
+                  systemCheck={systemCheck}
+                  disabled={busy || gamePathChanged}
                 />
-              </div>
-
-              <div className="settings-modal__section">
-                <span className="settings-modal__label">{t('settings.launchArgs')}</span>
-                <input
-                  value={form.custom_launch_args}
-                  onChange={(e) => handleChange('custom_launch_args', e.target.value)}
-                  placeholder={t('settings.launchArgsPlaceholder')}
-                  spellCheck={false}
+              )}
+              {tab === "diagnostics" && (
+                <DiagnosticsSettings
+                  systemCheck={systemCheck}
+                  onRefresh={onRefreshSystemCheck}
+                  onShowLog={() => setShowLog(true)}
+                  confirm={setConfirmation}
+                  busy={busy || gamePathChanged || prefixPathChanged}
                 />
-              </div>
-
-              <div className="settings-modal__section">
-                <span className="settings-modal__label">{t('settings.envVars')}</span>
-                <textarea
-                  className="settings-textarea"
-                  value={form.custom_env_vars}
-                  onChange={(e) => handleChange('custom_env_vars', e.target.value)}
-                  placeholder={isLinux
-                    ? '# KEY=VALUE\nDXVK_HUD=fps\nMESA_SHADER_CACHE=1'
-                    : '# KEY=VALUE'}
-                  spellCheck={false}
-                />
-                <span className="settings-modal__hint">
-                  {t('settings.envVarsHint')}
-                </span>
-              </div>
-            </>
-          )}
-
-          {activeTab === 'downloads' && (
-            <>
-              <div className="settings-modal__section">
-                <span className="settings-modal__label">{t('settings.maxConcurrent')}</span>
-                <select
-                  className="settings-proton__select"
-                  value={form.download_max_concurrent || 4}
-                  onChange={(e) => handleChange('download_max_concurrent', parseInt(e.target.value, 10))}
-                >
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="settings-modal__section">
-                <span className="settings-modal__label">{t('settings.speedLimit')}</span>
-                <div className="settings-speed-limit">
-                  <input
-                    type="number"
-                    className="settings-speed-limit__input"
-                    min="0"
-                    value={
-                      form.download_speed_limit === 0
-                        ? ''
-                        : speedUnit === 'MB/s'
-                          ? Math.round(form.download_speed_limit / (1024 * 1024))
-                          : Math.round(form.download_speed_limit / 1024)
-                    }
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10) || 0;
-                      const bytes = speedUnit === 'MB/s' ? val * 1024 * 1024 : val * 1024;
-                      handleChange('download_speed_limit', bytes);
-                    }}
-                    placeholder="0"
-                  />
-                  <select
-                    className="settings-speed-limit__unit"
-                    value={speedUnit}
-                    onChange={(e) => {
-                      const newUnit = e.target.value;
-                      const oldUnit = speedUnit;
-                      setSpeedUnit(newUnit);
-                      if (form.download_speed_limit > 0) {
-                        let val;
-                        if (oldUnit === 'MB/s' && newUnit === 'KB/s') {
-                          val = Math.round(form.download_speed_limit / 1024) * 1024;
-                        } else if (oldUnit === 'KB/s' && newUnit === 'MB/s') {
-                          val = Math.round(form.download_speed_limit / (1024 * 1024)) * 1024 * 1024;
-                        } else {
-                          val = form.download_speed_limit;
-                        }
-                        handleChange('download_speed_limit', val);
-                      }
-                    }}
-                  >
-                    <option value="MB/s">MB/s</option>
-                    <option value="KB/s">KB/s</option>
-                  </select>
-                </div>
-                <span className="settings-modal__hint">{t('settings.speedLimitHint')}</span>
-              </div>
-            </>
-          )}
-
-          {activeTab === 'mods' && (
-            <ModsSettings form={form} onChange={handleChange} systemCheck={systemCheck} />
-          )}
-
-          {activeTab === 'game' && (
-            <>
-              <div className="settings-action-row">
-                <div className="settings-action-row__info">
-                  <span className="settings-action-row__name">{t('settings.integrity.name')}</span>
-                  <span className="settings-action-row__desc">{t('settings.integrity.desc')}</span>
-                </div>
-                <button
-                  className="settings-modal__btn settings-modal__btn--secondary"
-                  onClick={handleIntegrity}
-                  disabled={integrityChecking}
-                >
-                  {integrityChecking ? t('common.loading') : t('settings.integrity.button')}
-                </button>
-              </div>
-
-              {!integrityChecking && latestVersion && form.installed_version && form.installed_version !== latestVersion && (
-                <div className="settings-integrity-warning">
-                  {t('settings.integrity.behindNote', { installed: form.installed_version, latest: latestVersion })}
-                </div>
               )}
-              {!integrityChecking && latestVersion && (
-                <span className="settings-modal__hint">
-                  {t('settings.integrity.compareNote', { latest: latestVersion })}
-                </span>
-              )}
-
-              {integrityChecking && integrityProgress && (
-                <div className="settings-proton__progress">
-                  <div className="settings-proton__progress-info">
-                    <span>{t(`settings.integrity.${integrityProgress.stage}`)}</span>
-                    <span>
-                      {integrityProgress.stage === 'downloading'
-                        ? `${formatPercent(integrityProgress.bytes_done, integrityProgress.bytes_total)}${integrityProgress.speed_bps > 0 ? ` • ${formatSpeed(integrityProgress.speed_bps)}` : ''}`
-                        : integrityProgress.total_files > 0
-                          ? `${integrityProgress.files_done} / ${integrityProgress.total_files}`
-                          : ''}
-                    </span>
-                  </div>
-                  <div className="settings-proton__progress-bar">
-                    <div
-                      className="settings-proton__progress-fill"
-                      style={{ width: `${integrityPct}%` }}
-                    />
-                  </div>
-                  {integrityProgress.stage === 'downloading' && integrityProgress.bytes_total > 0 && (
-                    <div className="settings-proton__progress-detail">
-                      {formatSize(integrityProgress.bytes_done)} / {formatSize(integrityProgress.bytes_total)}
-                    </div>
-                  )}
-                  <button
-                    className="settings-modal__btn settings-modal__btn--cancel"
-                    onClick={cancelIntegrity}
-                  >
-                    {t('common.cancel')}
-                  </button>
-                </div>
-              )}
-
-              {!integrityChecking && integrityResult && (
-                <div className="settings-modal__hint">
-                  {integrityResult.repaired > 0
-                    ? t('settings.integrity.resultRepaired', { checked: integrityResult.checked, repaired: integrityResult.repaired })
-                    : t('settings.integrity.resultOk', { checked: integrityResult.checked })}
-                </div>
-              )}
-
-              {integrityError && (
-                <div className="settings-proton__error">{integrityError}</div>
-              )}
-
-              <div className="settings-action-row">
-                <div className="settings-action-row__info">
-                  <span className="settings-action-row__name">{t('settings.repair.name')}</span>
-                  <span className="settings-action-row__desc">{t('settings.repair.desc')}</span>
-                </div>
-                <button
-                  className="settings-modal__btn settings-modal__btn--secondary"
-                  onClick={handleRepair}
-                  disabled={repairing}
-                >
-                  {repairing ? t('common.loading') : t('settings.repair.button')}
-                </button>
-              </div>
-
-              <div className="settings-action-row">
-                <div className="settings-action-row__info">
-                  <span className="settings-action-row__name">{t('settings.viewLog.name')}</span>
-                  <span className="settings-action-row__desc">{t('settings.viewLog.desc')}</span>
-                </div>
-                <button
-                  className="settings-modal__btn settings-modal__btn--secondary"
-                  onClick={() => setShowLog(true)}
-                >
-                  {t('settings.viewLog.button')}
-                </button>
-              </div>
-
-              <div className="settings-action-row">
-                <div className="settings-action-row__info">
-                  <span className="settings-action-row__name">{t('settings.debugInfo.name')}</span>
-                  <span className="settings-action-row__desc">{t('settings.debugInfo.desc')}</span>
-                </div>
-                <button
-                  className="settings-modal__btn settings-modal__btn--secondary"
-                  onClick={handleCopyDebugInfo}
-                >
-                  {debugCopied ? t('settings.debugInfo.copied') : t('settings.debugInfo.button')}
-                </button>
-              </div>
-
-              <div className="settings-action-row">
-                <div className="settings-action-row__info">
-                  <span className="settings-action-row__name">{t('settings.uninstall.name')}</span>
-                  <span className="settings-action-row__desc">{t('settings.uninstall.desc')}</span>
-                </div>
-                <button
-                  className="settings-modal__btn settings-modal__btn--danger"
-                  onClick={handleUninstall}
-                  disabled={uninstalling}
-                >
-                  {uninstalling ? t('common.loading') : t('settings.uninstall.button')}
-                </button>
-              </div>
-            </>
+            </fieldset>
           )}
         </div>
-
-        <div className="settings-modal__footer">
-          {saveError && <span className="settings-modal__save-error">{saveError}</span>}
-          <button className="settings-modal__btn settings-modal__btn--cancel" onClick={requestClose} disabled={saving}>
-            {t('common.cancel')}
-          </button>
-          <button className="settings-modal__btn settings-modal__btn--save" onClick={handleSave} disabled={saving}>
-            {saving ? t('settings.saving') : t('common.save')}
-          </button>
-        </div>
+        <footer className="settings-footer">
+          <div>
+            <span role="status">
+              {t(
+                saving ? "settings.saving" : dirty ? "ui.unsaved" : "ui.saved",
+              )}
+            </span>
+            {transferring && (
+              <button className="settings-footer__task" onClick={requestClose}>
+                <Icon name="download" size={14} />
+                {t(
+                  taskActive(tasks.proton)
+                    ? "ui.protonDownloading"
+                    : "ui.downloadTask",
+                )}
+              </button>
+            )}
+            {error && (
+              <ErrorNotice title={t("errors.saveFailed")} error={error} />
+            )}
+          </div>
+          <Button
+            variant="primary"
+            onClick={handleSave}
+            disabled={saving || !dirty || !form}
+          >
+            {t(saving ? "settings.saving" : "common.save")}
+          </Button>
+        </footer>
       </div>
-
       {showLog && <LogViewer onClose={() => setShowLog(false)} />}
-      {pendingConfirm && (
+      {confirmation && (
         <ConfirmDialog
-          title={pendingConfirm.title}
-          message={pendingConfirm.message}
-          confirmLabel={pendingConfirm.confirmLabel}
-          danger={!!pendingConfirm.danger}
-          onConfirm={pendingConfirm.onConfirm}
-          onCancel={() => setPendingConfirm(null)}
+          title={confirmation.title}
+          message={confirmation.message}
+          confirmLabel={confirmation.label}
+          danger={confirmation.danger}
+          onCancel={() => setConfirmation(null)}
+          onConfirm={() => {
+            const run = confirmation.run;
+            setConfirmation(null);
+            run();
+          }}
         />
       )}
-    </div>
+    </section>
   );
 }

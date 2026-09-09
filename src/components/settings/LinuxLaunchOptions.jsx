@@ -1,257 +1,142 @@
-import { useTranslation } from '../../i18n';
-import './SettingsModal.css';
-
-// The launch options that only exist on Linux: the renderer and windowing
-// choices Proton acts on, the wrappers the launch script can put in front of
-// it (gamemode, MangoHud, gamescope) and the Wine synchronisation primitives.
-// On Windows the game runs natively and the settings dialog leaves the whole
-// section out.
+import { useTranslation } from "../../i18n";
+import { Field, Switch } from "../common/Controls";
 export default function LinuxLaunchOptions({ form, onChange, systemCheck }) {
   const { t } = useTranslation();
-
+  const toggle = (key, label, missing = false, inverse = false) => (
+    <Switch
+      key={key}
+      label={label}
+      checked={inverse ? !form[key] : !!form[key]}
+      onChange={(v) => onChange(key, inverse ? !v : v)}
+      disabled={missing && !form[key]}
+      note={missing ? t("settings.unavailable") : null}
+    />
+  );
+  const field = (key, label, placeholder = "", type = "text") => (
+    <Field label={label}>
+      {(id) => (
+        <input
+          id={id}
+          type={type}
+          min={type === "number" ? 0 : undefined}
+          value={form[key] ?? ""}
+          placeholder={placeholder}
+          onChange={(e) =>
+            onChange(
+              key,
+              type === "number"
+                ? Math.max(0, Number(e.target.value) || 0)
+                : e.target.value,
+            )
+          }
+          spellCheck={false}
+        />
+      )}
+    </Field>
+  );
+  const select = (key, label, options, fallback) => (
+    <Field label={label}>
+      {(id) => (
+        <select
+          id={id}
+          value={form[key] || fallback}
+          onChange={(e) => onChange(key, e.target.value)}
+        >
+          {options.map(([value, text]) => (
+            <option key={value} value={value}>
+              {text}
+            </option>
+          ))}
+        </select>
+      )}
+    </Field>
+  );
   return (
     <>
-      <div className="settings-toggle">
-        <div className="settings-toggle__info">
-          <span className="settings-toggle__name">{t('settings.vulkan.name')}</span>
-          <span className="settings-toggle__desc">
-            {t('settings.vulkan.desc')}
-          </span>
-        </div>
-        <button
-          className={`settings-toggle__switch ${form.use_native_vulkan ? 'settings-toggle__switch--on' : ''}`}
-          onClick={() => onChange('use_native_vulkan', !form.use_native_vulkan)}
-        />
-      </div>
-
-      <div className="settings-toggle">
-        <div className="settings-toggle__info">
-          <span className="settings-toggle__name">{t('settings.wayland.name')}</span>
-          <span className="settings-toggle__desc">
-            {t('settings.wayland.desc')}
-          </span>
-        </div>
-        <button
-          className={`settings-toggle__switch ${form.use_wayland ? 'settings-toggle__switch--on' : ''}`}
-          onClick={() => onChange('use_wayland', !form.use_wayland)}
-        />
-      </div>
-
-      <div className="settings-toggle">
-        <div className="settings-toggle__info">
-          <span className="settings-toggle__name">{t('settings.sdlInput.name')}</span>
-          <span className="settings-toggle__desc">
-            {t('settings.sdlInput.desc')}
-          </span>
-        </div>
-        <button
-          className={`settings-toggle__switch ${form.use_sdl_input ? 'settings-toggle__switch--on' : ''}`}
-          onClick={() => onChange('use_sdl_input', !form.use_sdl_input)}
-        />
-      </div>
-
-      <div className="settings-toggle">
-        <div className="settings-toggle__info">
-          <span className="settings-toggle__name">{t('settings.gamemode.name')}</span>
-          <span className="settings-toggle__desc">
-            {t('settings.gamemode.desc')}
-          </span>
-          {systemCheck && !systemCheck.has_gamemode && (
-            <span className="settings-toggle__unavailable">{t('settings.unavailable')}</span>
-          )}
-        </div>
-        <button
-          className={`settings-toggle__switch ${form.use_gamemode ? 'settings-toggle__switch--on' : ''}`}
-          onClick={() => onChange('use_gamemode', !form.use_gamemode)}
-        />
-      </div>
-
-      <div className="settings-toggle">
-        <div className="settings-toggle__info">
-          <span className="settings-toggle__name">{t('settings.dxvkAsync.name')}</span>
-          <span className="settings-toggle__desc">
-            {t('settings.dxvkAsync.desc')}
-          </span>
-        </div>
-        <button
-          className={`settings-toggle__switch ${form.use_dxvk_async ? 'settings-toggle__switch--on' : ''}`}
-          onClick={() => onChange('use_dxvk_async', !form.use_dxvk_async)}
-        />
-      </div>
-
-      <div className="settings-toggle">
-        <div className="settings-toggle__info">
-          <span className="settings-toggle__name">{t('settings.fsync.name')}</span>
-          <span className="settings-toggle__desc">
-            {t('settings.fsync.desc')}
-          </span>
-        </div>
-        <button
-          className={`settings-toggle__switch ${form.disable_fsync ? 'settings-toggle__switch--on' : ''}`}
-          onClick={() => onChange('disable_fsync', !form.disable_fsync)}
-        />
-      </div>
-
-      <div className="settings-toggle">
-        <div className="settings-toggle__info">
-          <span className="settings-toggle__name">{t('settings.esync.name')}</span>
-          <span className="settings-toggle__desc">
-            {t('settings.esync.desc')}
-          </span>
-        </div>
-        <button
-          className={`settings-toggle__switch ${form.disable_esync ? 'settings-toggle__switch--on' : ''}`}
-          onClick={() => onChange('disable_esync', !form.disable_esync)}
-        />
-      </div>
-
-      <div className="settings-toggle">
-        <div className="settings-toggle__info">
-          <span className="settings-toggle__name">{t('settings.mangohud.name')}</span>
-          <span className="settings-toggle__desc">
-            {t('settings.mangohud.desc')}
-          </span>
-          {systemCheck && !systemCheck.has_mangohud && (
-            <span className="settings-toggle__unavailable">{t('settings.unavailable')}</span>
-          )}
-        </div>
-        <button
-          className={`settings-toggle__switch ${form.use_mangohud ? 'settings-toggle__switch--on' : ''}`}
-          onClick={() => onChange('use_mangohud', !form.use_mangohud)}
-        />
-      </div>
-
-      <div className="settings-toggle">
-        <div className="settings-toggle__info">
-          <span className="settings-toggle__name">{t('settings.gamescope.name')}</span>
-          <span className="settings-toggle__desc">
-            {t('settings.gamescope.desc')}
-          </span>
-          {systemCheck && !systemCheck.has_gamescope && (
-            <span className="settings-toggle__unavailable">{t('settings.unavailable')}</span>
-          )}
-        </div>
-        <button
-          className={`settings-toggle__switch ${form.use_gamescope ? 'settings-toggle__switch--on' : ''}`}
-          onClick={() => onChange('use_gamescope', !form.use_gamescope)}
-        />
-      </div>
-
-      {form.use_gamescope && (
-        <div className="settings-gamescope">
-          <div className="settings-gamescope__row">
-            <div className="settings-gamescope__field">
-              <span className="settings-modal__label">{t('settings.gamescope.mode')}</span>
-              <select
-                className="settings-proton__select"
-                value={form.gamescope_mode || 'fullscreen'}
-                onChange={(e) => onChange('gamescope_mode', e.target.value)}
-              >
-                <option value="fullscreen">{t('settings.gamescope.modeFullscreen')}</option>
-                <option value="borderless">{t('settings.gamescope.modeBorderless')}</option>
-                <option value="windowed">{t('settings.gamescope.modeWindowed')}</option>
-              </select>
-            </div>
-            <div className="settings-gamescope__field">
-              <span className="settings-modal__label">{t('settings.gamescope.upscaler')}</span>
-              <select
-                className="settings-proton__select"
-                value={form.gamescope_upscaler || 'auto'}
-                onChange={(e) => onChange('gamescope_upscaler', e.target.value)}
-              >
-                <option value="auto">{t('settings.gamescope.upscalerAuto')}</option>
-                <option value="fsr">AMD FSR</option>
-                <option value="nis">NVIDIA NIS</option>
-                <option value="integer">{t('settings.gamescope.upscalerInteger')}</option>
-                <option value="stretch">{t('settings.gamescope.upscalerStretch')}</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="settings-gamescope__row">
-            <div className="settings-gamescope__field">
-              <span className="settings-modal__label">{t('settings.gamescope.renderRes')}</span>
-              <input
-                value={form.gamescope_render_res || ''}
-                onChange={(e) => onChange('gamescope_render_res', e.target.value)}
-                placeholder={t('settings.gamescope.resNative')}
-                spellCheck={false}
-              />
-            </div>
-            <div className="settings-gamescope__field">
-              <span className="settings-modal__label">{t('settings.gamescope.outputRes')}</span>
-              <input
-                value={form.gamescope_output_res || ''}
-                onChange={(e) => onChange('gamescope_output_res', e.target.value)}
-                placeholder={t('settings.gamescope.resAuto')}
-                spellCheck={false}
-              />
-            </div>
-            <div className="settings-gamescope__field">
-              <span className="settings-modal__label">{t('settings.gamescope.fps')}</span>
-              <input
-                type="number"
-                min="0"
-                value={form.gamescope_fps_limit || ''}
-                onChange={(e) => onChange('gamescope_fps_limit', parseInt(e.target.value, 10) || 0)}
-                placeholder={t('settings.gamescope.fpsOff')}
-              />
-            </div>
-          </div>
-
-          <div className="settings-toggle settings-toggle--sub">
-            <div className="settings-toggle__info">
-              <span className="settings-toggle__name">{t('settings.gamescope.hdr.name')}</span>
-              <span className="settings-toggle__desc">{t('settings.gamescope.hdr.desc')}</span>
-            </div>
-            <button
-              className={`settings-toggle__switch ${form.gamescope_hdr ? 'settings-toggle__switch--on' : ''}`}
-              onClick={() => onChange('gamescope_hdr', !form.gamescope_hdr)}
-            />
-          </div>
-
-          <div className="settings-gamescope__field">
-            <span className="settings-modal__label">{t('settings.gamescope.extraArgs')}</span>
-            <input
-              value={form.gamescope_extra_args || ''}
-              onChange={(e) => onChange('gamescope_extra_args', e.target.value)}
-              placeholder="--adaptive-sync --force-grab-cursor"
-              spellCheck={false}
-            />
-          </div>
-
-          <span className="settings-modal__hint">{t('settings.gamescope.hint')}</span>
-        </div>
+      {toggle("use_sdl_input", t("ui.controller"))}
+      {toggle(
+        "use_mangohud",
+        t("ui.fps"),
+        systemCheck && !systemCheck.has_mangohud,
       )}
-
-      <div className="settings-toggle">
-        <div className="settings-toggle__info">
-          <span className="settings-toggle__name">{t('settings.prime.name')}</span>
-          <span className="settings-toggle__desc">
-            {t('settings.prime.desc')}
-          </span>
+      <details className="ui-details">
+        <summary>{t("ui.advancedLaunch")}</summary>
+        <div className="ui-details__body">
+          <Field label={t("ui.renderer")}>
+            {(id) => (
+              <select
+                id={id}
+                value={form.use_native_vulkan ? "vulkan" : "dx11"}
+                onChange={(e) =>
+                  onChange("use_native_vulkan", e.target.value === "vulkan")
+                }
+              >
+                <option value="vulkan">Vulkan</option>
+                <option value="dx11">DirectX 11</option>
+              </select>
+            )}
+          </Field>
+          {toggle("use_wayland", "Wayland")}
+          {toggle(
+            "use_gamemode",
+            "GameMode",
+            systemCheck && !systemCheck.has_gamemode,
+          )}
+          {toggle("use_dxvk_async", "DXVK Async")}
+          {toggle("disable_fsync", t("ui.useFsync"), false, true)}
+          {toggle("disable_esync", t("ui.useEsync"), false, true)}
+          {toggle("use_prime_offload", t("settings.prime.name"))}
+          {toggle("use_canonical_hole", t("settings.canonicalHole.name"))}
+          {toggle(
+            "use_gamescope",
+            "Gamescope",
+            systemCheck && !systemCheck.has_gamescope,
+          )}
+          {form.use_gamescope && (
+            <div className="settings-gamescope">
+              <div className="settings-field-grid">
+                {select(
+                  "gamescope_mode",
+                  t("settings.gamescope.mode"),
+                  [
+                    ["fullscreen", t("settings.gamescope.modeFullscreen")],
+                    ["borderless", t("settings.gamescope.modeBorderless")],
+                    ["windowed", t("settings.gamescope.modeWindowed")],
+                  ],
+                  "fullscreen",
+                )}
+                {select(
+                  "gamescope_upscaler",
+                  t("settings.gamescope.upscaler"),
+                  [
+                    ["auto", t("settings.gamescope.upscalerAuto")],
+                    ["fsr", "AMD FSR"],
+                    ["nis", "NVIDIA NIS"],
+                    ["integer", t("settings.gamescope.upscalerInteger")],
+                    ["stretch", t("settings.gamescope.upscalerStretch")],
+                  ],
+                  "auto",
+                )}
+              </div>
+              <div className="settings-field-grid">
+                {field(
+                  "gamescope_render_res",
+                  t("settings.gamescope.renderRes"),
+                  t("settings.gamescope.resNative"),
+                )}
+                {field(
+                  "gamescope_output_res",
+                  t("settings.gamescope.outputRes"),
+                  t("settings.gamescope.resAuto"),
+                )}
+                {field("gamescope_fps_limit", t("ui.fpsLimit"), "0", "number")}
+              </div>
+              {toggle("gamescope_hdr", t("settings.gamescope.hdr.name"))}
+              {field("gamescope_extra_args", t("settings.gamescope.extraArgs"))}
+            </div>
+          )}
         </div>
-        <button
-          className={`settings-toggle__switch ${form.use_prime_offload ? 'settings-toggle__switch--on' : ''}`}
-          onClick={() => onChange('use_prime_offload', !form.use_prime_offload)}
-        />
-      </div>
-
-      <div className="settings-toggle">
-        <div className="settings-toggle__info">
-          <span className="settings-toggle__name">
-            {t('settings.canonicalHole.name')}
-            <span className="settings-toggle__experimental">{t('settings.experimental')}</span>
-          </span>
-          <span className="settings-toggle__desc">
-            {t('settings.canonicalHole.desc')}
-          </span>
-        </div>
-        <button
-          className={`settings-toggle__switch ${form.use_canonical_hole ? 'settings-toggle__switch--on' : ''}`}
-          onClick={() => onChange('use_canonical_hole', !form.use_canonical_hole)}
-        />
-      </div>
+      </details>
     </>
   );
 }

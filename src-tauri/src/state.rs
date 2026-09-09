@@ -4,6 +4,7 @@ use std::sync::Arc;
 use crate::config::settings::AppSettings;
 
 pub struct AppState {
+    pub transfers: crate::tasks::Transfers,
     pub settings: tokio::sync::Mutex<AppSettings>,
     pub http_client: reqwest::Client,
     pub download_active: Arc<AtomicBool>,
@@ -19,6 +20,7 @@ pub struct AppState {
 impl AppState {
     pub fn new(settings: AppSettings) -> Self {
         Self {
+            transfers: crate::tasks::Transfers::load(),
             settings: tokio::sync::Mutex::new(settings),
             http_client: reqwest::Client::builder()
                 .tcp_nodelay(true)

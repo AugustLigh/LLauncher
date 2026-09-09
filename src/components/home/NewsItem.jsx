@@ -1,21 +1,24 @@
-import { openUrl } from '@tauri-apps/plugin-opener';
-import './NewsItem.css';
-
-export default function NewsItem({ item, index }) {
-  const handleClick = () => {
-    if (item.jump_url) {
-      openUrl(item.jump_url);
-    }
-  };
-
+import { openUrl } from "@tauri-apps/plugin-opener";
+import Icon from "../common/Icon";
+import "./NewsItem.css";
+export default function NewsItem({ item }) {
+  const Tag = item.jump_url ? "a" : "div";
   return (
-    <div
+    <Tag
+      href={item.jump_url || undefined}
+      title={item.content}
       className="news-item"
-      style={{ animationDelay: `${index * 50}ms` }}
-      onClick={handleClick}
+      onClick={
+        item.jump_url
+          ? (e) => {
+              e.preventDefault();
+              openUrl(item.jump_url).catch(console.error);
+            }
+          : undefined
+      }
     >
-      <span className="news-item__dot" />
-      <span className="news-item__text">{item.content}</span>
-    </div>
+      <span>{item.content}</span>
+      {item.jump_url && <Icon name="external" size={14} />}
+    </Tag>
   );
 }

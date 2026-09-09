@@ -57,8 +57,8 @@ export default function useDownload(onComplete) {
     pending.push(listen('update://progress', (event) => {
       const p = event.payload;
       setProgress({
-        stage: p.stage === 'downloading' ? 'downloading' : 'verifying',
-        file_index: p.files_done,
+        stage: p.stage,
+        files_done: p.files_done,
         total_files: p.total_files,
         file_name: '',
         bytes_downloaded: p.bytes_done,

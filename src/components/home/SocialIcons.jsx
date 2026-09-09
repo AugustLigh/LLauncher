@@ -1,10 +1,32 @@
 const iconProps = {
-  width: '100%',
-  height: '100%',
-  viewBox: '0 0 24 24',
-  fill: 'currentColor',
-  xmlns: 'http://www.w3.org/2000/svg',
+  width: "100%",
+  height: "100%",
+  viewBox: "0 0 24 24",
+  fill: "currentColor",
+  xmlns: "http://www.w3.org/2000/svg",
 };
+
+export function TelegramIcon() {
+  return (
+    <svg {...iconProps}>
+      <path
+        d="M21.7 3.4 18.4 20c-.25 1.17-.91 1.46-1.84.91l-5-3.69-2.4 2.32c-.27.27-.5.5-1.02.5l.36-5.1L17.78 6c.4-.36-.09-.56-.62-.2L5.69 13.03.75 11.49c-1.07-.33-1.09-1.07.22-1.58L20.3 2.46c.9-.33 1.68.2 1.4.94Z"
+        transform="translate(1 0) scale(.95)"
+      />
+    </svg>
+  );
+}
+
+export function VKIcon() {
+  return (
+    <svg {...iconProps}>
+      <path
+        d="M13.16 18.99C7.15 18.99 3.72 14.87 3.58 8h3.01c.1 5.04 2.32 7.18 4.07 7.62V8h2.84v4.35c1.73-.19 3.56-2.17 4.17-4.35h2.84c-.47 2.69-2.46 4.67-3.87 5.48 1.41.66 3.67 2.38 4.53 5.51h-3.09c-.67-2.09-2.35-3.7-4.58-3.93v3.93Z"
+        transform="translate(-1 -1)"
+      />
+    </svg>
+  );
+}
 
 export function XIcon() {
   return (
@@ -56,7 +78,15 @@ export function DiscordIcon() {
 
 export function SkportIcon() {
   return (
-    <svg {...iconProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      {...iconProps}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="3" y="3" width="18" height="18" rx="3" />
       <path d="M8 12h8M12 8v8" />
     </svg>
@@ -65,7 +95,15 @@ export function SkportIcon() {
 
 export function SupportIcon() {
   return (
-    <svg {...iconProps} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      {...iconProps}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M3 11h1a8 8 0 0 1 16 0h1" />
       <path d="M3 11v3a2 2 0 0 0 2 2h1V11H3zM21 11v3a2 2 0 0 1-2 2h-1V11h3z" />
       <path d="M18 16v1a3 3 0 0 1-3 3h-2" />
@@ -74,6 +112,8 @@ export function SupportIcon() {
 }
 
 const MEDIA_ICONS = {
+  VK: VKIcon,
+  Telegram: TelegramIcon,
   X: XIcon,
   TikTok: TikTokIcon,
   Facebook: FacebookIcon,
@@ -85,12 +125,14 @@ const MEDIA_ICONS = {
 };
 
 export default function SocialIcon({ media }) {
-  const Icon = MEDIA_ICONS[media];
+  const Icon = Object.entries(MEDIA_ICONS).find(
+    ([name]) => name.toLowerCase() === media?.toLowerCase(),
+  )?.[1];
   if (Icon) return <Icon />;
-  // Fallback: show first letter
   return (
-    <span style={{ fontSize: 14, fontWeight: 600, opacity: 0.8 }}>
-      {(media || '?')[0]}
-    </span>
+    <svg {...iconProps} fill="none" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c-5 5-5 13 0 18 5-5 5-13 0-18Z" />
+    </svg>
   );
 }

@@ -40,8 +40,8 @@
 }
 
 .launch-failed__close {
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -86,7 +86,7 @@
 }
 
 .launch-failed__tail {
-  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-family: "SF Mono", "Fira Code", monospace;
   font-size: var(--font-size-xs);
   line-height: 1.45;
   color: var(--color-text-primary);
@@ -114,6 +114,7 @@
 }
 
 .launch-failed__btn {
+  min-height: 40px;
   padding: var(--space-sm) var(--space-lg);
   border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);
@@ -123,7 +124,7 @@
 
 .launch-failed__btn--primary {
   background: var(--color-accent);
-  color: var(--color-bg);
+  color: var(--color-on-accent);
 }
 
 .launch-failed__btn--primary:hover {
@@ -139,4 +140,11 @@
 .launch-failed__btn--secondary:hover {
   background: var(--color-surface-hover);
   color: var(--color-text-primary);
+}
+
+.launch-failed__details summary {
+  cursor: pointer;
+  padding: 12px 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
 }

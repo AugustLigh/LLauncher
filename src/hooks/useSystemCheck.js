@@ -1,21 +1,29 @@
-import { useState, useEffect, useCallback } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-
+import { useState, useEffect, useCallback, useRef } from "react";
+import { invoke } from "@tauri-apps/api/core";
 export default function useSystemCheck() {
-  const [systemCheck, setSystemCheck] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  const refresh = useCallback(() => {
+  const [systemCheck, setSystemCheck] = useState(null),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(null);
+  const id = useRef(0);
+  const refresh = useCallback(async () => {
+    const request = ++id.current;
     setLoading(true);
-    invoke('check_system_requirements')
-      .then(setSystemCheck)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    setError(null);
+    try {
+      const next = await invoke("check_system_requirements");
+      if (request === id.current) setSystemCheck(next);
+    } catch (e) {
+      if (request === id.current)
+        setError(typeof e === "string" ? e : e?.message || String(e));
+    } finally {
+      if (request === id.current) setLoading(false);
+    }
   }, []);
-
   useEffect(() => {
     refresh();
+    return () => {
+      id.current++;
+    };
   }, [refresh]);
-
-  return { systemCheck, loading, refresh };
+  return { systemCheck, loading, error, refresh };
 }

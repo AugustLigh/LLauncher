@@ -1,173 +1,188 @@
-import { useState, useEffect, useCallback } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-import { openUrl } from '@tauri-apps/plugin-opener';
-import { useTranslation } from '../../i18n';
-import './ModsSettings.css';
-
-const CATALOG_URL = 'https://gamebanana.com/games/21842';
-const VKBASALT_URL = 'https://github.com/DadSchoorse/vkBasalt';
-
-// Two kinds of mods, two cards — because the difference that actually matters
-// to a user is not the technology but the price: replacing models forces the
-// game onto D3D11 and costs frames, while post-processing rides along on the
-// native Vulkan renderer for free. Each row states its own status, so the tab
-// can be understood by glancing at it rather than by reading paragraphs.
-export default function ModsSettings({ form, onChange, systemCheck }) {
+import { useState, useEffect, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { useTranslation } from "../../i18n";
+import { Button, Switch, Status } from "../common/Controls";
+import ErrorNotice from "../common/ErrorNotice";
+import "./ModsSettings.css";
+export default function ModsSettings({
+  form,
+  onChange,
+  systemCheck,
+  disabled,
+}) {
   const { t } = useTranslation();
-  const [status, setStatus] = useState(null);
-  const [busy, setBusy] = useState(null);
-  const [msg, setMsg] = useState(null);
-
-  const isLinux = (systemCheck?.platform || 'linux') !== 'windows';
-
+  const [status, setStatus] = useState(null),
+    [busy, setBusy] = useState(null),
+    [error, setError] = useState(null),
+    [message, setMessage] = useState("");
+  const linux = systemCheck?.platform !== "windows";
   const refresh = useCallback(async () => {
+    setError(null);
     try {
-      setStatus(await invoke('get_mods_status'));
-    } catch {
-      setStatus(null);
+      setStatus(await invoke("get_mods_status"));
+    } catch (e) {
+      setError(e);
     }
   }, []);
-
-  useEffect(() => { refresh(); }, [refresh]);
-
-  const run = async (key, cmd, okText) => {
+  useEffect(() => {
+    refresh();
+  }, [refresh, form.installed_version]);
+  const run = async (key, command, done) => {
     setBusy(key);
-    setMsg(null);
+    setError(null);
+    setMessage("");
     try {
-      const res = await invoke(cmd);
-      setMsg({ ok: true, text: okText(res) });
+      const r = await invoke(command);
+      if (done) setMessage(done(r));
       await refresh();
     } catch (e) {
-      setMsg({ ok: false, text: typeof e === 'string' ? e : e.message || String(e) });
+      setError(e);
     } finally {
       setBusy(null);
     }
   };
-
-  const loaderReady = !!status?.loader_installed && !!status?.loader_configured;
-  // The bare 3DMigoto build older versions installed still loads, but it has
-  // been unmaintained since January and mods built with the current toolkit
-  // expect EFMI — so it reads as "needs action" rather than as done.
-  const legacyLoader = loaderReady && !status?.efmi;
-  const modCount = status?.mod_count || 0;
-
-  if (status?.game_dir_missing) {
-    return <span className="settings-modal__hint">{t('settings.mods.noGame')}</span>;
-  }
-
+  const link = async (url) => {
+    try {
+      await openUrl(url);
+    } catch (e) {
+      setError(e);
+    }
+  };
+  const ready = status?.loader_installed && status?.loader_configured;
+  const legacy = ready && !status?.efmi;
+  if (!status)
+    return error ? (
+      <ErrorNotice
+        title={t("ui.modsStatusFailed")}
+        error={error}
+        onRetry={refresh}
+      />
+    ) : (
+      <Status busy>{t("ui.checkingMods")}</Status>
+    );
+  if (status.game_dir_missing)
+    return <Status>{t("settings.mods.noGame")}</Status>;
   return (
     <>
-      <div className="mods__card">
-        <div className="mods__card-head">
-          <span className="mods__card-title">{t('settings.mods.skins.title')}</span>
-          <span className="mods__tag mods__tag--cost">{t('settings.mods.skins.cost')}</span>
-        </div>
-        <span className="mods__card-sub">{t('settings.mods.skins.sub')}</span>
-
-        <Row
-          done={loaderReady && !legacyLoader}
-          label={t('settings.mods.skins.loader')}
-          note={legacyLoader ? t('settings.mods.skins.legacy') : null}
-        >
-          {(!loaderReady || legacyLoader) && (
-            <button
-              className="mods__btn mods__btn--go"
-              onClick={() => run('install', 'install_mod_loader', (r) => t('settings.mods.installed', { version: r.version }))}
-              disabled={!!busy}
-            >
-              {busy === 'install'
-                ? t('settings.mods.skins.installing')
-                : t(legacyLoader ? 'settings.mods.skins.upgrade' : 'settings.mods.skins.install')}
-            </button>
-          )}
-          {status?.loader_installed && (
-            <button
-              className="mods__btn mods__btn--quiet"
-              onClick={() => run('uninstall', 'uninstall_mod_loader', () => t('settings.mods.uninstalled'))}
-              disabled={!!busy}
-            >
-              {busy === 'uninstall' ? '…' : t('settings.mods.skins.remove')}
-            </button>
-          )}
-        </Row>
-
-        <Row
-          done={modCount > 0}
-          label={t('settings.mods.skins.folder')}
-          note={modCount > 0 ? t('settings.mods.skins.count', { count: modCount }) : t('settings.mods.skins.empty')}
-        >
-          <button className="mods__btn" onClick={() => run('open', 'open_mods_folder', () => '')}>
-            {t('settings.mods.skins.open')}
-          </button>
-          <button className="mods__btn" onClick={() => openUrl(CATALOG_URL)}>
-            {t('settings.mods.skins.catalog')}
-          </button>
-        </Row>
-
-        <Row done={!!form.mods_enabled} label={t('settings.mods.skins.button')}>
-          <Switch on={!!form.mods_enabled} onToggle={() => onChange('mods_enabled', !form.mods_enabled)} />
-        </Row>
-      </div>
-
-      <div className="mods__card">
-        <div className="mods__card-head">
-          <span className="mods__card-title">{t('settings.mods.looks.title')}</span>
-          <span className="mods__tag mods__tag--free">{t('settings.mods.looks.free')}</span>
-        </div>
-        <span className="mods__card-sub">{t('settings.mods.looks.sub')}</span>
-
-        {isLinux && (
-          <Row
-            done={!!form.use_vkbasalt && !!systemCheck?.has_vkbasalt}
-            label={t('settings.mods.looks.vkbasalt')}
-            note={systemCheck && !systemCheck.has_vkbasalt ? t('settings.mods.looks.vkbasaltMissing') : null}
-          >
-            {systemCheck && !systemCheck.has_vkbasalt ? (
-              <button className="mods__btn" onClick={() => openUrl(VKBASALT_URL)}>
-                {t('settings.mods.looks.howto')}
-              </button>
-            ) : (
-              <Switch on={!!form.use_vkbasalt} onToggle={() => onChange('use_vkbasalt', !form.use_vkbasalt)} />
+      <div className="mods-row">
+        <div>
+          <strong>EFMI</strong>
+          <small>
+            {t(
+              legacy
+                ? "settings.mods.skins.legacy"
+                : ready
+                  ? "ui.installed"
+                  : "ui.notFound",
             )}
-          </Row>
-        )}
-
-        <Row
-          done={!!status?.reshade_installed}
-          label={t('settings.mods.looks.reshade')}
-          note={status?.reshade_installed ? t('settings.mods.looks.reshadeFound') : t('settings.mods.looks.reshadeHint')}
-        />
+          </small>
+        </div>
+        <div className="mods-row__actions">
+          {(!ready || legacy) && (
+            <Button
+              variant="primary"
+              icon="download"
+              disabled={disabled || !!busy}
+              onClick={() =>
+                run("install", "install_mod_loader", (r) =>
+                  t("settings.mods.installed", { version: r.version }),
+                )
+              }
+            >
+              {busy === "install"
+                ? t("settings.mods.skins.installing")
+                : t(
+                    legacy
+                      ? "settings.mods.skins.upgrade"
+                      : "settings.mods.skins.install",
+                  )}
+            </Button>
+          )}
+          {status.loader_installed && (
+            <Button
+              variant="ghost"
+              disabled={disabled || !!busy}
+              onClick={() =>
+                run("remove", "uninstall_mod_loader", () =>
+                  t("settings.mods.uninstalled"),
+                )
+              }
+            >
+              {t("settings.mods.skins.remove")}
+            </Button>
+          )}
+        </div>
       </div>
-
-      {msg && msg.text && (
-        <span className={`settings-modal__msg ${msg.ok ? 'settings-modal__msg--ok' : 'settings-modal__msg--err'}`}>
-          {msg.text}
-        </span>
+      <div className="mods-row">
+        <div>
+          <strong>{t("settings.mods.skins.folder")}</strong>
+          <small>
+            {t("settings.mods.skins.count", { count: status.mod_count || 0 })}
+          </small>
+        </div>
+        <div className="mods-row__actions">
+          <Button icon="folder" onClick={() => run("open", "open_mods_folder")}>
+            {t("settings.mods.skins.open")}
+          </Button>
+          <Button
+            variant="ghost"
+            icon="external"
+            onClick={() => link("https://gamebanana.com/games/21842")}
+          >
+            {t("settings.mods.skins.catalog")}
+          </Button>
+        </div>
+      </div>
+      <Switch
+        label={t("settings.mods.skins.button")}
+        checked={form.mods_enabled}
+        onChange={(v) => onChange("mods_enabled", v)}
+      />
+      <h3>{t("settings.mods.looks.title")}</h3>
+      {linux &&
+        (systemCheck?.has_vkbasalt ? (
+          <Switch
+            label="vkBasalt"
+            checked={form.use_vkbasalt}
+            onChange={(v) => onChange("use_vkbasalt", v)}
+          />
+        ) : (
+          <div className="mods-row">
+            <div>
+              <strong>vkBasalt</strong>
+              <small>{t("ui.notFound")}</small>
+            </div>
+            <Button
+              icon="external"
+              onClick={() => link("https://github.com/DadSchoorse/vkBasalt")}
+            >
+              {t("settings.mods.looks.howto")}
+            </Button>
+          </div>
+        ))}
+      <div className="mods-row">
+        <div>
+          <strong>ReShade / RenoDX</strong>
+          <small>
+            {t(
+              status.reshade_installed
+                ? "settings.mods.looks.reshadeFound"
+                : "settings.mods.looks.reshadeHint",
+            )}
+          </small>
+        </div>
+      </div>
+      {message && (
+        <div className="mods-message">
+          <Status kind="success">{message}</Status>
+        </div>
       )}
-
-      <span className="mods__risk">{t('settings.mods.risk')}</span>
+      <ErrorNotice
+        title={t("ui.modsStatusFailed")}
+        error={error}
+        onRetry={refresh}
+      />
     </>
-  );
-}
-
-function Row({ done, label, note, children }) {
-  return (
-    <div className="mods__row">
-      <span className={`mods__dot ${done ? 'mods__dot--on' : ''}`}>{done ? '✓' : ''}</span>
-      <span className="mods__row-label">
-        {label}
-        {note && <span className="mods__row-note">{note}</span>}
-      </span>
-      <span className="mods__row-actions">{children}</span>
-    </div>
-  );
-}
-
-function Switch({ on, onToggle }) {
-  return (
-    <button
-      className={`settings-toggle__switch ${on ? 'settings-toggle__switch--on' : ''}`}
-      onClick={onToggle}
-    />
   );
 }

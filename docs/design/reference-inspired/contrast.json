@@ -1,0 +1,174 @@
+{
+  "artwork": "Official launcher artwork, supplied locally",
+  "scope": "Visible text and control values on their composited CSS surfaces; Chromium with mocked Tauri IPC. Does not measure text embedded in artwork or native OS dialogs.",
+  "checks": [
+    {
+      "name": "home-ready",
+      "count": 11,
+      "minimum": 7.21,
+      "failures": []
+    },
+    {
+      "name": "home-first",
+      "count": 9,
+      "minimum": 7.21,
+      "failures": []
+    },
+    {
+      "name": "home-missing",
+      "count": 15,
+      "minimum": 7.21,
+      "failures": []
+    },
+    {
+      "name": "home-update",
+      "count": 11,
+      "minimum": 7.21,
+      "failures": []
+    },
+    {
+      "name": "home-paused",
+      "count": 16,
+      "minimum": 7.21,
+      "failures": []
+    },
+    {
+      "name": "home-disk-full",
+      "count": 20,
+      "minimum": 5.37,
+      "failures": []
+    },
+    {
+      "name": "home-offline",
+      "count": 11,
+      "minimum": 7.21,
+      "failures": []
+    },
+    {
+      "name": "home-en",
+      "count": 11,
+      "minimum": 7.21,
+      "failures": []
+    },
+    {
+      "name": "play-hover",
+      "count": 11,
+      "minimum": 7.21,
+      "failures": []
+    },
+    {
+      "name": "game-actions-open",
+      "count": 13,
+      "minimum": 7.21,
+      "failures": []
+    },
+    {
+      "name": "sidebar-hover",
+      "count": 11,
+      "minimum": 7.21,
+      "failures": []
+    },
+    {
+      "name": "install-details",
+      "count": 21,
+      "minimum": 6.63,
+      "failures": []
+    },
+    {
+      "name": "settings-general",
+      "count": 17,
+      "minimum": 5.99,
+      "failures": []
+    },
+    {
+      "name": "settings-files",
+      "count": 19,
+      "minimum": 4.75,
+      "failures": []
+    },
+    {
+      "name": "settings-launch",
+      "count": 17,
+      "minimum": 5.08,
+      "failures": []
+    },
+    {
+      "name": "settings-mods",
+      "count": 11,
+      "minimum": 5.99,
+      "failures": []
+    },
+    {
+      "name": "settings-diagnostics",
+      "count": 27,
+      "minimum": 5.59,
+      "failures": []
+    },
+    {
+      "name": "advanced-inputs",
+      "count": 25,
+      "minimum": 5.08,
+      "failures": []
+    },
+    {
+      "name": "save-hover",
+      "count": 17,
+      "minimum": 5.99,
+      "failures": []
+    },
+    {
+      "name": "confirm-dialog",
+      "count": 21,
+      "minimum": 5.99,
+      "failures": []
+    },
+    {
+      "name": "confirm-danger-hover",
+      "count": 21,
+      "minimum": 5.99,
+      "failures": []
+    },
+    {
+      "name": "background-white",
+      "count": 11,
+      "minimum": 7.21,
+      "failures": []
+    },
+    {
+      "name": "background-black",
+      "count": 11,
+      "minimum": 7.21,
+      "failures": []
+    },
+    {
+      "name": "background-missing",
+      "count": 12,
+      "minimum": 7.21,
+      "failures": []
+    },
+    {
+      "name": "install-1024",
+      "count": 9,
+      "minimum": 7.21,
+      "failures": []
+    },
+    {
+      "name": "mods-1024",
+      "count": 11,
+      "minimum": 5.99,
+      "failures": []
+    },
+    {
+      "name": "install-1280",
+      "count": 9,
+      "minimum": 7.21,
+      "failures": []
+    },
+    {
+      "name": "mods-1280",
+      "count": 11,
+      "minimum": 5.99,
+      "failures": []
+    }
+  ]
+}

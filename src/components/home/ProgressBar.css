@@ -1,87 +1,89 @@
 .progress-bar {
   width: 100%;
-  animation: fadeInUp var(--transition-slow) ease;
+  min-width: 0;
 }
-
+.progress-bar__heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 18px;
+  font-weight: 500;
+  margin: 6px 0 20px;
+}
+.progress-bar__heading > span {
+  color: var(--color-text-secondary);
+  font:
+    14px ui-monospace,
+    monospace;
+}
+.progress-bar__steps {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  margin-bottom: 12px;
+}
+.progress-bar__steps .active {
+  color: var(--color-accent-text);
+  font-weight: 650;
+}
 .progress-bar__track {
-  width: 100%;
   height: 6px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--color-track);
   border-radius: 3px;
   overflow: hidden;
 }
-
 .progress-bar__fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--color-accent), #e09a1a);
-  border-radius: 3px;
-  transition: width 0.3s ease;
-  animation: progressGlow 2s ease-in-out infinite;
-  box-shadow: 0 0 10px var(--color-accent-glow);
+  background: var(--color-accent);
+  transition: width 0.2s linear;
 }
-
+.progress-bar__track--indeterminate .progress-bar__fill {
+  width: 30%;
+  animation: progress-slide 1.5s ease-in-out infinite alternate;
+}
+.progress-bar--paused .progress-bar__fill {
+  background: var(--color-text-secondary);
+}
 .progress-bar__info {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-top: var(--space-sm);
-  font-size: var(--font-size-sm);
+  gap: 12px;
+  margin-top: 14px;
   color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
 }
-
-.progress-bar--extracting .progress-bar__fill {
-  background: linear-gradient(90deg, #34d399, #10b981);
-  box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
-}
-
-.progress-bar--verifying .progress-bar__fill {
-  background: linear-gradient(90deg, #fbbf24, #f59e0b);
-  box-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
-}
-
-.progress-bar__stage {
-  color: var(--color-text-secondary);
-}
-
-.progress-bar__file {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-sm);
+.progress-bar__eta {
   color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  margin-top: var(--space-xs);
+  font-size: 12px;
+  margin-top: 6px;
 }
-
-.progress-bar__file-name {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-
 .progress-bar__actions {
   display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
 }
-
-.progress-bar__pause,
-.progress-bar__cancel {
-  font-size: var(--font-size-sm);
+.progress-bar__actions > .ui-button:first-child {
+  flex: 1;
+}
+.progress-bar__details {
+  margin-top: 14px;
   color: var(--color-text-muted);
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
-
-.progress-bar__pause:hover {
-  color: var(--color-text-primary);
-  background: rgba(255, 255, 255, 0.08);
+.progress-bar__details summary {
+  cursor: pointer;
+  padding: 6px 0;
 }
-
-.progress-bar__cancel:hover {
-  color: var(--color-error);
-  background: rgba(239, 68, 68, 0.1);
+@keyframes progress-slide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(230%);
+  }
 }

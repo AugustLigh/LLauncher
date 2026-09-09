@@ -22,6 +22,7 @@ const VFS_PREFIX: &str = "Endfield_Data/StreamingAssets/VFS";
 pub struct CdEntry {
     pub name: String,
     pub crc32: u32,
+    pub unpacked_size: Option<u64>,
 }
 
 fn read_u32(b: &[u8], off: usize) -> Option<u32> {
@@ -37,10 +38,18 @@ fn read_u16(b: &[u8], off: usize) -> Option<u16> {
         .map(|s| u16::from_le_bytes(s.try_into().unwrap()))
 }
 
-async fn range(client: &reqwest::Client, url: &str, start: u64, end_inclusive: u64) -> Result<Vec<u8>, AppError> {
+async fn range(
+    client: &reqwest::Client,
+    url: &str,
+    start: u64,
+    end_inclusive: u64,
+) -> Result<Vec<u8>, AppError> {
     let resp = client
         .get(url)
-        .header(reqwest::header::RANGE, format!("bytes={}-{}", start, end_inclusive))
+        .header(
+            reqwest::header::RANGE,
+            format!("bytes={}-{}", start, end_inclusive),
+        )
         .timeout(API_REQUEST_TIMEOUT)
         .send()
         .await?
@@ -76,7 +85,8 @@ pub async fn fetch_central_directory(
         .windows(4)
         .rposition(|w| w == [0x50, 0x4b, 0x06, 0x06])
         .ok_or_else(|| AppError::Api("Zip64 EOCD not found".into()))?;
-    let total_entries = read_u64(&tail, z64 + 32).ok_or_else(|| AppError::Api("bad EOCD".into()))?;
+    let total_entries =
+        read_u64(&tail, z64 + 32).ok_or_else(|| AppError::Api("bad EOCD".into()))?;
     let cd_offset = read_u64(&tail, z64 + 48).ok_or_else(|| AppError::Api("bad EOCD".into()))?;
 
     // 2. The CD lives at the global offset `cd_offset`; it is small and sits in
@@ -98,7 +108,16 @@ pub async fn fetch_central_directory(
         let name_bytes = cd_bytes.get(i + 46..i + 46 + nlen).unwrap_or(&[]);
         let name = String::from_utf8_lossy(name_bytes).into_owned();
 
-        entries.push(CdEntry { name, crc32 });
+        let raw_size = read_u32(&cd_bytes, i + 24).unwrap_or(u32::MAX);
+        let extra = cd_bytes
+            .get(i + 46 + nlen..i + 46 + nlen + elen)
+            .unwrap_or(&[]);
+        let unpacked_size = unpacked_size(raw_size, extra);
+        entries.push(CdEntry {
+            name,
+            crc32,
+            unpacked_size,
+        });
         i += 46 + nlen + elen + clen;
     }
 
@@ -110,6 +129,23 @@ pub async fn fetch_central_directory(
         )));
     }
     Ok(entries)
+}
+
+fn unpacked_size(raw: u32, extra: &[u8]) -> Option<u64> {
+    if raw != u32::MAX {
+        return Some(raw as u64);
+    }
+    let mut offset = 0;
+    while offset + 4 <= extra.len() {
+        let id = read_u16(extra, offset)?;
+        let len = read_u16(extra, offset + 2)? as usize;
+        let payload = extra.get(offset + 4..offset + 4 + len)?;
+        if id == 1 {
+            return read_u64(payload, 0);
+        }
+        offset += 4 + len;
+    }
+    None
 }
 
 fn file_crc32(path: &Path) -> std::io::Result<u32> {
@@ -212,18 +248,29 @@ mod tests {
         let files: Vec<(String, Vec<u8>)> = (0..20)
             .map(|i| (format!("Managed/lib{}.dll", i), vec![i as u8; 1000 + i]))
             .collect();
-        let refs: Vec<(&str, &[u8])> =
-            files.iter().map(|(n, d)| (n.as_str(), d.as_slice())).collect();
+        let refs: Vec<(&str, &[u8])> = files
+            .iter()
+            .map(|(n, d)| (n.as_str(), d.as_slice()))
+            .collect();
         let dir = write_game_dir(&refs);
 
         let mut entries: Vec<CdEntry> = files
             .iter()
-            .map(|(n, d)| CdEntry { name: n.clone(), crc32: crc(d) })
+            .map(|(n, d)| CdEntry {
+                unpacked_size: Some(0),
+                name: n.clone(),
+                crc32: crc(d),
+            })
             .collect();
         // Directory markers and VFS assets must be ignored even when absent
         // on disk — the VFS delta owns them.
-        entries.push(CdEntry { name: "Managed/".into(), crc32: 0 });
         entries.push(CdEntry {
+            unpacked_size: Some(0),
+            name: "Managed/".into(),
+            crc32: 0,
+        });
+        entries.push(CdEntry {
+            unpacked_size: Some(0),
             name: format!("{}/bundle.dat", VFS_PREFIX),
             crc32: 0,
         });
@@ -241,8 +288,16 @@ mod tests {
     fn missing_engine_file_means_not_current() {
         let dir = write_game_dir(&[("Endfield.exe", b"engine".as_slice())]);
         let entries = vec![
-            CdEntry { name: "Endfield.exe".into(), crc32: crc(b"engine") },
-            CdEntry { name: "missing.dll".into(), crc32: 1 },
+            CdEntry {
+                unpacked_size: Some(0),
+                name: "Endfield.exe".into(),
+                crc32: crc(b"engine"),
+            },
+            CdEntry {
+                unpacked_size: Some(0),
+                name: "missing.dll".into(),
+                crc32: 1,
+            },
         ];
         assert!(!engine_is_current(&entries, dir.to_str().unwrap()));
         let _ = std::fs::remove_dir_all(&dir);
@@ -262,4 +317,17 @@ pub fn emit_checking(app: &tauri::AppHandle) {
         },
     )
     .ok();
+}
+
+#[cfg(test)]
+mod size_tests {
+    use super::*;
+    #[test]
+    fn reads_zip32_and_zip64_sizes_without_guessing() {
+        assert_eq!(unpacked_size(123, &[]), Some(123));
+        assert_eq!(unpacked_size(u32::MAX, &[]), None);
+        let mut extra = vec![1, 0, 8, 0];
+        extra.extend_from_slice(&9_000_000_000u64.to_le_bytes());
+        assert_eq!(unpacked_size(u32::MAX, &extra), Some(9_000_000_000));
+    }
 }

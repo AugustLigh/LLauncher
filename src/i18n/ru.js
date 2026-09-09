@@ -1,4 +1,6 @@
+import ui from './ui.ru';
 export default {
+  ui,
   common: {
     cancel: 'Отмена',
     save: 'Сохранить',
@@ -21,6 +23,7 @@ export default {
     updateTooltip: 'Вышла новая версия LLauncher — нажмите, чтобы открыть страницу релиза',
   },
   home: {
+    stateCheckFailed: 'Не удалось проверить версию игры. Проверьте соединение и повторите попытку.',
     gameSubtitle: 'Arknights: Endfield',
     gameTitle: 'Endfield',
     badge: {
@@ -29,9 +32,10 @@ export default {
       notInstalled: 'Не установлена',
     },
     action: {
+      launching: 'Запуск игры...',
       install: 'Установить',
       update: 'Обновить',
-      launch: 'Запустить',
+      launch: 'Играть',
       downloading: 'Загрузка...',
       verifying: 'Проверка...',
       extracting: 'Распаковка...',
@@ -58,6 +62,8 @@ export default {
     },
   },
   progress: {
+    fetchLabel: 'Получение списка файлов...',
+    filesChecked: 'Проверено файлов: {current} / {total}',
     fileLabel: 'Файл {current}/{total}: {name}',
     verifyLabel: 'Проверка {current}/{total}: {name}',
     extractLabel: 'Распаковка архива...',
@@ -112,10 +118,8 @@ export default {
       noGame: 'Сначала установите игру.',
       skins: {
         title: 'Модели и скины',
-        cost: 'кадры просядут',
-        sub: 'Внешность персонажей, оружия и интерфейса. Новых персонажей и механик не добавляют.',
         loader: 'Загрузчик модов EFMI',
-        legacy: 'старый загрузчик — переустановите, чтобы перейти на EFMI',
+        legacy: 'Требуется обновление',
         upgrade: 'Обновить',
         install: 'Установить',
         installing: 'Установка…',
@@ -124,23 +128,20 @@ export default {
         open: 'Открыть',
         catalog: 'Каталог',
         count: 'модов: {count}',
-        empty: 'пусто — положите сюда папку мода',
-        button: 'Кнопка «Запуск с модами» на главной',
+        empty: 'Модов: 0',
+        button: 'Кнопка «Запуск с модами»',
       },
       looks: {
         title: 'Картинка и цвета',
-        free: 'без потери кадров',
-        sub: 'Резкость, цвета, HDR. Работают при обычном запуске, на родном Vulkan.',
         vkbasalt: 'vkBasalt',
-        vkbasaltMissing: 'нет в системе — установите пакет vkbasalt',
-        howto: 'Как поставить',
+        vkbasaltMissing: 'Не установлен',
+        howto: 'Установка',
         reshade: 'ReShade / RenoDX',
-        reshadeFound: 'найден, включится в режиме модов',
-        reshadeHint: 'положите ReShade как dxgi.dll в папку игры',
+        reshadeFound: 'Найден',
+        reshadeHint: 'Не найден',
       },
       installed: 'Загрузчик установлен ({version})',
       uninstalled: 'Загрузчик удалён, моды остались на месте',
-      risk: 'Игра защищена античитом ACE. Массовых банов за косметические моды не зафиксировано, но гарантий никто не даёт.',
     },
     gameDir: 'Папка игры',
     downloadDir: 'Папка для загрузок',
@@ -313,6 +314,10 @@ export default {
     openProtonSettings: 'Открыть настройки Proton',
   },
   logViewer: {
+    copy: 'Скопировать лог',
+    copied: 'Лог скопирован.',
+    copyFailed: 'Не удалось скопировать. Выделите текст лога и скопируйте вручную.',
+    readFailed: 'Не удалось прочитать лог',
     title: 'Лог запуска',
     empty: 'Лог недоступен — игра ещё не запускалась.',
     refresh: 'Обновить',

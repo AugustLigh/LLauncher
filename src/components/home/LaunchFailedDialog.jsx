@@ -1,18 +1,22 @@
-import { useState } from 'react';
-import LogViewer from '../common/LogViewer';
-import useModalDismiss from '../../hooks/useModalDismiss';
-import { useTranslation } from '../../i18n';
-import './LaunchFailedDialog.css';
+import { useState } from "react";
+import LogViewer from "../common/LogViewer";
+import useModalDismiss from "../../hooks/useModalDismiss";
+import { useTranslation } from "../../i18n";
+import "./LaunchFailedDialog.css";
 
 // Known-failure signature ids from the backend (game::diagnose) mapped to
 // their translated advice. `proton` marks the ones a different Proton build
 // fixes, which are the only ones the shortcut into those settings helps with.
 const HINTS = {
-  'dwproton11-ntoskrnl': { key: 'launchFailed.hintDwproton11', proton: true },
-  'x-clients-exhausted': { key: 'launchFailed.hintXClients' },
+  "dwproton11-ntoskrnl": { key: "launchFailed.hintDwproton11", proton: true },
+  "x-clients-exhausted": { key: "launchFailed.hintXClients" },
 };
 
-export default function LaunchFailedDialog({ failure, onClose, onOpenProtonSettings }) {
+export default function LaunchFailedDialog({
+  failure,
+  onClose,
+  onOpenProtonSettings,
+}) {
   const { t } = useTranslation();
   const [showFullLog, setShowFullLog] = useState(false);
   // Escape closes the log viewer first when it is open, then the dialog.
@@ -20,20 +24,35 @@ export default function LaunchFailedDialog({ failure, onClose, onOpenProtonSetti
 
   if (!failure) return null;
 
-  const exitText = failure.exit_code != null
-    ? t('launchFailed.exitCode', { code: failure.exit_code })
-    : t('launchFailed.exitCodeUnknown');
+  const exitText =
+    failure.exit_code != null
+      ? t("launchFailed.exitCode", { code: failure.exit_code })
+      : t("launchFailed.exitCodeUnknown");
 
-  const tail = (failure.log_tail || '').trim();
+  const tail = (failure.log_tail || "").trim();
   const hint = HINTS[failure.hint];
 
   return (
     <>
       <div className="launch-failed-overlay" onClick={onClose}>
-        <div className="launch-failed" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="launch-failed"
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("launchFailed.title")}
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="launch-failed__header">
-            <span className="launch-failed__title">{t('launchFailed.title')}</span>
-            <button className="launch-failed__close" onClick={onClose}>{'✕'}</button>
+            <span className="launch-failed__title">
+              {t("launchFailed.title")}
+            </span>
+            <button
+              className="launch-failed__close"
+              onClick={onClose}
+              aria-label={t("common.close")}
+            >
+              {"✕"}
+            </button>
           </div>
           <div className="launch-failed__body">
             <div className="launch-failed__exit">{exitText}</div>
@@ -45,28 +64,33 @@ export default function LaunchFailedDialog({ failure, onClose, onOpenProtonSetti
                     className="launch-failed__btn launch-failed__btn--primary"
                     onClick={onOpenProtonSettings}
                   >
-                    {t('launchFailed.openProtonSettings')}
+                    {t("launchFailed.openProtonSettings")}
                   </button>
                 )}
               </div>
             )}
-            {tail ? (
-              <pre className="launch-failed__tail">{tail}</pre>
-            ) : (
-              <div className="launch-failed__empty">{t('launchFailed.noLog')}</div>
-            )}
+            <details className="launch-failed__details">
+              <summary>{t("ui.details")}</summary>
+              {tail ? (
+                <pre className="launch-failed__tail">{tail}</pre>
+              ) : (
+                <div className="launch-failed__empty">
+                  {t("launchFailed.noLog")}
+                </div>
+              )}
+            </details>
             <div className="launch-failed__actions">
               <button
                 className="launch-failed__btn launch-failed__btn--secondary"
                 onClick={() => setShowFullLog(true)}
               >
-                {t('launchFailed.viewLog')}
+                {t("launchFailed.viewLog")}
               </button>
               <button
                 className="launch-failed__btn launch-failed__btn--primary"
                 onClick={onClose}
               >
-                {t('common.close')}
+                {t("common.close")}
               </button>
             </div>
           </div>

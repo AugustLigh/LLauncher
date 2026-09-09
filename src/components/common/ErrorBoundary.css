@@ -76,11 +76,11 @@
 
 .error-boundary__btn--primary {
   background: var(--color-accent);
-  color: var(--color-bg);
+  color: var(--color-on-accent);
   border-color: transparent;
 }
 
 .error-boundary__btn--primary:hover {
   background: var(--color-accent-hover);
-  color: var(--color-bg);
+  color: var(--color-on-accent);
 }

@@ -1,42 +1,95 @@
 .news-panel {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  height: var(--news-height);
   display: flex;
   flex-direction: column;
-  height: 100%;
+  color: var(--color-text-primary);
+  background: #1e1e1e;
 }
-
-.news-panel__tabs {
+.news-panel__heading {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 28px;
   display: flex;
-  gap: 0;
-  padding: var(--space-sm) var(--space-md) 0;
-  border-bottom: 1px solid var(--color-border);
-  flex-shrink: 0;
+  align-items: center;
 }
-
-.news-panel__tab {
-  padding: var(--space-sm) var(--space-md);
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  color: var(--color-text-secondary);
-  border-bottom: 2px solid transparent;
-  transition: all var(--transition-fast);
+.news-panel__heading h2 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
   white-space: nowrap;
 }
-
+.news-panel__heading button {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  padding: 4px 0 4px 8px;
+}
+.news-panel__tabs {
+  display: flex;
+  flex-shrink: 0;
+  gap: 16px;
+  padding-right: 92px;
+  min-height: 28px;
+  border-bottom: 1px solid #ffffff1a;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.news-panel__tab {
+  flex-shrink: 0;
+  padding: 2px 0 8px;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
 .news-panel__tab:hover {
   color: var(--color-text-primary);
-  background: rgba(255, 255, 255, 0.04);
 }
-
-.news-panel__tab--active {
-  color: var(--color-accent);
+.news-panel__tab--active,
+.news-panel__tab--active:hover {
+  color: var(--color-accent-text);
   border-bottom-color: var(--color-accent);
 }
-
+.news-panel__heading button:hover {
+  color: var(--color-text-primary);
+}
 .news-panel__content {
   flex: 1;
-  overflow-y: auto;
-  padding: var(--space-sm) var(--space-sm);
+  min-height: 0;
+  margin-top: 7px;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+.news-panel__empty {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  padding: 12px 0;
+}
+.news-panel:not(:has(.news-panel__tabs)) .news-panel__content {
+  margin-top: 28px;
+}
+@media (max-width: 1100px) {
+  .news-panel__tabs {
+    gap: 12px;
+    padding-right: 32px;
+  }
+  .news-panel__heading button {
+    font-size: 0;
+    width: 24px;
+    padding: 4px;
+  }
+  .news-panel__heading button::after {
+    content: "…";
+    font-size: 18px;
+  }
 }

@@ -1,46 +1,65 @@
 .social-sidebar {
-  grid-column: 2;
-  grid-row: 1;
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 20;
+  width: var(--sidebar-width);
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 18px;
+  padding: 14px 8px;
+  background: #171717;
+}
+.social-sidebar__app-icon {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+.social-sidebar__links {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-md);
-  padding: var(--space-sm) 0;
-  padding-left: var(--space-md);
-}
-
-.social-sidebar__btn {
-  width: 42px;
-  height: 42px;
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  padding: 6px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.social-sidebar__btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.18);
-  transform: scale(1.1);
-  color: rgba(255, 255, 255, 1);
-}
-
-.social-sidebar__icon {
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: opacity var(--transition-fast);
-}
-
-.social-sidebar__icon svg {
+  gap: 6px;
+  min-height: 0;
   width: 100%;
-  height: 100%;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.social-sidebar__links a {
+  width: 42px;
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  color: #bdbdbd;
+  border-radius: 4px;
+  transition:
+    color var(--transition-fast),
+    background var(--transition-fast);
+}
+.social-sidebar__links a > span {
+  width: 21px;
+  height: 21px;
+  display: grid;
+  place-items: center;
+}
+.social-sidebar__links a:hover {
+  color: #ffffff;
+  background: #ffffff12;
+}
+.social-sidebar__links a:focus-visible {
+  outline-offset: -2px;
+}
+@media (max-height: 620px) {
+  .social-sidebar {
+    gap: 10px;
+    padding-top: 10px;
+  }
+  .social-sidebar__links {
+    gap: 2px;
+  }
+  .social-sidebar__links a {
+    min-height: 36px;
+  }
 }
