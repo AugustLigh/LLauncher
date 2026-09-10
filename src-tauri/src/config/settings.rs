@@ -95,6 +95,31 @@ pub struct AppSettings {
     /// Extra raw arguments appended to the gamescope invocation.
     #[serde(default)]
     pub gamescope_extra_args: String,
+    /// macOS only: where the Wine build that runs the game lives. Accepts the
+    /// `wine`/`wine64` binary itself, an install root holding `bin/wine`, or
+    /// a WineHQ-style `.app` bundle. Empty means the launcher's most recent
+    /// own install — see `game::launcher::macos::resolve_wine`.
+    #[serde(default)]
+    pub macos_wine_dir: String,
+    /// macOS only: tell Rosetta to advertise AVX support to the translated
+    /// x86-64 code, which it hides unless asked; the game's binaries and
+    /// DXMT expect it. Harmless on an Intel Mac, which runs the game without
+    /// Rosetta at all.
+    #[serde(default = "default_true")]
+    pub macos_advertise_avx: bool,
+    /// macOS only: Metal's built-in performance overlay (MTL_HUD_ENABLED),
+    /// the local equivalent of MangoHud.
+    #[serde(default)]
+    pub macos_metal_hud: bool,
+    /// macOS only: pass `-vulkan` and let the game drive its own Vulkan
+    /// renderer through winevulkan/MoltenVK, instead of `-force-d3d11` and
+    /// DXMT. Off by default: the game's Vulkan renderer does not draw a
+    /// frame over MoltenVK (a white screen, per Endfield_FineWine's report), and
+    /// DXMT is the path DXMT-equipped builds are tuned for. Kept as a switch
+    /// for the day MoltenVK catches up, and for telling a DXMT bug from a
+    /// game bug.
+    #[serde(default)]
+    pub macos_native_vulkan: bool,
     /// Windows only: start the game elevated (UAC prompt) right away instead
     /// of waiting for `CreateProcess` to fail with ERROR_ELEVATION_REQUIRED.
     /// Some anti-cheat drivers need it; most installs do not.
@@ -178,6 +203,10 @@ impl Default for AppSettings {
             gamescope_upscaler: default_gamescope_upscaler(),
             gamescope_hdr: false,
             gamescope_extra_args: String::new(),
+            macos_wine_dir: String::new(),
+            macos_advertise_avx: true,
+            macos_metal_hud: false,
+            macos_native_vulkan: false,
             windows_run_as_admin: false,
             windows_use_vulkan: false,
             windows_prefer_dgpu: false,

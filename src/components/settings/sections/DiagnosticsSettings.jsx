@@ -18,7 +18,26 @@ export default function DiagnosticsSettings({
     [message, setMessage] = useState(""),
     [working, setWorking] = useState(false),
     [prefix, setPrefix] = useState(null);
-  const linux = systemCheck?.platform !== "windows";
+  // "linux" here means "has a Wine prefix": macOS does too.
+  const platform = systemCheck?.platform || "linux";
+  const linux = platform !== "windows";
+  const checks =
+    platform === "macos"
+      ? [
+          ["Wine", "has_proton"],
+          ["Rosetta 2", "has_rosetta"],
+          ["Endfield modules", "wine_patch_version"],
+          ["DXMT", "dxmt_version"],
+        ]
+      : linux
+        ? [
+            ["Proton", "has_proton"],
+            ["ntsync", "has_ntsync"],
+            ["GameMode", "has_gamemode"],
+            ["MangoHud", "has_mangohud"],
+            ["Gamescope", "has_gamescope"],
+          ]
+        : [["Windows", null]];
   useEffect(() => {
     if (linux) invoke("get_prefix_info").then(setPrefix).catch(setError);
   }, [linux]);
@@ -79,16 +98,7 @@ export default function DiagnosticsSettings({
         </Button>
       </div>
       <div className="diagnostic-checks">
-        {(linux
-          ? [
-              ["Proton", "has_proton"],
-              ["ntsync", "has_ntsync"],
-              ["GameMode", "has_gamemode"],
-              ["MangoHud", "has_mangohud"],
-              ["Gamescope", "has_gamescope"],
-            ]
-          : [["Windows", null]]
-        ).map(([label, key]) => (
+        {checks.map(([label, key]) => (
           <div key={label}>
             <span>{label}</span>
             <Status kind={!key || systemCheck?.[key] ? "success" : "neutral"}>

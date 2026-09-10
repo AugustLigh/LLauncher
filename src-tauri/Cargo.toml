@@ -13,7 +13,12 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+# `macos-private-api`: the borderless, transparent main window needs it on
+# macOS (Tauri renders such windows through private AppKit calls there; fine
+# outside the App Store). It has to sit here, on the main dependency, with
+# `app.macOSPrivateApi` in the base config to match: tauri-build compares the
+# two literally and does not see a target-specific entry. A no-op elsewhere.
+tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }

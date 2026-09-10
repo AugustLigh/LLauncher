@@ -54,6 +54,7 @@ export default function SettingsModal({
     !!form &&
     !!settings &&
     (form.proton_dir !== settings.proton_dir ||
+      form.macos_wine_dir !== settings.macos_wine_dir ||
       form.proton_prefix_dir !== settings.proton_prefix_dir);
   const edited = useRef(false),
     formRef = useRef(form),
@@ -225,7 +226,11 @@ export default function SettingsModal({
               )}
               {tab === "launch" && (
                 <LaunchSettings
-                  activeProton={settings?.proton_dir}
+                  activeProton={
+                    systemCheck?.platform === "macos"
+                      ? settings?.macos_wine_dir
+                      : settings?.proton_dir
+                  }
                   form={form}
                   onChange={onChange}
                   systemCheck={systemCheck}
@@ -267,7 +272,9 @@ export default function SettingsModal({
                 <Icon name="download" size={14} />
                 {t(
                   taskActive(tasks.proton)
-                    ? "ui.protonDownloading"
+                    ? systemCheck?.platform === "macos"
+                      ? "ui.protonDownloadingMac"
+                      : "ui.protonDownloading"
                     : "ui.downloadTask",
                 )}
               </button>

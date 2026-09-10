@@ -1,0 +1,83 @@
+diff --git a/dlls/ntdll/unix/signal_x86_64.c b/dlls/ntdll/unix/signal_x86_64.c
+index e612e5e..c0eb3e3 100644
+--- a/dlls/ntdll/unix/signal_x86_64.c
++++ b/dlls/ntdll/unix/signal_x86_64.c
+@@ -1891,6 +1891,57 @@ static inline DWORD is_privileged_instr( CONTEXT *context )
+ }
+ 
+ 
++#ifdef __APPLE__
++/***********************************************************************
++ *           handle_rosetta_nop
++ *
++ * Rosetta 2 raises an invalid-opcode fault on some encodings of the
++ * multi-byte NOPs (0F 1E / 0F 1F with a ModRM byte) that a real x86-64
++ * CPU executes as no-ops: the register form 0F 1F C1 the VMProtect
++ * layer around some games emits by the hundred thousand, and the CET
++ * ENDBR64 / RDSSP forms. Decode the instruction's length and step over
++ * it. (Endfield_FineWine, stage 1.)
++ */
++static BOOL handle_rosetta_nop( ucontext_t *sigcontext )
++{
++    BYTE instr[16];
++    unsigned int i = 0, mod, rm;
++    unsigned int len = virtual_uninterrupted_read_memory( (BYTE *)RIP_sig(sigcontext), instr, sizeof(instr) );
++
++    /* legacy and REX prefixes */
++    while (i < len)
++    {
++        BYTE b = instr[i];
++        if (b == 0x66 || b == 0x67 || b == 0x2e || b == 0x36 || b == 0x3e || b == 0x26 ||
++            b == 0x64 || b == 0x65 || b == 0xf0 || b == 0xf2 || b == 0xf3 || (b >= 0x40 && b <= 0x4f))
++        {
++            if (++i >= 15) return FALSE;
++            continue;
++        }
++        break;
++    }
++    if (i + 3 > len || instr[i] != 0x0f || (instr[i + 1] != 0x1e && instr[i + 1] != 0x1f)) return FALSE;
++    mod = instr[i + 2] >> 6;
++    rm  = instr[i + 2] & 7;
++    i += 3;
++    if (mod != 3 && rm == 4)  /* SIB byte */
++    {
++        if (i >= len) return FALSE;
++        if (mod == 0 && (instr[i] & 7) == 5) i += 4;  /* base 5 with mod 0: disp32 */
++        i++;
++    }
++    if (mod == 1) i += 1;                    /* disp8 */
++    else if (mod == 2) i += 4;               /* disp32 */
++    else if (mod == 0 && rm == 5) i += 4;    /* RIP-relative disp32 */
++    if (i > len) return FALSE;
++
++    TRACE_(seh)( "skipped %u-byte NOP at %p\n", i, (void *)RIP_sig(sigcontext) );
++    RIP_sig(sigcontext) += i;
++    return TRUE;
++}
++#endif
++
++
+ /***********************************************************************
+  *           handle_interrupt
+  *
+@@ -2293,6 +2344,20 @@ static void segv_handler( int signal, siginfo_t *siginfo, void *_sigcontext )
+         rec.ExceptionCode = EXCEPTION_ARRAY_BOUNDS_EXCEEDED;
+         break;
+     case TRAP_x86_PRIVINFLT:   /* Invalid opcode exception */
++#ifdef __APPLE__
++        if (handle_rosetta_nop( sigcontext ))
++        {
++            leave_handler( data, sigcontext );
++            return;
++        }
++        /* Rosetta 2 reports a privileged instruction (mov reg,cr3 - an
++         * anti-VM probe some anti-cheat drivers make) as an invalid opcode
++         * rather than as the #GP a real CPU raises, so the program would
++         * see EXCEPTION_ILLEGAL_INSTRUCTION where Windows and Linux give
++         * EXCEPTION_PRIV_INSTRUCTION. Hand it the latter, as the #GP path
++         * below does. (Endfield_FineWine, stage 2.) */
++        if ((rec.ExceptionCode = is_privileged_instr( &context.c ))) break;
++#endif
+         rec.ExceptionCode = EXCEPTION_ILLEGAL_INSTRUCTION;
+         break;
+     case TRAP_x86_STKFLT:  /* Stack fault */

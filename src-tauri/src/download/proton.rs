@@ -21,15 +21,22 @@ const DWPROTON_RELEASES_URL: &str =
 pub const RECOMMENDED_DWPROTON_TAG: &str = "dwproton-10.0-26";
 
 fn parse_release(release: &serde_json::Value) -> Option<ProtonReleaseInfo> {
+    parse_release_with(release, |name| name.contains("x86_64") && name.ends_with(".tar.xz"))
+}
+
+/// Turn one release object into a `ProtonReleaseInfo`, picking the asset that
+/// `wanted` accepts. The JSON shape is GitHub's, which Gitea (dawn.wine)
+/// mirrors — so the same parser serves DWProton and the macOS Wine builds.
+pub fn parse_release_with(
+    release: &serde_json::Value,
+    wanted: impl Fn(&str) -> bool,
+) -> Option<ProtonReleaseInfo> {
     let tag_name = release["tag_name"].as_str()?.to_string();
     let assets = release["assets"].as_array()?;
 
-    let asset = assets.iter().find(|a| {
-        a["name"]
-            .as_str()
-            .map(|n| n.contains("x86_64") && n.ends_with(".tar.xz"))
-            .unwrap_or(false)
-    })?;
+    let asset = assets
+        .iter()
+        .find(|a| a["name"].as_str().map(&wanted).unwrap_or(false))?;
 
     let download_url = asset["browser_download_url"].as_str()?.to_string();
     let file_name = asset["name"].as_str().unwrap_or("dwproton.tar.xz").to_string();
@@ -126,50 +133,8 @@ pub async fn download_and_extract_dwproton(
 
     let archive_path = dest_path.join(&info.file_name);
 
-    // Download
-    emit_progress(app, 0, info.size, 0, "downloading");
-
-    let response =
-        crate::util::send_with_stall_timeout(client.get(&info.download_url), DOWNLOAD_STALL_TIMEOUT)
-            .await?;
-    let total_size = response.content_length().unwrap_or(info.size);
-
-    let mut stream = response.bytes_stream();
-    let file = tokio::fs::File::create(&archive_path)
-        .await
-        .map_err(AppError::Io)?;
-    let mut writer = tokio::io::BufWriter::with_capacity(512 * 1024, file);
-    let mut downloaded: u64 = 0;
-    let mut last_emit = std::time::Instant::now();
-    let start_time = std::time::Instant::now();
-
-    use tokio::io::AsyncWriteExt;
-
-    while let Some(chunk) = stream.next().await {
-        if !cancel_flag.load(Ordering::SeqCst) {
-            drop(writer);
-            let _ = std::fs::remove_file(&archive_path);
-            return Err(AppError::Cancelled);
-        }
-
-        let chunk = chunk.map_err(AppError::Http)?;
-        writer.write_all(&chunk).await.map_err(AppError::Io)?;
-        downloaded += chunk.len() as u64;
-
-        if last_emit.elapsed().as_millis() >= 150 {
-            let elapsed = start_time.elapsed().as_secs_f64();
-            let speed = if elapsed > 0.1 {
-                (downloaded as f64 / elapsed) as u64
-            } else {
-                0
-            };
-            emit_progress(app, downloaded, total_size, speed, "downloading");
-            last_emit = std::time::Instant::now();
-        }
-    }
-
-    writer.flush().await.map_err(AppError::Io)?;
-    drop(writer);
+    let (downloaded, total_size) =
+        download_asset(app, client, cancel_flag, &info, &archive_path).await?;
 
     // Extract
     emit_progress(app, downloaded, total_size, 0, "extracting");
@@ -210,6 +175,66 @@ pub async fn download_and_extract_dwproton(
     Ok((proton_dir, version))
 }
 
+/// Stream one release asset to `archive_path`, reporting on the
+/// `proton://progress` channel. Returns (bytes written, total size).
+///
+/// `cancel_flag` is the "keep going" flag: the command sets it before starting
+/// and the cancel command clears it, so a `false` mid-stream means "stop".
+/// The half-written archive is removed on cancel.
+pub async fn download_asset(
+    app: &tauri::AppHandle,
+    client: &reqwest::Client,
+    cancel_flag: &Arc<AtomicBool>,
+    info: &ProtonReleaseInfo,
+    archive_path: &Path,
+) -> Result<(u64, u64), AppError> {
+    emit_progress(app, 0, info.size, 0, "downloading");
+
+    let response =
+        crate::util::send_with_stall_timeout(client.get(&info.download_url), DOWNLOAD_STALL_TIMEOUT)
+            .await?;
+    let total_size = response.content_length().unwrap_or(info.size);
+
+    let mut stream = response.bytes_stream();
+    let file = tokio::fs::File::create(archive_path)
+        .await
+        .map_err(AppError::Io)?;
+    let mut writer = tokio::io::BufWriter::with_capacity(512 * 1024, file);
+    let mut downloaded: u64 = 0;
+    let mut last_emit = std::time::Instant::now();
+    let start_time = std::time::Instant::now();
+
+    use tokio::io::AsyncWriteExt;
+
+    while let Some(chunk) = stream.next().await {
+        if !cancel_flag.load(Ordering::SeqCst) {
+            drop(writer);
+            let _ = std::fs::remove_file(archive_path);
+            return Err(AppError::Cancelled);
+        }
+
+        let chunk = chunk.map_err(AppError::Http)?;
+        writer.write_all(&chunk).await.map_err(AppError::Io)?;
+        downloaded += chunk.len() as u64;
+
+        if last_emit.elapsed().as_millis() >= 150 {
+            let elapsed = start_time.elapsed().as_secs_f64();
+            let speed = if elapsed > 0.1 {
+                (downloaded as f64 / elapsed) as u64
+            } else {
+                0
+            };
+            emit_progress(app, downloaded, total_size, speed, "downloading");
+            last_emit = std::time::Instant::now();
+        }
+    }
+
+    writer.flush().await.map_err(AppError::Io)?;
+    drop(writer);
+
+    Ok((downloaded, total_size))
+}
+
 fn find_proton_dir(base: &Path) -> Result<String, AppError> {
     // Look for a directory containing a `proton` executable
     if let Ok(entries) = std::fs::read_dir(base) {
@@ -231,7 +256,7 @@ fn find_proton_dir(base: &Path) -> Result<String, AppError> {
     ))
 }
 
-fn emit_progress(
+pub fn emit_progress(
     app: &tauri::AppHandle,
     bytes_downloaded: u64,
     bytes_total: u64,

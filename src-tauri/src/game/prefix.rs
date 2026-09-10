@@ -1,7 +1,9 @@
-//! Maintenance for the game's Proton prefix: shader caches, backup/restore
-//! and a full reset. Linux-only — on Windows there is no prefix, so every
-//! entry point is a stub returning `Unsupported` and the UI hides the whole
-//! section.
+//! Maintenance for the game's Wine prefix: shader caches, backup/restore and
+//! a full reset. Shared by Linux and macOS — both launchers lay the prefix
+//! out the same way, `<base>/endfield/pfx`, so nothing in here has to know
+//! whether Proton or a bare Wine build made it. On Windows there is no prefix
+//! at all, so every entry point is a stub returning `Unsupported` and the UI
+//! hides the whole section.
 
 #[cfg(unix)]
 use std::path::Path;
@@ -89,7 +91,7 @@ fn collect_dir_size(dir: &Path, result: &mut ShaderCacheResult) {
 pub fn backup(compat_data: &Path, dest: &Path) -> Result<(), AppError> {
     if !compat_data.join("pfx").exists() {
         return Err(AppError::Api(
-            "No Proton prefix exists yet — launch the game once first".to_string(),
+            "No Wine prefix exists yet — launch the game once first".to_string(),
         ));
     }
 
@@ -169,8 +171,8 @@ pub fn restore(compat_data: &Path, archive: &Path) -> Result<(), AppError> {
     Ok(())
 }
 
-/// Delete the prefix entirely. Proton recreates a clean one on the next
-/// launch; the game will re-login and re-apply its settings.
+/// Delete the prefix entirely. The next launch recreates a clean one; the
+/// game will re-login and re-apply its settings.
 #[cfg(unix)]
 pub fn reset(compat_data: &Path) -> Result<(), AppError> {
     if compat_data.exists() {

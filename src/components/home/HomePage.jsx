@@ -100,6 +100,11 @@ export default function HomePage({
   });
   const isLinux = systemCheck?.platform !== "windows";
   const needsProton = isLinux && systemCheck && !systemCheck.has_proton;
+  // The runtime step reads "Proton" on Linux and "Wine" on macOS; the flow
+  // behind it (install it for me / pick one) is the same.
+  const isMac = systemCheck?.platform === "macos";
+  const runtimeName = isMac ? "Wine" : "Proton";
+  const rt = (key) => t(isMac ? `ui.${key}Mac` : `ui.${key}`);
   const loadPlan = useCallback(async () => {
     const id = ++planRequest.current;
     setPlanLoading(true);
@@ -201,7 +206,7 @@ export default function HomePage({
   };
   const confirmCancel = (slot) =>
     setConfirmation({
-      title: t(slot === "proton" ? "ui.protonCancel" : "ui.cancelTitle"),
+      title: slot === "proton" ? rt("protonCancel") : t("ui.cancelTitle"),
       message: t(slot === "proton" ? "ui.protonCancelBody" : "ui.cancelBody"),
       label: t(slot === "proton" ? "ui.stop" : "ui.cancelConfirm"),
       run: () => stopTask(slot, true),
@@ -260,11 +265,13 @@ export default function HomePage({
     state === "ready"
       ? t("home.action.launch")
       : state === "notInstalled"
-        ? t(needsProton ? "ui.installBoth" : "home.action.install")
+        ? needsProton
+          ? rt("installBoth")
+          : t("home.action.install")
         : state === "update"
           ? t("ui.updateAction")
           : ["needsProton", "protonError"].includes(state)
-            ? t("ui.installProton")
+            ? rt("installProton")
             : errorState
               ? t("common.retry")
               : t(`ui.${labels[state] || state}`);
@@ -439,7 +446,7 @@ export default function HomePage({
               {needsProton && (
                 <div className="home-page__runtime-line">
                   <Icon name="download" size={15} />
-                  <span>Proton</span>
+                  <span>{runtimeName}</span>
                   <small>{t("ui.recommendedBuild")}</small>
                 </div>
               )}
@@ -448,10 +455,12 @@ export default function HomePage({
         )}
         {["needsProton", "protonError"].includes(state) && (
           <>
-            <h2>{t("ui.protonTitle")}</h2>
+            <h2>{rt("protonTitle")}</h2>
             <div className="home-page__checklist">
               <Status kind="success">{t("ui.gameFound")}</Status>
-              <span>{t("ui.runtime")} · Proton</span>
+              <span>
+                {t("ui.runtime")} · {runtimeName}
+              </span>
             </div>
           </>
         )}
@@ -557,7 +566,7 @@ export default function HomePage({
             className="home-page__subaction"
             onClick={() => onOpenSettings("proton")}
           >
-            {t("ui.selectProton")}
+            {rt("selectProton")}
             <Icon name="arrow" size={14} />
           </button>
         )}

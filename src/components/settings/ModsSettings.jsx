@@ -16,7 +16,9 @@ export default function ModsSettings({
     [busy, setBusy] = useState(null),
     [error, setError] = useState(null),
     [message, setMessage] = useState("");
-  const linux = systemCheck?.platform !== "windows";
+  // vkBasalt is a Vulkan layer, so it exists on Linux only — not on Windows,
+  // and not on macOS, where the game reaches Metal through DXMT.
+  const linux = systemCheck?.platform === "linux";
   const refresh = useCallback(async () => {
     setError(null);
     try {

@@ -254,6 +254,26 @@ export default {
       name: 'Canonical Hole (skip_volatile_check)',
       desc: 'WINE_CANONICAL_HOLE=skip_volatile_check — может ускорить игру до 200% (DWProton)',
     },
+    wineDir: 'Установка Wine',
+    macos: {
+      wineInUse: 'Используемый Wine',
+      modulesPresent: 'Модули Endfield {version}: патчи античита и исправления Rosetta на месте.',
+      modulesAbsent: 'В этой сборке нет модулей Endfield: драйвер античита упадёт при старте. Установите сборку из списка выше.',
+      dxmtPresent: 'DXMT {version}: Direct3D 11 транслируется напрямую в Metal.',
+      dxmtAbsent: 'В этой сборке нет DXMT: Direct3D 11 пойдёт через OpenGL-путь Wine, на macOS это медленно.',
+      vulkan: {
+        name: 'Родной рендерер Vulkan',
+        desc: 'Запускать игру с -vulkan, чтобы она сама работала через MoltenVK вместо Direct3D 11 через DXMT. По умолчанию выключено: через MoltenVK игра сейчас рисует белый экран. Полезно, чтобы отличить проблему DXMT от проблемы игры.',
+      },
+      avx: {
+        name: 'Сообщать Rosetta про AVX',
+        desc: 'Разрешить транслируемому коду x86-64 видеть AVX — Rosetta скрывает его, пока не попросят; игра и DXMT на него рассчитывают. На Intel-маке ни на что не влияет.',
+      },
+      metalHud: {
+        name: 'Оверлей Metal',
+        desc: 'Встроенный оверлей производительности от Apple, местный аналог MangoHud.',
+      },
+    },
     windows: {
       vulkan: {
         name: 'Рендерер Vulkan',

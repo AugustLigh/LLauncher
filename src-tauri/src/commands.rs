@@ -732,7 +732,7 @@ fn run_capture(cmd: &str, args: &[&str]) -> String {
         .unwrap_or_default()
 }
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 fn debug_header(settings: &AppSettings) -> String {
     let os = std::fs::read_to_string("/etc/os-release")
         .ok()
@@ -788,6 +788,52 @@ fn debug_header(settings: &AppSettings) -> String {
         esync = settings.disable_esync,
         sdl_input = settings.use_sdl_input,
         flatpak = std::env::var_os("FLATPAK_ID").is_some(),
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn debug_header(settings: &AppSettings) -> String {
+    let os = run_capture("sw_vers", &["-productVersion"]);
+    let build = run_capture("sw_vers", &["-buildVersion"]);
+    // `machdep.cpu.brand_string` names the Apple silicon or Intel part; the
+    // GPU is the same chip on Apple silicon, so one line covers both.
+    let cpu = run_capture("sysctl", &["-n", "machdep.cpu.brand_string"]);
+    // 1 on an arm64 Mac, so a bug report says whether the game came through
+    // Rosetta at all.
+    let arm = run_capture("sysctl", &["-n", "hw.optional.arm64"]) == "1";
+
+    let wine = crate::game::launcher::resolve_wine(settings)
+        .map(|w| w.wine.to_string_lossy().to_string())
+        .unwrap_or_else(|| "not found".to_string());
+    let dxmt = crate::download::wine::dxmt_version_for(std::path::Path::new(&wine))
+        .unwrap_or_else(|| "none".to_string());
+    let modules = crate::download::wine::modules_version_for(std::path::Path::new(&wine))
+        .unwrap_or_else(|| "none".to_string());
+
+    format!(
+        "LLauncher {version}\n\
+         OS: macOS {os} (build {build})\n\
+         CPU: {cpu} (arm64: {arm}, rosetta: {rosetta})\n\
+         Wine: {wine}\n\
+         DXMT: {dxmt}\n\
+         Endfield modules: {modules}\n\
+         Game version: {game_version}\n\
+         Flags: avx={avx} metal_hud={hud} vulkan={vulkan} discord_rpc={discord} on_launch={on_launch}",
+        version = env!("CARGO_PKG_VERSION"),
+        os = if os.is_empty() { "version unknown".to_string() } else { os },
+        build = if build.is_empty() { "?".to_string() } else { build },
+        cpu = if cpu.is_empty() { "unknown".to_string() } else { cpu },
+        arm = arm,
+        rosetta = crate::download::wine::rosetta_available(),
+        wine = wine,
+        dxmt = dxmt,
+        modules = modules,
+        game_version = if settings.installed_version.is_empty() { "not installed" } else { &settings.installed_version },
+        avx = settings.macos_advertise_avx,
+        hud = settings.macos_metal_hud,
+        vulkan = settings.macos_native_vulkan,
+        discord = settings.use_discord_rpc,
+        on_launch = settings.on_launch_action,
     )
 }
 
@@ -903,19 +949,30 @@ pub async fn update_installed_version(
 pub async fn check_system_requirements(
     state: State<'_, AppState>,
 ) -> Result<crate::game::proton::SystemCheck, AppError> {
-    let settings = state.settings.lock().await;
-    let proton_dir = settings.proton_dir.clone();
-    drop(settings);
-    // Shells out to `which` a few times — keep that off the async runtime.
-    tokio::task::spawn_blocking(move || crate::game::proton::check_system(&proton_dir))
+    let settings = state.settings.lock().await.clone();
+    // Shells out to `which` a few times on Linux and stats a list of install
+    // locations on macOS — keep both off the async runtime.
+    tokio::task::spawn_blocking(move || crate::game::proton::check_system(&settings))
         .await
         .map_err(|e| AppError::Api(format!("system check task failed: {}", e)))
 }
+
+// ---------------------------------------------------------------------------
+// The compatibility layer the launcher installs itself. The commands keep
+// their DWProton names — the frontend's picker, prompt and progress UI are the
+// same on both Unix platforms — but on macOS they deal in Wine Staging + DXMT
+// (see `download::wine`) and in `macos_wine_dir` rather than `proton_dir`.
+// Runtime `cfg!` rather than `#[cfg]` so both arms are type-checked by every
+// CI job, not only the macOS one.
+// ---------------------------------------------------------------------------
 
 #[tauri::command]
 pub async fn get_dwproton_latest(
     state: State<'_, AppState>,
 ) -> Result<crate::api::types::ProtonReleaseInfo, AppError> {
+    if cfg!(target_os = "macos") {
+        return crate::download::wine::get_latest(&state.http_client).await;
+    }
     crate::download::proton::get_latest_dwproton_info(&state.http_client).await
 }
 
@@ -923,17 +980,32 @@ pub async fn get_dwproton_latest(
 pub async fn list_dwproton_releases(
     state: State<'_, AppState>,
 ) -> Result<Vec<crate::api::types::ProtonReleaseInfo>, AppError> {
+    if cfg!(target_os = "macos") {
+        return crate::download::wine::list_releases(&state.http_client).await;
+    }
     crate::download::proton::list_dwproton_releases(&state.http_client).await
 }
 
-/// The DWProton tag we install by default and flag as recommended in the picker.
+/// The DWProton tag we install by default and flag as recommended in the
+/// picker; on macOS the Wine Staging version the Endfield module set was
+/// last built and smoke-tested against.
 #[tauri::command]
 pub fn recommended_proton_tag() -> &'static str {
+    if cfg!(target_os = "macos") {
+        return crate::download::wine::RECOMMENDED_WINE_TAG;
+    }
     crate::download::proton::RECOMMENDED_DWPROTON_TAG
 }
 
 #[tauri::command]
 pub async fn list_installed_protons() -> Result<Vec<crate::api::types::InstalledProton>, AppError> {
+    if cfg!(target_os = "macos") {
+        let base = crate::config::paths::default_wine_dir();
+        return tokio::task::spawn_blocking(move || crate::download::wine::list_installed(&base))
+            .await
+            .map_err(|e| AppError::Api(format!("wine list task failed: {}", e)));
+    }
+
     let base = crate::config::paths::default_proton_dir();
     let mut installed = Vec::new();
 
@@ -949,6 +1021,8 @@ pub async fn list_installed_protons() -> Result<Vec<crate::api::types::Installed
                 installed.push(crate::api::types::InstalledProton {
                     name,
                     path: path.to_string_lossy().to_string(),
+                    dxmt: None,
+                    wine_patch: None,
                 });
             }
         }
@@ -961,7 +1035,11 @@ pub async fn list_installed_protons() -> Result<Vec<crate::api::types::Installed
 #[tauri::command]
 pub async fn set_active_proton(state: State<'_, AppState>, path: String) -> Result<(), AppError> {
     let mut settings = state.settings.lock().await;
-    settings.proton_dir = path;
+    if cfg!(target_os = "macos") {
+        settings.macos_wine_dir = path;
+    } else {
+        settings.proton_dir = path;
+    }
     settings.save_async().await?;
     Ok(())
 }
@@ -971,29 +1049,32 @@ async fn run_download_dwproton(
     state: State<'_, AppState>,
     release: Option<crate::api::types::ProtonReleaseInfo>,
 ) -> Result<(), AppError> {
-    // Always download to the base proton directory
-    let base_dir = crate::config::paths::default_proton_dir()
-        .to_string_lossy()
-        .to_string();
-
     let client = state.http_client.clone();
     let cancel_flag = state.proton_download_active.clone();
 
-    let result = crate::download::proton::download_and_extract_dwproton(
-        &app,
-        &client,
-        &cancel_flag,
-        &base_dir,
-        release,
-    )
-    .await;
+    let result = if cfg!(target_os = "macos") {
+        let base_dir = crate::config::paths::default_wine_dir();
+        crate::download::wine::download_and_install(&app, &client, &cancel_flag, &base_dir, release)
+            .await
+    } else {
+        // Always download to the base proton directory
+        let base_dir = crate::config::paths::default_proton_dir()
+            .to_string_lossy()
+            .to_string();
+        crate::download::proton::download_and_extract_dwproton(&app, &client, &cancel_flag, &base_dir, release)
+            .await
+    };
 
     cancel_flag.store(false, std::sync::atomic::Ordering::SeqCst);
 
     match result {
-        Ok((proton_dir, _version)) => {
+        Ok((layer_dir, _version)) => {
             let mut settings = state.settings.lock().await;
-            settings.proton_dir = proton_dir;
+            if cfg!(target_os = "macos") {
+                settings.macos_wine_dir = layer_dir;
+            } else {
+                settings.proton_dir = layer_dir;
+            }
             settings.save_async().await?;
             Ok(())
         }

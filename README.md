@@ -2,7 +2,7 @@
 
 # 🚀 LLauncher
 
-**A native Linux launcher for Arknights: Endfield — with Windows builds too**
+**A native Linux launcher for Arknights: Endfield — with Windows and macOS builds too**
 
 Built with Tauri v2, React, and Rust
 
@@ -24,7 +24,13 @@ The same launcher builds for Windows, where the game needs no compatibility
 layer: the install, update and verification machinery is identical and the
 Proton-specific settings simply disappear.
 
-[Download the latest release](https://github.com/AugustLigh/LLauncher/releases/latest) (AppImage / .deb / .rpm / .flatpak, plus an .exe installer and .msi for Windows)
+It also builds for macOS (experimental — see [macOS](#macos) below), where it
+assembles its own open-source compatibility layer the way it downloads
+DWProton on Linux: the official WineHQ Wine Staging package, the same
+anti-cheat patches dw-proton carries plus two Rosetta 2 fixes, and DXMT, a
+Direct3D 11 → Metal translator.
+
+[Download the latest release](https://github.com/AugustLigh/LLauncher/releases/latest) (AppImage / .deb / .rpm / .flatpak, an .exe installer and .msi for Windows, a universal .dmg for macOS)
 
 On Arch Linux (and derivatives like CachyOS, Manjaro, EndeavourOS) install from the AUR — dependencies are handled automatically:
 
@@ -50,6 +56,7 @@ install without a remote.
 - **One-click install & launch** — download, verify, extract, and play
 - **Auto-updates** — detects new game versions and patches seamlessly
 - **Proton management** — download and manage DWProton versions directly from the launcher
+- **macOS without CrossOver** — downloads Wine Staging, its own patched Wine modules (the dw-proton anti-cheat fixes and the Rosetta 2 fixes, built in CI) and DXMT — all open source — installs Rosetta 2 on the way, and runs the game with no paid or proprietary layer
 - **Multi-threaded downloads** — up to 8 concurrent connections with per-worker speed limiting
 - **File verification** — MD5 checksum validation for every downloaded file, with smart skip for already verified files
 - **System tray** — minimize to tray, launch from tray
@@ -82,6 +89,11 @@ Windows (x86_64):
 
 - **Microsoft Visual C++ Build Tools** and the **Windows SDK** — see the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/#windows)
 - **WebView2** — preinstalled on Windows 11 and current Windows 10; the installer fetches it otherwise
+
+macOS (Apple silicon or Intel):
+
+- **Xcode Command Line Tools** — see the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/#macos)
+- Nothing else at build time; at run time the launcher downloads Wine Staging (and DXMT on Apple silicon) itself, and asks for an administrator password once to install Rosetta 2 if it is missing
 
 ## Getting Started
 
@@ -138,13 +150,26 @@ npx tauri build
 | NSIS   | `bundle/nsis/LLauncher_0.3.3_x64-setup.exe`    |
 | MSI    | `bundle/msi/LLauncher_0.3.3_x64_en-US.msi`     |
 
-The platform-specific bundler settings live in `src-tauri/tauri.linux.conf.json`
-and `src-tauri/tauri.windows.conf.json`; Tauri merges the matching one over
-`tauri.conf.json` automatically.
+On macOS, likewise from a Mac (`--target universal-apple-darwin` for one DMG
+that runs on both Apple silicon and Intel, which is what CI attaches to a
+release):
+
+```bash
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
+npx tauri build --target universal-apple-darwin
+```
+
+| Format | Path                                                          |
+| ------ | ------------------------------------------------------------- |
+| DMG    | `universal-apple-darwin/release/bundle/dmg/LLauncher_0.3.3_universal.dmg` |
+
+The platform-specific bundler settings live in `src-tauri/tauri.linux.conf.json`,
+`src-tauri/tauri.windows.conf.json` and `src-tauri/tauri.macos.conf.json`; Tauri
+merges the matching one over `tauri.conf.json` automatically.
 
 ## Configuration
 
-Settings are stored in `~/.config/llauncher/settings.json` (`%APPDATA%\llauncher\settings.json` on Windows) and can be edited through the in-app settings panel.
+Settings are stored in `~/.config/llauncher/settings.json` (`%APPDATA%\llauncher\settings.json` on Windows, `~/Library/Application Support/llauncher/settings.json` on macOS) and can be edited through the in-app settings panel.
 
 | Category  | Options                                                            |
 | --------- | ------------------------------------------------------------------ |
@@ -164,6 +189,11 @@ counterpart of PRIME offload on Linux), the High performance power plan for the
 length of a session, above-normal process priority, and "Run as administrator"
 for the rare case where the anti-cheat refuses to load without elevation.
 
+On macOS the runtime picker lists Wine Staging releases instead of DWProton
+ones — only those a patched module set has been published for — and the
+Launch tab offers the macOS-only options (Vulkan renderer, Rosetta AVX, Metal
+HUD) in place of the Linux wrappers. The prefix tools are the same.
+
 <img width="1282" height="715" alt="изображение" src="https://github.com/user-attachments/assets/e9262948-b29a-4b93-bb2c-8e0438db8a6f" />
 
 
@@ -182,6 +212,16 @@ Default paths (Windows):
 Game:   %USERPROFILE%\Games\ArknightsEndfield
 Config: %APPDATA%\llauncher\settings.json
 Logs:   %APPDATA%\llauncher\launch.log
+```
+
+Default paths (macOS):
+
+```
+Game:   ~/Games/ArknightsEndfield
+Wine:   ~/Library/Application Support/llauncher/wine
+Prefix: ~/Library/Application Support/llauncher/prefix
+Config: ~/Library/Application Support/llauncher/settings.json
+Logs:   ~/Library/Application Support/llauncher/launch.log
 ```
 
 ## Mods
@@ -226,6 +266,86 @@ and does not need the D3D11 detour:
 Mods that patch the game itself rather than the renderer work on a normal Vulkan
 launch and need none of this.
 
+## macOS
+
+Experimental: it builds and is tested in CI on an Apple silicon runner, and
+the patched Wine modules boot a prefix there — but nobody on the project owns
+a Mac, so nothing below has been tried against the game itself yet. Reports,
+working or not, are welcome.
+
+The idea is the same as on Linux: press **Launch**, and if nothing can run a
+Windows executable yet the launcher offers to install it. What it fetches is
+entirely open source, nothing from CodeWeavers or Apple:
+
+- **Wine Staging** — the [official WineHQ package for macOS](https://github.com/Gcenx/macOS_Wine_builds)
+  (a `Wine Staging.app` bundle, ~190 MB), with winevulkan and MoltenVK inside.
+- **The Endfield modules** — four Wine modules (`ntdll.so`, `ntdll.dll`,
+  `kernel32.dll`, `ntoskrnl.exe`) this project builds itself from the same
+  Wine sources, with the anti-cheat patches from [dw-proton](https://dawn.wine/)
+  (the kernel exports the ACE driver calls and Wine leaves as stubs, the
+  `KiUser*Dispatcher` stubs for the protector, QPC-timed waits) and the two
+  Rosetta 2 fixes from [Endfield_FineWine](https://github.com/stoicswe/Endfield_FineWine)
+  (Rosetta faults on the multi-byte NOPs the protector emits, and reports the
+  driver's `mov cr3` probe as the wrong exception — "driver error 13"). They
+  replace the originals inside the bundle. Sources, patches and the build
+  script are in [`macos/wine/`](macos/wine/); CI builds and publishes a set
+  per Wine version as the `wine-modules-<version>` release, and the picker
+  only offers Wine versions that have one.
+- **DXMT** — [3Shain/dxmt](https://github.com/3Shain/dxmt), a Direct3D 11 → Metal
+  translator, the open-source counterpart of the D3DMetal CrossOver ships.
+  Installed into the Wine bundle as its builtin `d3d11`/`dxgi`, exactly as
+  Heroic Games Launcher does. Apple silicon only; an Intel Mac gets bare Wine
+  and should try the **Vulkan renderer** launch option instead.
+- **Rosetta 2**, if the Mac is Apple silicon and does not have it: every Wine
+  for macOS is x86-64. macOS asks for an administrator password once.
+
+Everything lands under `~/Library/Application Support/llauncher/` — the Wine
+builds in `wine/`, the prefix in `prefix/endfield/pfx`. Settings > Launch
+lists the Wine builds the same way it lists DWProton on Linux; a build of
+your own can be pointed at in the custom paths, but without the modules the
+anti-cheat driver aborts on start, so that is for debugging.
+
+The game is started with `-force-d3d11`: its default renderer is Vulkan (or
+Direct3D 12), which does not draw a frame over MoltenVK, and DXMT only does
+Direct3D 11. The **Vulkan renderer** toggle turns that off.
+
+Endfield_FineWine proved this combination — dw-proton's patches, the Rosetta
+fixes, Direct3D 11 — on CrossOver 26.2 with Apple's D3DMetal; this port
+carries it over to WineHQ's build and DXMT, so the graphics half is the
+untested one. The FineWine write-up is the place to start when something
+does not work.
+
+**Opening the launcher the first time.** The DMG is not signed (there is no
+Apple developer account behind the project), so Gatekeeper refuses it with
+"damaged" or "unidentified developer". Once:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/LLauncher.app
+```
+
+or right-click the app → Open → Open.
+
+**What to expect.** The first launch creates the prefix, which takes a minute
+under Rosetta. The launch options for macOS are `ROSETTA_ADVERTISE_AVX`, the
+Metal performance HUD and the `-vulkan` renderer switch. Things to look at
+first in the launch log (Settings > Diagnostics) when it fails:
+
+- An abort in `ntoskrnl.exe` or `ACE-BASE.sys` means the Endfield modules are
+  not in the active Wine — Settings > Launch says whether they are.
+- A white screen or a `d3d11` device-creation error is the renderer: check
+  that DXMT is listed for the build and that the Vulkan toggle is off.
+- DXMT is young. A rendering problem is far more likely to be DXMT than the
+  game; the launch options let you switch the game to its Vulkan renderer to
+  tell the two apart.
+
+**Building the modules yourself** (on a Mac, with Xcode Command Line Tools and
+Homebrew): `macos/wine/build-modules.sh 11.16` fetches Wine and wine-staging
+at that version, applies the patches, builds the four modules, checks them
+against the WineHQ package of the same version (identical exports and rpaths,
+then a prefix booted with the modules swapped in) and packs
+`endfield-wine-modules-11.16-macos.tar.xz`. `Wine modules (macOS)` in GitHub
+Actions runs the same script and publishes the result.
+
 ## Troubleshooting
 
 **Black screen / blank window on launch (AppImage)**
@@ -263,7 +383,7 @@ LLauncher/
 │       ├── api/                #   API client, types, constants
 │       ├── config/             #   Settings persistence, path management
 │       ├── download/           #   Download manager, workers, extraction, verification
-│       ├── game/               #   Game state detection, launching (launcher/{linux,windows}.rs), mods
+│       ├── game/               #   Game state detection, launching (launcher/{linux,macos,windows}.rs), mods
 │       ├── commands.rs         #   Tauri command handlers
 │       └── lib.rs              #   App setup and plugin registration
 ├── package.json

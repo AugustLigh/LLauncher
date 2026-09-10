@@ -1,0 +1,56 @@
+diff --git a/dlls/kernel32/module.c b/dlls/kernel32/module.c
+index ac88010..0b09aad 100644
+--- a/dlls/kernel32/module.c
++++ b/dlls/kernel32/module.c
+@@ -261,6 +261,36 @@ BOOL WINAPI GetBinaryTypeA( LPCSTR lpApplicationName, LPDWORD lpBinaryType )
+     return GetBinaryTypeW(NtCurrentTeb()->StaticUnicodeString.Buffer, lpBinaryType);
+ }
+ 
++#ifdef __x86_64__
++/* workaround for tpshell: only the game's own process gets the fake
++   dispatchers, every other program keeps the real GetProcAddress */
++static BOOL needs_int3_hack(void)
++{
++    static volatile char cache = -1;
++    BOOL ret = cache;
++    if (ret == -1)
++    {
++        const WCHAR *p, *name = NtCurrentTeb()->Peb->ProcessParameters->ImagePathName.Buffer;
++        if ((p = wcsrchr(name, '/')))
++            name = p + 1;
++        if ((p = wcsrchr(name, '\\')))
++            name = p + 1;
++
++        ret = !wcsicmp(name, L"Endfield.exe");
++        cache = ret;
++    }
++    return ret;
++}
++
++static void __attribute__((naked)) int3_stub( void )
++{
++    asm("int3\t\n"
++        "int3\t\n"
++        "int3\t\n"
++        "int3\t\n");
++}
++#endif
++
+ /***********************************************************************
+  *           GetProcAddress   		(KERNEL32.@)
+  *
+@@ -284,6 +314,14 @@ FARPROC get_proc_address( HMODULE hModule, LPCSTR function )
+     {
+         ANSI_STRING     str;
+ 
++#ifdef __x86_64__
++        if (needs_int3_hack() && (strcmp( function, "KiUserApcDispatcher" ) == 0 || strcmp( function, "KiUserCallbackDispatcher" ) == 0))
++        {
++            FIXME( "HACK: returning int3 stub instead of %s\n", function );
++            return (FARPROC)&int3_stub;
++        }
++#endif
++
+         RtlInitAnsiString( &str, function );
+         if (!set_ntstatus( LdrGetProcedureAddress( hModule, &str, 0, (void**)&fp ))) return NULL;
+     }
