@@ -10,16 +10,21 @@ on:
       - "packaging/**"
   pull_request:
     branches: [main]
+  # Also by hand, for a branch that is not (yet) heading for a pull request —
+  # the way the macOS port was brought up, with the Actions runner standing
+  # in for a Mac nobody on the project has.
+  workflow_dispatch:
 
 jobs:
   test:
-    # Both shipped platforms get built and tested: a change to the Linux launch
-    # path must not break the Windows one (and vice versa), and only a real
-    # compile on each host catches that.
+    # Every shipped platform gets built and tested: a change to the Linux
+    # launch path must not break the Windows or macOS one (and vice versa),
+    # and only a real compile on each host catches that. macos-14 is an Apple
+    # silicon runner, which is what the macOS port targets first.
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-latest]
+        os: [ubuntu-22.04, windows-latest, macos-14]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -80,4 +85,19 @@ jobs:
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/*.exe
+          retention-days: 14
+
+      # Same idea on macOS: the DMG from a branch build is the only way to try
+      # the port without cutting a release, since nobody on the project has a
+      # Mac to build on.
+      - name: Build macOS bundle
+        if: runner.os == 'macOS'
+        run: npx tauri build
+
+      - name: Upload macOS bundle
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: llauncher-macos
+          path: src-tauri/target/release/bundle/dmg/*.dmg
           retention-days: 14

@@ -22,9 +22,15 @@ pub enum AppError {
 
     #[error("Proton not found: {0}")]
     // Only the Linux launch path can hit this; keep the variant in the shared
-    // enum so the error type is identical on both platforms.
-    #[cfg_attr(windows, allow(dead_code))]
+    // enum so the error type is identical on every platform.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     ProtonNotFound(String),
+
+    #[error("Wine not found: {0}")]
+    // The macOS counterpart. Kept apart from `ProtonNotFound` so each
+    // message can name the right tab and the right thing to download.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    WineNotFound(String),
 
     #[error("tar not found")]
     TarNotFound,

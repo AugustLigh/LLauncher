@@ -5,16 +5,10 @@ use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use super::{parse_custom_env_vars, GameProcess, LaunchedGame};
+use super::{parse_custom_env_vars, shell_escape, GameProcess, LaunchedGame};
 use crate::config::paths;
 use crate::config::settings::AppSettings;
 use crate::error::AppError;
-
-/// Escape a string for safe use inside single quotes in a shell command.
-fn shell_escape(s: &str) -> String {
-    // Replace each ' with '\'' (end quote, escaped quote, start quote)
-    format!("'{}'", s.replace('\'', "'\\''"))
-}
 
 /// Resolve the Proton prefix (STEAM_COMPAT_DATA_PATH) directory.
 ///
@@ -369,17 +363,5 @@ pub fn request_stop(pid: u32) {
 pub fn force_stop(pid: u32) {
     unsafe {
         libc::killpg(pid as i32, libc::SIGKILL);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn escapes_single_quotes_in_paths() {
-        // A game directory with an apostrophe in it must not break out of the
-        // quoted argument in the generated shell script.
-        assert_eq!(shell_escape("/home/o'brien/Games"), r"'/home/o'\''brien/Games'");
     }
 }

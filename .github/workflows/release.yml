@@ -2,8 +2,8 @@ name: Release
 
 # The Linux bundles are built on Ubuntu 22.04 LTS so they link against an older
 # glibc/openssl and run on a wider range of distributions than a build from a
-# rolling/recent host would; the Windows installers are built on windows-latest
-# and attached to the same release.
+# rolling/recent host would; the Windows installers and the macOS DMG are
+# built on their own runners and attached to the same release.
 # Triggered explicitly (update.sh runs `gh workflow run release.yml -f tag=X`)
 # rather than on tag push, so a local release (`update.sh X --local`) never
 # races with a CI build for the same tag.
@@ -99,6 +99,50 @@ jobs:
           releaseBody: "See the assets below to download and install this version."
           releaseDraft: false
           prerelease: false
+
+  # macOS, same arrangement as Windows: after the Linux job so it attaches to
+  # the release rather than racing to create it. One universal DMG (Apple
+  # silicon + Intel) rather than two, so a user never has to know which Mac
+  # they have. Unsigned — there is no Apple developer account behind the
+  # project — so Gatekeeper wants the quarantine flag cleared on first run;
+  # the README says how.
+  build-macos:
+    needs: build
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build and attach the macOS bundle
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.event.inputs.tag }}
+          releaseName: "LLauncher ${{ github.event.inputs.tag }}"
+          releaseBody: "See the assets below to download and install this version."
+          releaseDraft: false
+          prerelease: false
+          args: --target universal-apple-darwin
 
   # Releases created with the default GITHUB_TOKEN do not fire the `release`
   # event for other workflows, so the AUR update is chained here explicitly.

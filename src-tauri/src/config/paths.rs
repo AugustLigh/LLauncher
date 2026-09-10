@@ -127,6 +127,12 @@ pub fn default_proton_dir() -> PathBuf {
     data_base().join("proton")
 }
 
+/// Where the launcher installs the Wine builds it downloads on macOS — the
+/// `proton` directory's counterpart, one subdirectory per release.
+pub fn default_wine_dir() -> PathBuf {
+    data_base().join("wine")
+}
+
 /// Default Proton prefix (compatdata) base directory.
 ///
 /// Kept under the launcher's data directory rather than inside the game

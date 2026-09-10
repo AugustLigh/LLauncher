@@ -177,6 +177,14 @@ pub struct ProtonReleaseInfo {
 pub struct InstalledProton {
     pub name: String,
     pub path: String,
+    /// macOS only: the DXMT version installed into this Wine, shown as a
+    /// badge in the picker. Absent on Linux, where the layer is Proton.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dxmt: Option<String>,
+    /// macOS only: the Endfield module set (`wine-modules-<version>`) inside
+    /// this Wine — what gets the game past its anti-cheat. Absent on Linux.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wine_patch: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -14,8 +14,13 @@ export default function RuntimeSettings({
   initialOpen,
   busy,
   activeProton,
+  // Which setting holds the active build (`proton_dir` on Linux,
+  // `macos_wine_dir` on macOS) and whether to call it Wine rather than Proton.
+  field = "proton_dir",
+  mac = false,
 }) {
   const { t } = useTranslation();
+  const runtimeName = mac ? "Wine" : "Proton";
   const [open, setOpen] = useState(initialOpen),
     [releases, setReleases] = useState([]),
     [installed, setInstalled] = useState([]),
@@ -44,15 +49,18 @@ export default function RuntimeSettings({
   useEffect(() => {
     if (open) load();
   }, [open, load, tasks.proton?.status]);
-  const pending = form.proton_dir !== activeProton;
+  const pending = form[field] !== activeProton;
   const task = tasks.proton;
-  const selected = installed.find((p) => p.path === form.proton_dir);
+  const selected = installed.find((p) => p.path === form[field]);
   const recommendedRelease = releases.find((r) => r.tag_name === recommended);
   const row = (release) => {
     const existing = installed.find(
+      // DWProton unpacks to `<tag>-x86_64`, the macOS Wine builds are
+      // installed under `wine-staging-<tag>`.
       (p) =>
         p.name === release.tag_name ||
-        p.name.startsWith(release.tag_name + "-"),
+        p.name.startsWith(release.tag_name + "-") ||
+        p.name.endsWith("-" + release.tag_name),
     );
     return (
       <div className="runtime-row" key={release.tag_name}>
@@ -67,11 +75,11 @@ export default function RuntimeSettings({
         </div>
         {existing ? (
           <Button
-            disabled={busy || form.proton_dir === existing.path}
-            onClick={() => onChange("proton_dir", existing.path)}
+            disabled={busy || form[field] === existing.path}
+            onClick={() => onChange(field, existing.path)}
           >
             {t(
-              form.proton_dir === existing.path
+              form[field] === existing.path
                 ? "ui.selected"
                 : "settings.use",
             )}
@@ -109,10 +117,10 @@ export default function RuntimeSettings({
                   : "ui.notFound",
             )}
           </Status>
-          <small title={form.proton_dir}>
+          <small title={form[field]}>
             {selected?.name ||
-              form.proton_dir?.split(/[\\/]/).filter(Boolean).pop() ||
-              "Proton"}
+              form[field]?.split(/[\\/]/).filter(Boolean).pop() ||
+              runtimeName}
           </small>
         </div>
         <Button onClick={() => setOpen(!open)} aria-expanded={!!open}>
@@ -142,13 +150,16 @@ export default function RuntimeSettings({
                 <strong>{p.name}</strong>
                 <small>
                   {t(
-                    form.proton_dir === p.path ? "ui.selected" : "ui.installed",
+                    form[field] === p.path ? "ui.selected" : "ui.installed",
                   )}
+                  {mac && p.wine_patch && ` · ${p.wine_patch}`}
+                  {mac && p.dxmt && ` · DXMT ${p.dxmt}`}
+                  {mac && !p.wine_patch && ` · ${t("ui.wineUnpatched")}`}
                 </small>
               </div>
               <Button
-                disabled={busy || form.proton_dir === p.path}
-                onClick={() => onChange("proton_dir", p.path)}
+                disabled={busy || form[field] === p.path}
+                onClick={() => onChange(field, p.path)}
               >
                 {t("settings.use")}
               </Button>
@@ -170,9 +181,9 @@ export default function RuntimeSettings({
           <details className="ui-details">
             <summary>{t("ui.manualPaths")}</summary>
             <PathSelector
-              label={t("settings.activeProton")}
-              value={form.proton_dir}
-              onChange={(v) => onChange("proton_dir", v)}
+              label={t(mac ? "settings.wineDir" : "settings.activeProton")}
+              value={form[field]}
+              onChange={(v) => onChange(field, v)}
               disabled={busy}
             />
             <PathSelector

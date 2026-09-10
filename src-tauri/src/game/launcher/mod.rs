@@ -1,16 +1,25 @@
 //! Starting the game and watching the process it produced.
 //!
-//! The two platforms have almost nothing in common here: on Linux the game is
-//! a Windows executable run through Proton, wrapped in a shell script that
+//! The three platforms have almost nothing in common here. On Linux the game
+//! is a Windows executable run through Proton, wrapped in a shell script that
 //! exports a page of environment variables and optional gamescope/gamemode
-//! wrappers; on Windows it is simply the executable. Everything that *is*
-//! shared — the launched-process handle, the log tail — lives in this file,
+//! wrappers. On macOS it is the same executable run through the Wine build
+//! the launcher installed (WineHQ's, with the Endfield modules and DXMT
+//! inside), with a Darwin-shaped environment instead. On Windows it is
+//! simply the executable.
+//! Everything that *is* shared — the launched-process handle, the log tail,
+//! the shell quoting the two Unix platforms both need — lives in this file,
 //! and each platform module supplies the rest behind the same names.
 
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 mod linux;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 pub use linux::*;
+
+#[cfg(target_os = "macos")]
+mod macos;
+#[cfg(target_os = "macos")]
+pub use macos::*;
 
 #[cfg(windows)]
 mod windows;
@@ -69,6 +78,14 @@ impl GameProcess {
             GameProcess::Handle(handle) => handle.try_wait(),
         }
     }
+}
+
+/// Escape a string for safe use inside single quotes in a shell command.
+/// Both Unix launchers build a `bash -c` script, so both need it.
+#[cfg(unix)]
+pub fn shell_escape(s: &str) -> String {
+    // Replace each ' with '\'' (end quote, escaped quote, start quote)
+    format!("'{}'", s.replace('\'', "'\\''"))
 }
 
 /// A POSIX environment variable name: letters, digits, underscore, not
@@ -131,6 +148,14 @@ mod tests {
         assert!(!is_valid_env_var_name("1FOO"));
         assert!(!is_valid_env_var_name("FOO BAR"));
         assert!(!is_valid_env_var_name("FOO;rm -rf ~"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn escapes_single_quotes_in_paths() {
+        // A game directory with an apostrophe in it must not break out of the
+        // quoted argument in the generated shell script.
+        assert_eq!(shell_escape("/home/o'brien/Games"), r"'/home/o'\''brien/Games'");
     }
 
     #[test]

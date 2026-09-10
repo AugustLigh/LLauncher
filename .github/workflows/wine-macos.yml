@@ -1,0 +1,95 @@
+name: Wine modules (macOS)
+
+# Builds the patched Wine modules the macOS port drops into the WineHQ bundle
+# (see macos/wine/) for one Wine version, and publishes them as the release
+# `wine-modules-<version>`, which is where the launcher looks. Runs on every
+# push that touches the patches or the build script — the set for the
+# recommended version is rebuilt — and by hand for any other Wine version
+# worth offering. Nobody on the project has a Mac, so the Apple silicon
+# runner is the build machine and the smoke test at the end (a prefix booted
+# with the modules swapped in) is the only check there is; a build that fails
+# it is never published.
+on:
+  push:
+    paths:
+      - "macos/wine/**"
+      - ".github/workflows/wine-macos.yml"
+  workflow_dispatch:
+    inputs:
+      wine_version:
+        description: "Wine / wine-staging version; a WineHQ macOS package of it must exist (github.com/Gcenx/macOS_Wine_builds)"
+        required: true
+        default: "11.16"
+      publish:
+        description: "Publish to the wine-modules-<version> release (else only an artifact)"
+        type: boolean
+        default: true
+
+env:
+  # Keep in step with RECOMMENDED_WINE_TAG in src-tauri/src/download/wine.rs.
+  WINE_VERSION: ${{ inputs.wine_version || '11.16' }}
+
+jobs:
+  build:
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rosetta 2
+        run: |
+          if [ "$(uname -m)" = arm64 ] && ! arch -x86_64 /usr/bin/true 2>/dev/null; then
+            sudo softwareupdate --install-rosetta --agree-to-license
+          fi
+          arch -x86_64 /usr/bin/true && echo "Rosetta 2 ready"
+
+      - name: Build and verify
+        env:
+          WORK: ${{ runner.temp }}/wine-work
+          OUT: ${{ runner.temp }}/wine-out
+        run: macos/wine/build-modules.sh "$WINE_VERSION"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: endfield-wine-modules-${{ env.WINE_VERSION }}
+          path: ${{ runner.temp }}/wine-out/*
+          retention-days: 30
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wine-build-logs-${{ env.WINE_VERSION }}
+          path: |
+            ${{ runner.temp }}/wine-work/*.log
+            ${{ runner.temp }}/wine-work/*.diff
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Publish
+        if: github.event_name == 'push' || inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ env.WINE_VERSION }}
+          OUT: ${{ runner.temp }}/wine-out
+        run: |
+          tag="wine-modules-$VERSION"
+          notes="$RUNNER_TEMP/notes.md"
+          {
+            echo "Patched Wine modules for the macOS port, for the WineHQ **Wine Staging $VERSION** package."
+            echo
+            echo "The launcher downloads this on its own; there is nothing to install by hand. To use it with another launcher, unpack over \`Wine Staging.app/Contents/Resources/wine/\` and ad-hoc sign \`ntdll.so\` (\`codesign --force --sign -\`)."
+            echo
+            echo "Source: Wine \`wine-$VERSION\` + wine-staging \`v$VERSION\` + [macos/wine/patches](https://github.com/$GITHUB_REPOSITORY/tree/$GITHUB_SHA/macos/wine/patches) (LGPL-2.1-or-later). Built by run [#$GITHUB_RUN_NUMBER]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)."
+          } > "$notes"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$OUT"/* --clobber
+            gh release edit "$tag" --notes-file "$notes"
+          else
+            # A prerelease, so it never becomes the repository's "latest"
+            # release — that is where the launcher's own update check and
+            # the download link in the README point.
+            gh release create "$tag" "$OUT"/* --target "$GITHUB_SHA" --prerelease \
+              --title "Wine modules for macOS — Wine $VERSION" --notes-file "$notes"
+          fi

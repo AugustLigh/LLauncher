@@ -254,6 +254,26 @@ export default {
       name: 'Canonical Hole (skip_volatile_check)',
       desc: 'WINE_CANONICAL_HOLE=skip_volatile_check — may improve performance up to 200% (DWProton)',
     },
+    wineDir: 'Wine installation',
+    macos: {
+      wineInUse: 'Wine in use',
+      modulesPresent: 'Endfield modules {version}: the anti-cheat patches and Rosetta fixes are in.',
+      modulesAbsent: 'No Endfield modules in this build: the anti-cheat driver will abort on start. Install a build from the list above.',
+      dxmtPresent: 'DXMT {version}: Direct3D 11 is translated straight to Metal.',
+      dxmtAbsent: 'No DXMT in this build: Direct3D 11 falls back to Wine’s OpenGL path, which is slow on macOS.',
+      vulkan: {
+        name: 'Native Vulkan renderer',
+        desc: 'Start the game with -vulkan, so it drives Vulkan itself through MoltenVK instead of Direct3D 11 through DXMT. Off by default: over MoltenVK the game currently draws a white screen. Useful to tell a DXMT problem from a game problem.',
+      },
+      avx: {
+        name: 'Advertise AVX to Rosetta',
+        desc: 'Let translated x86-64 code see AVX, which Rosetta hides unless asked; the game and DXMT expect it. No effect on an Intel Mac.',
+      },
+      metalHud: {
+        name: 'Metal performance HUD',
+        desc: 'Apple’s built-in frame-rate overlay, the local equivalent of MangoHud.',
+      },
+    },
     windows: {
       vulkan: {
         name: 'Vulkan renderer',
