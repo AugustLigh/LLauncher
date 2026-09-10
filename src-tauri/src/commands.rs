@@ -421,6 +421,12 @@ pub async fn launch_and_watch(app: tauri::AppHandle, with_mods: bool) -> Result<
             discord.store(false, std::sync::atomic::Ordering::SeqCst);
         }
 
+        // Undo what the platform changed on the host for the session
+        // (Windows: the power plan) before anything else.
+        if let Some(on_exit) = launched.on_exit.take() {
+            on_exit();
+        }
+
         let quick_exit =
             status.is_some() && started.elapsed() < std::time::Duration::from_millis(3500);
         crate::logging::info(format!(

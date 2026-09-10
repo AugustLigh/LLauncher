@@ -1,6 +1,7 @@
 import { useTranslation } from "../../../i18n";
-import { Field, Switch } from "../../common/Controls";
+import { Field } from "../../common/Controls";
 import LinuxLaunchOptions from "../LinuxLaunchOptions";
+import WindowsLaunchOptions from "../WindowsLaunchOptions";
 import RuntimeSettings from "./RuntimeSettings";
 export default function LaunchSettings({
   form,
@@ -31,11 +32,7 @@ export default function LaunchSettings({
           systemCheck={systemCheck}
         />
       ) : (
-        <Switch
-          label={t("settings.runAsAdmin.name")}
-          checked={form.windows_run_as_admin}
-          onChange={(v) => onChange("windows_run_as_admin", v)}
-        />
+        <WindowsLaunchOptions form={form} onChange={onChange} />
       )}
       <details className="ui-details">
         <summary>

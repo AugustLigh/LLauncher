@@ -181,6 +181,12 @@ pub fn run() {
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&launch, &show, &quit])?;
 
+            // A session this launcher did not outlive (tray quit, crash)
+            // may have left the power plan on High performance; put it
+            // back before anything else happens.
+            #[cfg(windows)]
+            crate::game::windows_tweaks::restore_leftover_power_plan();
+
             // Autostart used to be switched on silently on the first run.
             // Registering yourself in the user's session without asking is a
             // common complaint, so it is now opt-in from Settings > Launch.
