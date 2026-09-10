@@ -73,6 +73,21 @@ pub fn launch_log_path() -> PathBuf {
     config_dir().join("launch.log")
 }
 
+/// Windows: the power plan to put back after a session — written while the
+/// game runs, removed once the plan is restored. Next to the settings file.
+#[cfg(windows)]
+pub fn power_plan_restore_path() -> PathBuf {
+    config_dir().join("power-plan.restore")
+}
+
+/// Windows: which keys the launcher last wrote into the game's entry on the
+/// graphics settings page, so switching a toggle off takes back the
+/// launcher's own value and leaves the user's alone.
+#[cfg(windows)]
+pub fn graphics_prefs_record_path() -> PathBuf {
+    config_dir().join("graphics-prefs.json")
+}
+
 /// Play-session journal path, next to the settings file.
 pub fn sessions_path() -> PathBuf {
     config_dir().join("sessions.json")

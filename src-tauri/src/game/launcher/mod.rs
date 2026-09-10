@@ -19,9 +19,15 @@ pub use windows::*;
 
 use std::path::{Path, PathBuf};
 
+/// Undo whatever the platform changed on the host for the session — on
+/// Windows the power plan. The watcher runs it once, right after the process
+/// exits.
+pub type SessionCleanup = Box<dyn FnOnce() + Send>;
+
 pub struct LaunchedGame {
     pub process: GameProcess,
     pub log_path: PathBuf,
+    pub on_exit: Option<SessionCleanup>,
 }
 
 /// How a finished game process exited. Mirrors the part of

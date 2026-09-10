@@ -100,6 +100,30 @@ pub struct AppSettings {
     /// Some anti-cheat drivers need it; most installs do not.
     #[serde(default)]
     pub windows_run_as_admin: bool,
+    /// Windows only: pass `-vulkan` so the game drives its own Vulkan renderer
+    /// instead of Direct3D 11 — the path every Linux session runs on. The
+    /// official launcher never enables it on Windows, so it is off by default
+    /// and offered as an experiment. A modded launch ignores it: 3DMigoto
+    /// hooks D3D11 only.
+    #[serde(default)]
+    pub windows_use_vulkan: bool,
+    /// Windows only: register the game as "High performance" on the Graphics
+    /// settings page, so a hybrid-graphics laptop runs it on the dedicated
+    /// GPU. The Windows counterpart of `use_prime_offload`.
+    #[serde(default)]
+    pub windows_prefer_dgpu: bool,
+    /// Windows only: "Optimizations for windowed games" on the game's entry —
+    /// flip-model presentation for windowed and borderless modes (Windows 11
+    /// 22H2 and later).
+    #[serde(default)]
+    pub windows_windowed_optimizations: bool,
+    /// Windows only: switch to the High performance power plan for the length
+    /// of a session and put the previous one back afterwards.
+    #[serde(default)]
+    pub windows_high_perf_power: bool,
+    /// Windows only: start the game in the above-normal priority class.
+    #[serde(default)]
+    pub windows_high_priority: bool,
     /// Run the game through the vkBasalt post-processing layer (sharpening,
     /// colour correction, ReShade-format effects). Native Vulkan, so unlike
     /// the 3DMigoto path it costs nothing extra in renderer terms.
@@ -155,6 +179,11 @@ impl Default for AppSettings {
             gamescope_hdr: false,
             gamescope_extra_args: String::new(),
             windows_run_as_admin: false,
+            windows_use_vulkan: false,
+            windows_prefer_dgpu: false,
+            windows_windowed_optimizations: false,
+            windows_high_perf_power: false,
+            windows_high_priority: false,
             use_vkbasalt: false,
             mods_enabled: false,
             total_playtime_secs: 0,

@@ -1,6 +1,13 @@
 //! Windows: the game runs natively, so launching it is little more than
 //! spawning the executable in its own directory.
 //!
+//! What the launcher adds on top is host-side: the game's entry on the
+//! Graphics settings page (dedicated GPU, windowed-game optimizations), the
+//! power plan for the length of the session, the process priority class, and
+//! the `-vulkan` switch that puts the game on the renderer every Linux
+//! session already uses. All of it lives in `game::windows_tweaks` and is
+//! applied here, right before the process starts.
+//!
 //! The one wrinkle is elevation. The game's anti-cheat may ship an executable
 //! manifested as `requireAdministrator`; `CreateProcess` (and with it
 //! `Command::spawn`) cannot start such a binary and fails with
@@ -14,14 +21,17 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, WAIT_OBJECT_0};
-use windows_sys::Win32::System::Threading::{GetExitCodeProcess, WaitForSingleObject};
+use windows_sys::Win32::System::Threading::{
+    GetExitCodeProcess, SetPriorityClass, WaitForSingleObject, ABOVE_NORMAL_PRIORITY_CLASS,
+};
 use windows_sys::Win32::UI::Shell::{ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW};
 use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-use super::{parse_custom_env_vars, ExitInfo, GameProcess, LaunchedGame};
+use super::{parse_custom_env_vars, ExitInfo, GameProcess, LaunchedGame, SessionCleanup};
 use crate::config::paths;
 use crate::config::settings::AppSettings;
 use crate::error::AppError;
+use crate::game::windows_tweaks;
 
 /// Keep the game out of the launcher's console signal handling, so closing
 /// the launcher cannot take the game with it (the Linux side does the same
@@ -33,11 +43,10 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 /// `CreateProcess` refuses a `requireAdministrator` binary with this code.
 const ERROR_ELEVATION_REQUIRED: i32 = 740;
 
-/// `with_mods` exists for parity with the Linux entry point. Windows needs no
-/// special handling: the launcher never passes `-vulkan` here, so the game
-/// already starts on its D3D11 path, and the loader's `d3d11.dll` next to the
-/// executable wins the DLL search order without an override.
-pub fn launch_game(settings: &AppSettings, _with_mods: bool) -> Result<LaunchedGame, AppError> {
+/// A modded launch stays on D3D11 whatever the renderer toggle says: the
+/// loader's `d3d11.dll` hooks that API and nothing else, and it wins the DLL
+/// search order from the game directory without any further help.
+pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGame, AppError> {
     let game_path = Path::new(&settings.game_dir);
     let exe_path = game_path.join("Endfield.exe");
 
@@ -53,14 +62,81 @@ pub fn launch_game(settings: &AppSettings, _with_mods: bool) -> Result<LaunchedG
         std::fs::create_dir_all(dir)?;
     }
 
+    // Host-side tweaks go first: Windows reads the graphics entry when the
+    // process is created, and the power plan should be in place before the
+    // game starts loading. A registry failure is logged and the launch goes
+    // ahead — the toggles are conveniences, not requirements.
+    if let Err(e) = windows_tweaks::sync_gpu_preferences(&exe_path, settings) {
+        crate::logging::warn(format!("graphics preferences: {}", e));
+    }
+    let power_plan = if settings.windows_high_perf_power {
+        windows_tweaks::switch_to_high_performance_plan()
+    } else {
+        None
+    };
+
+    let args = build_launch_args(settings, with_mods);
+    match spawn(settings, &exe_path, game_path, &args, &log_path) {
+        Ok(process) => Ok(LaunchedGame {
+            process,
+            log_path,
+            on_exit: power_plan
+                .map(|plan| Box::new(move || plan.restore()) as SessionCleanup),
+        }),
+        Err(e) => {
+            // Nothing to wait for, so nothing to restore later: do it now.
+            if let Some(plan) = power_plan {
+                plan.restore();
+            }
+            Err(e)
+        }
+    }
+}
+
+/// The game's command line as one string: `-vulkan` when the renderer toggle
+/// asks for it, then whatever the user typed. Passed through verbatim on both
+/// launch paths, exactly as the Linux side appends it to the shell command —
+/// the user typed a command line, not a list of pre-split arguments.
+fn build_launch_args(settings: &AppSettings, with_mods: bool) -> String {
+    let mut args = String::new();
+    if settings.windows_use_vulkan && !with_mods {
+        args.push_str("-vulkan");
+    }
+    let extra = settings.custom_launch_args.trim();
+    if !extra.is_empty() {
+        if !args.is_empty() {
+            args.push(' ');
+        }
+        args.push_str(extra);
+    }
+    args
+}
+
+/// Above normal rather than high: `HIGH_PRIORITY_CLASS` outranks the audio
+/// and input stacks the game depends on and is known to make things worse,
+/// above-normal only puts the game ahead of ordinary background apps.
+fn priority_flags(settings: &AppSettings) -> u32 {
+    if settings.windows_high_priority {
+        ABOVE_NORMAL_PRIORITY_CLASS
+    } else {
+        0
+    }
+}
+
+fn spawn(
+    settings: &AppSettings,
+    exe_path: &Path,
+    game_path: &Path,
+    args: &str,
+    log_path: &Path,
+) -> Result<GameProcess, AppError> {
     if settings.windows_run_as_admin {
-        let process = launch_elevated(&exe_path, game_path, &settings.custom_launch_args, settings)?;
-        return Ok(LaunchedGame { process, log_path });
+        return launch_elevated(exe_path, game_path, args, settings);
     }
 
-    let mut cmd = Command::new(&exe_path);
+    let mut cmd = Command::new(exe_path);
     cmd.current_dir(game_path);
-    cmd.creation_flags(CREATE_NEW_PROCESS_GROUP);
+    cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | priority_flags(settings));
 
     for (key, value) in parse_custom_env_vars(&settings.custom_env_vars) {
         cmd.env(key, value);
@@ -69,33 +145,25 @@ pub fn launch_game(settings: &AppSettings, _with_mods: bool) -> Result<LaunchedG
     // The game is a GUI process and normally writes nothing here, but a crash
     // handler or a `-log`-style flag might — and the failure dialog reads this
     // file, so give it somewhere to land.
-    if let Ok(log_file) = std::fs::File::create(&log_path) {
+    if let Ok(log_file) = std::fs::File::create(log_path) {
         if let Ok(err_file) = log_file.try_clone() {
             cmd.stdout(log_file).stderr(err_file);
         }
     }
 
-    // Passed through verbatim, exactly as the Linux side appends them to the
-    // shell command line: the user typed a command line, not a list of
-    // pre-split arguments.
-    let extra = settings.custom_launch_args.trim();
-    if !extra.is_empty() {
-        cmd.raw_arg(extra);
+    if !args.is_empty() {
+        cmd.raw_arg(args);
     }
 
     match cmd.spawn() {
-        Ok(child) => Ok(LaunchedGame {
-            process: GameProcess::Child(child),
-            log_path,
-        }),
+        Ok(child) => Ok(GameProcess::Child(child)),
         Err(e) if e.raw_os_error() == Some(ERROR_ELEVATION_REQUIRED) => {
             // The game demands administrator rights. Retry through the shell
             // so Windows shows the UAC prompt instead of failing outright.
             crate::logging::info(
                 "game requires elevation — retrying the launch through ShellExecuteEx".to_string(),
             );
-            let process = launch_elevated(&exe_path, game_path, extra, settings)?;
-            Ok(LaunchedGame { process, log_path })
+            launch_elevated(exe_path, game_path, args, settings)
         }
         Err(e) => Err(AppError::GameNotFound(format!("Failed to launch: {}", e))),
     }
@@ -106,7 +174,9 @@ pub fn launch_game(settings: &AppSettings, _with_mods: bool) -> Result<LaunchedG
 ///
 /// Neither custom environment variables nor output redirection survive this
 /// path — the elevated process is created by the AppInfo service, not by us —
-/// so both are dropped, with a note in the launcher log.
+/// so both are dropped, with a note in the launcher log. The priority class
+/// is attempted afterwards on the handle we get back; an unelevated launcher
+/// is normally denied that on an elevated process, which is logged too.
 fn launch_elevated(
     exe_path: &Path,
     working_dir: &Path,
@@ -142,6 +212,14 @@ fn launch_elevated(
             "Failed to launch elevated: {}",
             std::io::Error::last_os_error()
         )));
+    }
+
+    let priority = priority_flags(settings);
+    if priority != 0 && unsafe { SetPriorityClass(info.hProcess, priority) } == 0 {
+        crate::logging::warn(format!(
+            "process priority: not applied to the elevated game process ({})",
+            std::io::Error::last_os_error()
+        ));
     }
 
     Ok(GameProcess::Handle(ProcessHandle::new(info.hProcess)))
@@ -242,4 +320,45 @@ pub fn shutdown_wineserver(_settings: &AppSettings, _force: bool) {}
 
 pub fn run_prefix_tool(_settings: &AppSettings, tool: &str) -> Result<(), AppError> {
     Err(AppError::Unsupported(format!("Wine tool {}", tool)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn settings(vulkan: bool, extra: &str) -> AppSettings {
+        let mut s = AppSettings::default();
+        s.windows_use_vulkan = vulkan;
+        s.custom_launch_args = extra.to_string();
+        s
+    }
+
+    #[test]
+    fn default_command_line_matches_the_official_launcher() {
+        // No renderer flag unless asked for: the official launcher starts the
+        // game bare, on D3D11, and so do we.
+        assert_eq!(build_launch_args(&settings(false, "  "), false), "");
+    }
+
+    #[test]
+    fn vulkan_flag_precedes_the_users_arguments() {
+        assert_eq!(
+            build_launch_args(&settings(true, " -screen-fullscreen 0 "), false),
+            "-vulkan -screen-fullscreen 0"
+        );
+        assert_eq!(build_launch_args(&settings(true, ""), false), "-vulkan");
+    }
+
+    #[test]
+    fn modded_launch_stays_on_d3d11() {
+        assert_eq!(build_launch_args(&settings(true, "-log"), true), "-log");
+    }
+
+    #[test]
+    fn priority_class_is_above_normal_or_nothing() {
+        let mut s = AppSettings::default();
+        assert_eq!(priority_flags(&s), 0);
+        s.windows_high_priority = true;
+        assert_eq!(priority_flags(&s), ABOVE_NORMAL_PRIORITY_CLASS);
+    }
 }

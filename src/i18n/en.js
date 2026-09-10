@@ -254,6 +254,28 @@ export default {
       name: 'Canonical Hole (skip_volatile_check)',
       desc: 'WINE_CANONICAL_HOLE=skip_volatile_check — may improve performance up to 200% (DWProton)',
     },
+    windows: {
+      vulkan: {
+        name: 'Vulkan renderer',
+        desc: 'Start the game with -vulkan so it drives its own Vulkan renderer instead of Direct3D 11 — the path every Linux session runs on. The official launcher never enables it on Windows, so whether it is faster on your machine is an open question: try it and compare. Modded launches stay on Direct3D 11.',
+      },
+      dgpu: {
+        name: 'Prefer the dedicated GPU',
+        desc: 'Register the game as “High performance” in Windows graphics settings, so a laptop with hybrid graphics runs it on the dedicated GPU instead of the integrated one. Does nothing on a desktop.',
+      },
+      windowedOptimizations: {
+        name: 'Optimizations for windowed games',
+        desc: 'Windows 11 22H2 and later: present windowed and borderless frames through the flip model, which lowers latency and lets variable refresh rate and Auto HDR work outside exclusive fullscreen.',
+      },
+      powerPlan: {
+        name: 'High performance power plan while playing',
+        desc: 'Switch Windows to the High performance plan for the session and restore the previous one when the game exits. Mostly matters on laptops; skipped when the plan is missing from this machine.',
+      },
+      priority: {
+        name: 'Above-normal process priority',
+        desc: 'Start the game ahead of ordinary background apps in the scheduler. A small, steady gain on a busy system; usually cannot be applied when the game runs as administrator.',
+      },
+    },
     runAsAdmin: {
       name: 'Run as administrator',
       desc: 'Ask for elevation before starting the game. Only needed if the anti-cheat refuses to load; custom environment variables are ignored in this mode.',

@@ -155,7 +155,13 @@ Settings are stored in `~/.config/llauncher/settings.json` (`%APPDATA%\llauncher
 | Diagnostics | System checks, logs, debug information, prefix tools |
 
 On Windows Proton management and every Proton-only launch option are hidden — the
-game runs natively — and the Launch tab offers "Run as administrator" instead,
+game runs natively — and the Launch tab offers the Windows-only options instead:
+the game's own Vulkan renderer (`-vulkan`, the path every Linux session uses; the
+official launcher never enables it on Windows, so treat it as an experiment and
+compare), "Prefer the dedicated GPU" and "Optimizations for windowed games"
+(the launcher's entry for the game on the Windows graphics settings page, the
+counterpart of PRIME offload on Linux), the High performance power plan for the
+length of a session, above-normal process priority, and "Run as administrator"
 for the rare case where the anti-cheat refuses to load without elevation.
 
 <img width="1282" height="715" alt="изображение" src="https://github.com/user-attachments/assets/e9262948-b29a-4b93-bb2c-8e0438db8a6f" />
@@ -197,8 +203,9 @@ than a setting:
 
 - **It costs frames on Linux.** The loader hooks DirectX 11 and has no Vulkan
   equivalent, so a modded session runs on the game's D3D11 path through DXVK instead
-  of its native Vulkan renderer. On Windows the game already runs on D3D11 and only
-  the loader's own overhead applies.
+  of its native Vulkan renderer. On Windows the game runs on D3D11 by default (a
+  modded launch ignores the Vulkan renderer toggle) and only the loader's own
+  overhead applies.
 - **The game ships the ACE anti-cheat.** No wave of bans over cosmetic mods has been
   documented, but nobody — the mod authors included — guarantees anything.
 

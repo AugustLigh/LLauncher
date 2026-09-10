@@ -283,6 +283,7 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
     Ok(LaunchedGame {
         process: GameProcess::Child(child),
         log_path,
+        on_exit: None,
     })
 }
 
