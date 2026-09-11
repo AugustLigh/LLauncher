@@ -111,6 +111,7 @@ pub fn check_system(settings: &AppSettings) -> SystemCheck {
         has_nvidia: false,
         hybrid_graphics: false,
         has_vkbasalt: false,
+        can_turn_off_screen: crate::power::screen_off_supported(),
         proton_path,
         has_rosetta: crate::download::wine::rosetta_available(),
         dxmt_version,
