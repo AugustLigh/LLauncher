@@ -2576,6 +2576,19 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/lzma-rust2/lzma-rust2-0.20.1.crate",
+        "sha256": "5e2a88783b84d2d67ef2791778a9e76bfb68b8017aaf6c9d7d5f2626a478b16c",
+        "dest": "cargo/vendor/lzma-rust2-0.20.1"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"5e2a88783b84d2d67ef2791778a9e76bfb68b8017aaf6c9d7d5f2626a478b16c\", \"files\": {}}",
+        "dest": "cargo/vendor/lzma-rust2-0.20.1",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/mac/mac-0.1.1.crate",
         "sha256": "c41e0c4fef86961ac6d6f8a82609f55f31b05e4fce149ac5710e439df7619ba4",
         "dest": "cargo/vendor/mac-0.1.1"
@@ -4495,6 +4508,19 @@
         "type": "inline",
         "contents": "{\"package\": \"d52aa42f8fdf0fed91e5ce7f23d8138441002fa31dca008acf47e6fd4721f741\", \"files\": {}}",
         "dest": "cargo/vendor/servo_arc-0.2.0",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/sevenz-rust2/sevenz-rust2-0.22.2.crate",
+        "sha256": "cb967eb8b29410e61e8c9005058fcfd5889d0b827856beb25529c73dfc86a98a",
+        "dest": "cargo/vendor/sevenz-rust2-0.22.2"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"cb967eb8b29410e61e8c9005058fcfd5889d0b827856beb25529c73dfc86a98a\", \"files\": {}}",
+        "dest": "cargo/vendor/sevenz-rust2-0.22.2",
         "dest-filename": ".cargo-checksum.json"
     },
     {
