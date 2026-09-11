@@ -2,7 +2,7 @@
 
 # 🚀 LLauncher
 
-**A native Linux launcher for Arknights: Endfield — with Windows and macOS builds too**
+**An open-source launcher for Arknights: Endfield on Linux, Windows and macOS**
 
 Built with Tauri v2, React, and Rust
 
@@ -18,17 +18,24 @@ Built with Tauri v2, React, and Rust
 <img width="1280" height="719" alt="изображение" src="https://github.com/user-attachments/assets/181529d5-23b0-463a-b1a1-c5d13e9a4475" />
 
 
-LLauncher is a lightweight, native Linux launcher for **Arknights: Endfield**. It handles game installation, updates, and launching through Proton — no Steam or Lutris required.
+LLauncher is a lightweight, open-source launcher for **Arknights: Endfield**
+that runs the game on Linux, Windows and macOS from one codebase. Installing,
+updating and verifying the game work the same everywhere; what differs is what
+each platform needs to run a Windows game, and the launcher brings that along
+itself:
 
-The same launcher builds for Windows, where the game needs no compatibility
-layer: the install, update and verification machinery is identical and the
-Proton-specific settings simply disappear.
-
-It also builds for macOS (experimental — see [macOS](#macos) below), where it
-assembles its own open-source compatibility layer the way it downloads
-DWProton on Linux: the official WineHQ Wine Staging package, the same
-anti-cheat patches dw-proton carries plus two Rosetta 2 fixes, and DXMT, a
-Direct3D 11 → Metal translator.
+- **Linux** — Proton, downloaded and managed by the launcher (DWProton, the
+  build that carries the anti-cheat patches), plus the launch options that
+  matter: Wayland, gamescope, MangoHud, GameMode, PRIME offload, the DLSS
+  switches. No Steam or Lutris required.
+- **Windows** — nothing to translate, so the compatibility settings give way
+  to Windows-specific performance options: dedicated GPU, power plan, process
+  priority, windowed-mode optimizations.
+- **macOS** (experimental — see [macOS](#macos)) — its own open-source
+  compatibility layer, assembled the way DWProton is downloaded on Linux: the
+  official WineHQ Wine Staging package, the anti-cheat patches dw-proton
+  carries plus two Rosetta 2 fixes, and DXMT, a Direct3D 11 → Metal
+  translator.
 
 [Download the latest release](https://github.com/AugustLigh/LLauncher/releases/latest) (AppImage / .deb / .rpm / .flatpak, an .exe installer and .msi for Windows, a universal .dmg for macOS)
 
