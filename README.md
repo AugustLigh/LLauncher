@@ -119,8 +119,6 @@ npm run tauri -- build --no-bundle --config '{"build":{"beforeBuildCommand":"npm
 ```
 
 Quit an older running instance from the tray before launching the new build.
-See [the implemented design and verification notes](docs/design/implementation.md)
-for screenshots and UI checks.
 
 ```bash
 ./build.sh
