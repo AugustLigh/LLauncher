@@ -82,6 +82,20 @@
   </content_rating>
 
   <releases>
+    <release version="1.3.3" date="2026-09-11">
+      <url>https://github.com/AugustLigh/LLauncher/releases/tag/1.3.3</url>
+      <description>
+        <p>
+          One launcher for Linux, Windows and macOS: the macOS build brings
+          its own open-source compatibility layer (WineHQ Wine Staging, the
+          anti-cheat patches and DXMT). DLSS on any GPU: driver-side DLSS 4
+          override, indicator and Reflex switches on NVIDIA, and an
+          OptiScaler installer that hands the game's DLSS inputs to FSR 3.1
+          or XeSS on AMD and Intel. Downloads keep the machine awake, with a
+          button to switch the screen off meanwhile.
+        </p>
+      </description>
+    </release>
     <release version="0.3.3" date="2026-09-07">
       <url>https://github.com/AugustLigh/LLauncher/releases/tag/0.3.3</url>
       <description>
