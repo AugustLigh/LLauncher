@@ -41,6 +41,11 @@ discord-rich-presence = "1.1.0"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# Session-bus sleep inhibitors and the "turn off screen" call. Already in
+# the tree through the notification plugin, so this adds no build weight.
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = "5"
+
 # Win32 equivalents: free space (GetDiskFreeSpaceExW), waiting on a process
 # handle, the elevated launch path (ShellExecuteExW), the per-app graphics
 # entry in the registry and the power plan swapped in for a session.

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useTranslation } from "../../../i18n";
-import { Button, Field, Status } from "../../common/Controls";
+import { Button, Field, Status, Switch } from "../../common/Controls";
 import PathSelector from "../PathSelector";
 import ProgressBar from "../../home/ProgressBar";
 import ErrorNotice from "../../common/ErrorNotice";
@@ -98,6 +98,12 @@ export default function FilesSettings({
           )}
         </div>
       </div>
+      <Switch
+        label={t("settings.inhibitSleep.name")}
+        note={t("settings.inhibitSleep.desc")}
+        checked={form.inhibit_sleep_on_download !== false}
+        onChange={(v) => onChange("inhibit_sleep_on_download", v)}
+      />
       <div className="setting-row">
         <span>{t("settings.integrity.name")}</span>
         <Button

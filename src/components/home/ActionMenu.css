@@ -3,18 +3,23 @@
   display: flex;
 }
 .action-menu__trigger {
-  width: 48px;
+  width: 54px;
+  min-height: var(--launch-height);
   display: grid;
   place-items: center;
   background: var(--color-accent);
   color: var(--color-on-accent);
-  border-radius: 0 28px 28px 0;
+  border-radius: 0 calc(var(--launch-height) / 2) calc(var(--launch-height) / 2)
+    0;
+  transition: background var(--transition-fast);
 }
 .action-menu__trigger::before {
   content: "";
   position: absolute;
   left: 0;
-  height: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 28px;
   width: 1px;
   background: #18191b30;
 }

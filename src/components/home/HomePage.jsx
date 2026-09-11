@@ -211,6 +211,9 @@ export default function HomePage({
       label: t(slot === "proton" ? "ui.stop" : "ui.cancelConfirm"),
       run: () => stopTask(slot, true),
     });
+  const screenOff = systemCheck?.can_turn_off_screen
+    ? () => invoke("turn_off_screen").catch(() => {})
+    : null;
   const resume = () =>
     start(
       task?.kind ||
@@ -275,6 +278,14 @@ export default function HomePage({
             : errorState
               ? t("common.retry")
               : t(`ui.${labels[state] || state}`);
+  const primaryIcon =
+    state === "ready"
+      ? "play"
+      : ["notInstalled", "update", "needsProton", "protonError"].includes(state)
+        ? "download"
+        : errorState
+          ? "refresh"
+          : null;
   const menuItems = [
     ...(state === "ready" && settings?.mods_enabled
       ? [
@@ -487,6 +498,7 @@ export default function HomePage({
             onCancel={
               state !== "extracting" ? () => confirmCancel("game") : null
             }
+            onScreenOff={taskActive(task) ? screenOff : null}
           />
         )}
         {state === "protonDownloading" && (
@@ -499,6 +511,7 @@ export default function HomePage({
                 ? () => confirmCancel("proton")
                 : null
             }
+            onScreenOff={protonTask?.status === "running" ? screenOff : null}
           />
         )}
         {errorState && (
@@ -522,6 +535,8 @@ export default function HomePage({
           state !== "running" && (
             <div className="home-page__launch-controls">
               <ActionButton
+                icon={primaryIcon}
+                attract={["ready", "notInstalled", "update"].includes(state)}
                 onClick={primaryAction}
                 disabled={
                   !primaryAction ||

@@ -15,10 +15,13 @@ pub struct AppState {
     /// non-zero, so 0 as a sentinel avoids a lock (and the possibility of it
     /// getting poisoned) for what is just a single-word get/set/clear.
     pub game_pid: Arc<AtomicU32>,
+    /// Sleep inhibitor held while a transfer runs (Settings > Files).
+    pub power: crate::power::Power,
 }
 
 impl AppState {
     pub fn new(settings: AppSettings) -> Self {
+        let power = crate::power::Power::new(settings.inhibit_sleep_on_download);
         Self {
             transfers: crate::tasks::Transfers::load(),
             settings: tokio::sync::Mutex::new(settings),
@@ -35,6 +38,7 @@ impl AppState {
             proton_download_active: Arc::new(AtomicBool::new(false)),
             game_running: Arc::new(AtomicBool::new(false)),
             game_pid: Arc::new(AtomicU32::new(0)),
+            power,
         }
     }
 }

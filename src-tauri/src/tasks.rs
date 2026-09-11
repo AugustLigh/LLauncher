@@ -124,6 +124,7 @@ impl Transfers {
         data.insert(slot.into(), task.clone());
         self.persist(&data);
         drop(data);
+        app.state::<AppState>().power.sync(true);
         let _ = app.emit("task://changed", task);
         Ok(id)
     }
@@ -238,9 +239,15 @@ impl Transfers {
             }
         }
         let next = task.clone();
+        let still_active = data.values().any(Transfer::active);
         self.persist(&data);
         drop(data);
+        app.state::<AppState>().power.sync(still_active);
         let _ = app.emit("task://changed", next);
+    }
+
+    pub fn any_active(&self) -> bool {
+        self.data.lock().unwrap().values().any(Transfer::active)
     }
 }
 

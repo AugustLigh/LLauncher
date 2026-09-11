@@ -32,6 +32,10 @@ finish-args:
   - --filesystem=/run/media
   # Tray icon
   - --talk-name=org.kde.StatusNotifierWatcher
+  # "Turn off screen" during downloads: KDE's global shortcut and GNOME's
+  # screen saver. The sleep inhibitor itself uses the Inhibit portal.
+  - --talk-name=org.kde.kglobalaccel
+  - --talk-name=org.gnome.ScreenSaver
   # Discord Rich Presence (native and flatpak Discord sockets)
   - --filesystem=xdg-run/discord-ipc-0
   - --filesystem=xdg-run/app/com.discordapp.Discord:create

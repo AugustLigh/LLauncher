@@ -37,8 +37,19 @@ pub async fn save_settings(
     settings.last_played = current.last_played;
     settings.autostart_initialized = current.autostart_initialized;
     settings.save_async().await?;
+    state.power.set_enabled(
+        settings.inhibit_sleep_on_download,
+        state.transfers.any_active(),
+    );
     *current = settings;
     Ok(())
+}
+
+/// Switch the display off while a long download runs (Steam Deck on
+/// battery, mostly). Returns as soon as the request is queued.
+#[tauri::command]
+pub fn turn_off_screen() -> Result<(), AppError> {
+    crate::power::turn_off_screen()
 }
 
 #[tauri::command]

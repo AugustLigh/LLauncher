@@ -7,6 +7,7 @@ mod game;
 mod install_plan;
 mod logging;
 mod media;
+mod power;
 mod state;
 mod tasks;
 mod util;
@@ -318,6 +319,7 @@ pub fn run() {
             commands::backup_prefix,
             commands::restore_prefix,
             commands::reset_prefix,
+            commands::turn_off_screen,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

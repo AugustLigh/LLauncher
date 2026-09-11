@@ -53,6 +53,11 @@ pub struct AppSettings {
     pub download_speed_limit: u64,
     #[serde(default = "default_max_concurrent")]
     pub download_max_concurrent: u32,
+    /// Keep the machine awake (no auto-suspend, no idle blanking) while a
+    /// transfer runs. On by default: a laptop that dozes off mid-download
+    /// resumes with a stalled connection, and nobody asks for that.
+    #[serde(default = "default_true")]
+    pub inhibit_sleep_on_download: bool,
     #[serde(default)]
     pub use_canonical_hole: bool,
     /// Route controllers through Proton's SDL input backend instead of its
@@ -188,6 +193,7 @@ impl Default for AppSettings {
             disable_esync: false,
             download_speed_limit: 0,
             download_max_concurrent: 4,
+            inhibit_sleep_on_download: true,
             use_canonical_hole: false,
             use_sdl_input: true,
             custom_env_vars: String::new(),

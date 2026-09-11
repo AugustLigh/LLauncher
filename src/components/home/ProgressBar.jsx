@@ -10,6 +10,7 @@ export default function ProgressBar({
   onPause,
   onResume,
   onCancel,
+  onScreenOff,
   stopping = false,
 }) {
   const { t, locale } = useTranslation();
@@ -83,7 +84,7 @@ export default function ProgressBar({
           {t("ui.remaining", { time: eta })}
         </div>
       )}
-      {(onPause || onResume || onCancel) && (
+      {(onPause || onResume || onCancel || onScreenOff) && (
         <div className="progress-bar__actions">
           {onPause && (
             <Button icon="pause" onClick={onPause} disabled={stopping}>
@@ -98,6 +99,16 @@ export default function ProgressBar({
           {onCancel && (
             <Button variant="ghost" onClick={onCancel} disabled={stopping}>
               {t("common.cancel")}…
+            </Button>
+          )}
+          {onScreenOff && (
+            <Button
+              variant="ghost"
+              icon="monitor"
+              onClick={onScreenOff}
+              title={t("progress.screenOffHint")}
+            >
+              {t("progress.screenOff")}
             </Button>
           )}
         </div>

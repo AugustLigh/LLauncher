@@ -17,6 +17,8 @@
   --color-focus: #f1fa00;
   --color-accent-dim: #f1fa0012;
   --color-accent-glow: transparent;
+  --color-accent-shadow: #f1fa0040;
+  --color-accent-shadow-strong: #f1fa0073;
   --color-success: #abd9b2;
   --color-warning: #f1fa00;
   --color-error: #ffb4ae;
@@ -58,6 +60,7 @@
   --titlebar-height: 52px;
   --sidebar-width: 64px;
   --news-height: 144px;
+  --launch-height: 64px;
   --banner-width: 240px;
   --home-base-height: 198px;
 }

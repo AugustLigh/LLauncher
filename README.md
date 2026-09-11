@@ -58,6 +58,7 @@ install without a remote.
 - **Proton management** — download and manage DWProton versions directly from the launcher
 - **macOS without CrossOver** — downloads Wine Staging, its own patched Wine modules (the dw-proton anti-cheat fixes and the Rosetta 2 fixes, built in CI) and DXMT — all open source — installs Rosetta 2 on the way, and runs the game with no paid or proprietary layer
 - **Multi-threaded downloads** — up to 8 concurrent connections with per-worker speed limiting
+- **Download-friendly power handling** — keeps the system from suspending while a transfer runs, and a "Turn off screen" button saves battery during long downloads (handy on the Steam Deck)
 - **File verification** — MD5 checksum validation for every downloaded file, with smart skip for already verified files
 - **System tray** — minimize to tray, launch from tray
 - **In-app news** — announcements and updates from the official API

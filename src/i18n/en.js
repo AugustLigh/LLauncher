@@ -68,6 +68,8 @@ export default {
     verifyLabel: 'Verifying {current}/{total}: {name}',
     extractLabel: 'Extracting archive...',
     pause: 'Pause',
+    screenOff: 'Turn off screen',
+    screenOffHint: 'Switch the display off while the download runs; any key or mouse move wakes it',
   },
   notify: {
     downloadComplete: 'Download complete — the game is ready to play',
@@ -307,6 +309,10 @@ export default {
     maxConcurrent: 'Max concurrent downloads',
     speedLimit: 'Speed limit',
     speedLimitHint: '0 or empty = unlimited',
+    inhibitSleep: {
+      name: 'Keep the system awake while downloading',
+      desc: 'Blocks automatic suspend and idle screen blanking until the transfer finishes',
+    },
     repair: {
       name: 'Repair installation',
       desc: 'Re-verify the game files. Missing or corrupted packs will be re-downloaded; intact data is skipped.',

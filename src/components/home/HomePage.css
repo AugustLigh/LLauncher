@@ -71,6 +71,16 @@
   display: flex;
   align-items: stretch;
   width: 100%;
+  transition: transform var(--transition-base);
+}
+.home-page__launch-controls:has(
+    .action-button:hover:not(:disabled),
+    .action-menu__trigger:hover
+  ) {
+  transform: translateY(-2px);
+}
+.home-page__launch-controls:has(.action-button:active:not(:disabled)) {
+  transform: translateY(0);
 }
 .home-page__action-area h2 {
   font-size: 16px;
@@ -278,6 +288,9 @@
   }
 }
 @media (max-height: 650px) {
+  :root {
+    --launch-height: 56px;
+  }
   .home-page {
     row-gap: 14px;
     padding-bottom: 14px;
