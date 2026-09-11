@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const assert = require("node:assert/strict");
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
 const entry = require("./ui-fixture.cjs");
-const out = path.resolve(__dirname, "../docs/design/reference-inspired");
+const out = path.resolve(__dirname, "../.ui-screenshots/appearance");
 fs.mkdirSync(out, { recursive: true });
 
 async function textContrast(page) {

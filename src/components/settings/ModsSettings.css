@@ -23,3 +23,10 @@
 .mods-message {
   margin-top: 20px;
 }
+
+.mods-note {
+  margin: 14px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--color-text-muted, inherit);
+}

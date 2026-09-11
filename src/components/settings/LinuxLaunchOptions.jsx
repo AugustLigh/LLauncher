@@ -2,16 +2,26 @@ import { useTranslation } from "../../i18n";
 import { Field, Switch } from "../common/Controls";
 export default function LinuxLaunchOptions({ form, onChange, systemCheck }) {
   const { t } = useTranslation();
-  const toggle = (key, label, missing = false, inverse = false) => (
+  const toggle = (
+    key,
+    label,
+    missing = false,
+    inverse = false,
+    note = null,
+  ) => (
     <Switch
       key={key}
       label={label}
       checked={inverse ? !form[key] : !!form[key]}
       onChange={(v) => onChange(key, inverse ? !v : v)}
       disabled={missing && !form[key]}
-      note={missing ? t("settings.unavailable") : null}
+      note={missing ? note || t("settings.unavailable") : null}
     />
   );
+  // The DLSS knobs go to the NVIDIA driver; without it they do nothing.
+  const noNvidia = !!systemCheck && !systemCheck.has_nvidia;
+  const nvidiaToggle = (key, label) =>
+    toggle(key, label, noNvidia, false, t("settings.dlss.nvidiaOnly"));
   const field = (key, label, placeholder = "", type = "text") => (
     <Field label={label}>
       {(id) => (
@@ -85,7 +95,19 @@ export default function LinuxLaunchOptions({ form, onChange, systemCheck }) {
           {toggle("use_dxvk_async", "DXVK Async")}
           {toggle("disable_fsync", t("ui.useFsync"), false, true)}
           {toggle("disable_esync", t("ui.useEsync"), false, true)}
-          {toggle("use_prime_offload", t("settings.prime.name"))}
+          <Switch
+            label={t("settings.prime.name")}
+            checked={!!form.use_prime_offload}
+            onChange={(v) => onChange("use_prime_offload", v)}
+            note={
+              systemCheck?.hybrid_graphics && !form.use_prime_offload
+                ? t("settings.prime.hybridHint")
+                : null
+            }
+          />
+          {nvidiaToggle("dlss_upgrade", t("settings.dlss.upgrade"))}
+          {nvidiaToggle("dlss_indicator", t("settings.dlss.indicator"))}
+          {nvidiaToggle("use_vk_reflex", t("settings.dlss.reflex"))}
           {toggle("use_canonical_hole", t("settings.canonicalHole.name"))}
           {toggle(
             "use_gamescope",

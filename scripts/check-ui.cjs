@@ -2,7 +2,7 @@ const path = require("node:path");
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const out = path.resolve(__dirname, "../docs/design/implemented");
+const out = path.resolve(__dirname, "../.ui-screenshots");
 fs.mkdirSync(out, { recursive: true });
 const entry = require("./ui-fixture.cjs");
 

@@ -142,6 +142,16 @@ export default {
         reshadeFound: 'Найден',
         reshadeHint: 'Не найден',
       },
+      upscaling: {
+        title: 'Апскейлинг',
+        desc: 'DLSS-качество на AMD и Intel: то, что игра готовит для DLSS, отдаётся FSR 3.1 или XeSS',
+        nvidia: 'На NVIDIA не нужен — родной DLSS игры работает и так',
+        howto: 'Затем выберите DLSS в графических настройках игры. Insert открывает оверлей OptiScaler в игре.',
+        warning: 'Сторонняя инъекция в игру с античитом: по отчётам работает с DWProton, а на Proton-GE и Proton-CachyOS античит срабатывает. На свой страх и риск.',
+        wiki: 'Wiki',
+        installed: 'OptiScaler установлен ({version})',
+        uninstalled: 'OptiScaler удалён',
+      },
       installed: 'Загрузчик установлен ({version})',
       uninstalled: 'Загрузчик удалён, моды остались на месте',
     },
@@ -207,6 +217,13 @@ export default {
     prime: {
       name: 'Дискретная GPU (PRIME)',
       desc: 'Рендерить на дискретной видеокарте на ноутбуках с гибридной графикой (PRIME offload)',
+      hybridHint: 'Найдены две видеокарты — без этого игра может выбрать встроенную, а с ней пропадёт и DLSS',
+    },
+    dlss: {
+      upgrade: 'DLSS из драйвера (DLSS 4 override)',
+      indicator: 'Индикатор DLSS',
+      reflex: 'NVIDIA Reflex на Vulkan',
+      nvidiaOnly: 'Только с драйвером NVIDIA',
     },
     discord: {
       name: 'Discord Rich Presence',

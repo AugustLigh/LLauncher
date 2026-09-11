@@ -65,6 +65,7 @@ install without a remote.
 - **Gamescope integration** — run the game in Valve's micro-compositor with FSR/NIS upscaling, FPS cap, HDR and window-mode control
 - **Prefix toolbox** — open the Wine prefix, run winecfg, clear shader caches, back up / restore / reset the prefix from Settings
 - **Mod support** — install EFMI (Endfield Model Importer) from the launcher and start the game with mods as a separate action, leaving the normal launch on the native Vulkan renderer; vkBasalt and ReShade add-ons for graphics mods
+- **DLSS on any GPU** — the game's DLSS is native on NVIDIA (with Proton's driver-side DLSS 4 override, indicator and Vulkan Reflex as switches); on AMD and Intel the launcher installs OptiScaler, which hands the game's DLSS inputs to FSR 3.1 or XeSS
 - **Controller support** — gamepads are handed to the game as XInput controllers, so a DualShock/DualSense works without Steam Input
 - **Play statistics** — total playtime and the last launch, with a session journal stored locally
 - **Quick launch** — `llauncher --play` and a desktop-menu "Launch Arknights: Endfield" action start the game straight from your app menu
@@ -264,6 +265,35 @@ and does not need the D3D11 detour:
 
 Mods that patch the game itself rather than the renderer work on a normal Vulkan
 launch and need none of this.
+
+### Upscaling
+
+Endfield's one real upscaler is DLSS: the game ships NVIDIA Streamline with DLSS
+Super Resolution, Frame Generation and Ray Reconstruction, and the "FSR" entry in
+its graphics menu is the engine's own TAAU under a borrowed name. What that means
+per GPU:
+
+- **NVIDIA.** DLSS works as it is: Proton enables NVAPI by default and copies the
+  driver's `nvngx.dll` into the prefix, and the game's Vulkan renderer gets the NGX
+  extensions through winevulkan. Settings → Launch adds three driver-side switches:
+  *DLSS from the driver* (`PROTON_DLSS_UPGRADE`, the NVIDIA App's "DLSS override" —
+  the current DLSS 4 model without waiting for a game patch), the *DLSS indicator*
+  overlay, and *Reflex on Vulkan*. On a hybrid-graphics laptop, turn on *Dedicated
+  GPU (PRIME)* as well, or the game may land on the integrated GPU and lose DLSS
+  with it.
+- **AMD and Intel.** Settings → Mods installs [OptiScaler](https://github.com/optiscaler/OptiScaler),
+  which sits between the game and the NGX loader, takes the colour, depth and
+  motion vectors the game prepares for DLSS and feeds them to FSR 3.1 (or XeSS,
+  switchable from its in-game overlay on Insert), spoofing an NVIDIA GPU so the
+  game shows the DLSS options at all. It hooks NGX rather than D3D11, so it rides
+  along with the normal Vulkan launch and costs no frames of its own. The launcher
+  unpacks the release, installs it as `winmm.dll`, applies the settings OptiScaler's
+  [Endfield entry](https://github.com/optiscaler/OptiScaler/wiki/Arknights-Endfield)
+  lists for Wine, and sets the DLL override on launch. Then pick DLSS in the game.
+
+The same anti-cheat caveat applies as for mods, with one more data point:
+OptiScaler's compatibility list reports that ACE trips on Proton-GE and
+Proton-CachyOS but not on DWProton, which is what this launcher installs.
 
 ## macOS
 

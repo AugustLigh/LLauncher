@@ -36,6 +36,10 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-notification = "2"
 discord-rich-presence = "1.1.0"
+# OptiScaler ships as a 7z (LZMA2 + BCJ2); nothing else in the tree reads
+# one, and the system `7z` is not a given on Linux, in the Flatpak or on
+# Windows. Decoding only: no AES, no compressor.
+sevenz-rust2 = { version = "0.22", default-features = false }
 
 # `killpg`/`statvfs`: the POSIX bits of process control and free-space probing.
 [target.'cfg(unix)'.dependencies]

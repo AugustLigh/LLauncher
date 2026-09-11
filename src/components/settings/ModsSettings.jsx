@@ -13,16 +13,26 @@ export default function ModsSettings({
 }) {
   const { t } = useTranslation();
   const [status, setStatus] = useState(null),
+    [opti, setOpti] = useState(null),
     [busy, setBusy] = useState(null),
     [error, setError] = useState(null),
     [message, setMessage] = useState("");
   // vkBasalt is a Vulkan layer, so it exists on Linux only — not on Windows,
   // and not on macOS, where the game reaches Metal through DXMT.
   const linux = systemCheck?.platform === "linux";
+  // OptiScaler proxies the NGX loader, which exists on the Windows game
+  // under Wine or natively — not on macOS, where DXMT turns D3D11 into Metal
+  // and no DLSS path exists at all.
+  const optiscaler = systemCheck?.platform !== "macos";
   const refresh = useCallback(async () => {
     setError(null);
     try {
-      setStatus(await invoke("get_mods_status"));
+      const [mods, upscaler] = await Promise.all([
+        invoke("get_mods_status"),
+        invoke("get_optiscaler_status"),
+      ]);
+      setStatus(mods);
+      setOpti(upscaler);
     } catch (e) {
       setError(e);
     }
@@ -175,6 +185,76 @@ export default function ModsSettings({
           </small>
         </div>
       </div>
+      {optiscaler && (
+        <>
+          <h3>{t("settings.mods.upscaling.title")}</h3>
+          <div className="mods-row">
+            <div>
+              <strong>OptiScaler</strong>
+              <small>
+                {opti?.installed
+                  ? opti.version
+                    ? `${t("ui.installed")} (${opti.version})`
+                    : t("ui.installed")
+                  : systemCheck?.has_nvidia
+                    ? t("settings.mods.upscaling.nvidia")
+                    : t("settings.mods.upscaling.desc")}
+              </small>
+            </div>
+            <div className="mods-row__actions">
+              <Button
+                variant={opti?.installed ? "ghost" : "primary"}
+                icon="download"
+                disabled={disabled || !!busy}
+                onClick={() =>
+                  run("optiscaler", "install_optiscaler", (r) =>
+                    t("settings.mods.upscaling.installed", {
+                      version: r.version,
+                    }),
+                  )
+                }
+              >
+                {busy === "optiscaler"
+                  ? t("settings.mods.skins.installing")
+                  : t(
+                      opti?.installed
+                        ? "settings.mods.skins.upgrade"
+                        : "settings.mods.skins.install",
+                    )}
+              </Button>
+              {opti?.installed && (
+                <Button
+                  variant="ghost"
+                  disabled={disabled || !!busy}
+                  onClick={() =>
+                    run("optiscaler-remove", "uninstall_optiscaler", () =>
+                      t("settings.mods.upscaling.uninstalled"),
+                    )
+                  }
+                >
+                  {t("settings.mods.skins.remove")}
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                icon="external"
+                onClick={() =>
+                  link(
+                    "https://github.com/optiscaler/OptiScaler/wiki/Arknights-Endfield",
+                  )
+                }
+              >
+                {t("settings.mods.upscaling.wiki")}
+              </Button>
+            </div>
+          </div>
+          <p className="mods-note">
+            {t("settings.mods.upscaling.howto")}
+            <br />
+            {t("settings.mods.upscaling.warning")}
+          </p>
+        </>
+      )}
       {message && (
         <div className="mods-message">
           <Status kind="success">{message}</Status>

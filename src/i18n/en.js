@@ -142,6 +142,16 @@ export default {
         reshadeFound: 'Detected',
         reshadeHint: 'Not detected',
       },
+      upscaling: {
+        title: 'Upscaling',
+        desc: 'DLSS-grade upscaling on AMD and Intel: hands the inputs the game prepares for DLSS to FSR 3.1 or XeSS',
+        nvidia: 'Not needed on NVIDIA — the game\'s own DLSS works as it is',
+        howto: 'Then pick DLSS in the game\'s graphics settings. Insert opens the OptiScaler overlay in game.',
+        warning: 'Third-party injection into an anti-cheat-protected game: reported to work with DWProton, while Proton-GE and Proton-CachyOS trip the anti-cheat. Use at your own risk.',
+        wiki: 'Wiki',
+        installed: 'OptiScaler installed ({version})',
+        uninstalled: 'OptiScaler removed',
+      },
       installed: 'Loader installed ({version})',
       uninstalled: 'Loader removed, your mods were left alone',
     },
@@ -207,6 +217,13 @@ export default {
     prime: {
       name: 'Dedicated GPU (PRIME)',
       desc: 'Render on the discrete GPU on hybrid-graphics laptops (PRIME offload)',
+      hybridHint: 'Two GPUs found — without this the game may pick the integrated one, and DLSS with it',
+    },
+    dlss: {
+      upgrade: 'DLSS from the driver (DLSS 4 override)',
+      indicator: 'DLSS indicator overlay',
+      reflex: 'NVIDIA Reflex on Vulkan',
+      nvidiaOnly: 'NVIDIA driver only',
     },
     discord: {
       name: 'Discord Rich Presence',

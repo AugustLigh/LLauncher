@@ -36,5 +36,5 @@ aur_key*
 .playwright-mcp/
 smoke-*.png
 
-# design-process screenshots (kept locally, too heavy for history)
-docs/design/**/*.png
+# UI smoke-test screenshots (kept locally, too heavy for history)
+.ui-screenshots/

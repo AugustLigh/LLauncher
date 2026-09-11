@@ -576,6 +576,43 @@ pub async fn open_mods_folder(
         .map_err(|e| AppError::Api(format!("Failed to open folder: {}", e)))
 }
 
+/// OptiScaler in the game directory: installed or not, which release.
+#[tauri::command]
+pub async fn get_optiscaler_status(
+    state: State<'_, AppState>,
+) -> Result<crate::game::optiscaler::OptiScalerStatus, AppError> {
+    let game_dir = state.settings.lock().await.game_dir.clone();
+    Ok(crate::game::optiscaler::status(std::path::Path::new(&game_dir)))
+}
+
+/// Download the latest OptiScaler release into the game directory, tuned
+/// for this machine (Wine hooks, GPU spoofing without an NVIDIA driver).
+#[tauri::command]
+pub async fn install_optiscaler(
+    state: State<'_, AppState>,
+) -> Result<crate::game::optiscaler::InstallResult, AppError> {
+    let (game_dir, client) = {
+        let settings = state.settings.lock().await;
+        (settings.game_dir.clone(), state.http_client.clone())
+    };
+    crate::game::optiscaler::install(
+        &client,
+        std::path::Path::new(&game_dir),
+        crate::game::optiscaler::host_options(),
+    )
+    .await
+}
+
+/// Remove OptiScaler again, leaving everything else in the game directory.
+#[tauri::command]
+pub async fn uninstall_optiscaler(state: State<'_, AppState>) -> Result<(), AppError> {
+    let game_dir = state.settings.lock().await.game_dir.clone();
+    let dir = std::path::PathBuf::from(game_dir);
+    tokio::task::spawn_blocking(move || crate::game::optiscaler::uninstall(&dir))
+        .await
+        .map_err(|e| AppError::Api(format!("OptiScaler uninstall task failed: {}", e)))?
+}
+
 #[tauri::command]
 pub async fn stop_game(state: State<'_, AppState>) -> Result<(), AppError> {
     let pid = state.game_pid.load(std::sync::atomic::Ordering::SeqCst);

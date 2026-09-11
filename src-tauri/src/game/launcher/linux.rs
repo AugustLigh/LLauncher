@@ -104,8 +104,35 @@ fn build_env_script(settings: &AppSettings, compat_data: &Path, with_mods: bool)
     // `dxgi` rides along unconditionally: it is where ReShade installs itself
     // (d3d11 being taken by 3DMigoto), and `n,b` falls back to the builtin
     // when no native DLL is there, so listing it costs nothing when it is not.
+    let mut dll_overrides: Vec<&str> = Vec::new();
     if with_mods {
-        script.push_str("export WINEDLLOVERRIDES='d3d11=n,b;dxgi=n,b'\n");
+        dll_overrides.push("d3d11=n,b");
+        dll_overrides.push("dxgi=n,b");
+    }
+    // OptiScaler is the same kind of proxy: `winmm.dll` next to the game,
+    // which Wine ignores in favour of its builtin unless told otherwise. It
+    // hooks the NGX loader rather than D3D11, so it rides along with a normal
+    // Vulkan launch — presence in the game directory is the switch.
+    if crate::game::optiscaler::is_installed(Path::new(&settings.game_dir)) {
+        dll_overrides.push("winmm=n,b");
+    }
+    if !dll_overrides.is_empty() {
+        script.push_str(&format!(
+            "export WINEDLLOVERRIDES='{}'\n",
+            dll_overrides.join(";")
+        ));
+    }
+
+    // NVIDIA: the driver-side DLSS knobs Proton exposes. All of them are
+    // no-ops without the driver, so they are not gated on it here.
+    if settings.dlss_upgrade {
+        script.push_str("export PROTON_DLSS_UPGRADE=1\n");
+    }
+    if settings.dlss_indicator {
+        script.push_str("export PROTON_DLSS_INDICATOR=1\n");
+    }
+    if settings.use_vk_reflex {
+        script.push_str("export DXVK_NVAPI_VKREFLEX=1\n");
     }
 
     // vkBasalt hooks the native Vulkan renderer, so it is orthogonal to the

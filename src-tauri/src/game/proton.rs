@@ -23,10 +23,19 @@ pub struct SystemCheck {
     pub has_gamemode: bool,
     pub has_mangohud: bool,
     pub has_gamescope: bool,
+    /// The NVIDIA proprietary driver is loaded. What decides whether the
+    /// DLSS knobs mean anything and whether OptiScaler has to spoof a GPU.
+    pub has_nvidia: bool,
+    /// More than one GPU vendor in the box — a laptop with an iGPU and a
+    /// dedicated card, where the game may land on the wrong one unless PRIME
+    /// offload is on.
+    pub hybrid_graphics: bool,
     /// The vkBasalt Vulkan layer is installed on the host. Unlike the
     /// wrappers above it is not a command but a layer manifest, so it is
     /// looked up by file rather than by `which`.
     pub has_vkbasalt: bool,
+    /// The desktop exposes a "turn off screen" call the launcher can make.
+    pub can_turn_off_screen: bool,
     pub proton_path: String,
     /// macOS on Apple silicon: Rosetta 2 is installed, so the x86-64 Wine
     /// (and the game) can run at all. True everywhere else — Intel Macs run
@@ -58,7 +67,10 @@ pub fn check_system(settings: &AppSettings) -> SystemCheck {
         has_gamemode: check_command("gamemoderun"),
         has_mangohud: check_command("mangohud"),
         has_gamescope: check_command("gamescope"),
+        has_nvidia: has_nvidia_driver(),
+        hybrid_graphics: check_hybrid_graphics(),
         has_vkbasalt: check_vulkan_layer("vkBasalt"),
+        can_turn_off_screen: crate::power::screen_off_supported(),
         proton_path: if has_proton {
             Path::new(proton_dir)
                 .join("proton")
@@ -96,6 +108,8 @@ pub fn check_system(settings: &AppSettings) -> SystemCheck {
         has_gamemode: false,
         has_mangohud: false,
         has_gamescope: false,
+        has_nvidia: false,
+        hybrid_graphics: false,
         has_vkbasalt: false,
         proton_path,
         has_rosetta: crate::download::wine::rosetta_available(),
@@ -117,7 +131,10 @@ pub fn check_system(_settings: &AppSettings) -> SystemCheck {
         has_gamemode: false,
         has_mangohud: false,
         has_gamescope: false,
+        has_nvidia: false,
+        hybrid_graphics: false,
         has_vkbasalt: false,
+        can_turn_off_screen: crate::power::screen_off_supported(),
         proton_path: String::new(),
         has_rosetta: true,
         dxmt_version: String::new(),
@@ -159,4 +176,38 @@ fn check_command(cmd: &str) -> bool {
         .status()
         .map(|s| s.success())
         .unwrap_or(false)
+}
+
+/// Is the NVIDIA proprietary driver loaded? The kernel module publishes its
+/// version here and nothing else does.
+#[cfg(target_os = "linux")]
+pub fn has_nvidia_driver() -> bool {
+    std::path::Path::new("/proc/driver/nvidia/version").exists()
+}
+
+/// Do the DRM cards come from more than one vendor? `/sys/class/drm/cardN/
+/// device/vendor` holds the PCI vendor id of each GPU; connectors
+/// (`card0-eDP-1`) have no such file and are skipped by the name check.
+#[cfg(target_os = "linux")]
+fn check_hybrid_graphics() -> bool {
+    let Ok(entries) = std::fs::read_dir("/sys/class/drm") else {
+        return false;
+    };
+    let mut vendors: Vec<String> = Vec::new();
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        let Some(rest) = name.strip_prefix("card") else {
+            continue;
+        };
+        if rest.is_empty() || !rest.chars().all(|c| c.is_ascii_digit()) {
+            continue;
+        }
+        if let Ok(vendor) = std::fs::read_to_string(entry.path().join("device/vendor")) {
+            let vendor = vendor.trim().to_string();
+            if !vendor.is_empty() && !vendors.contains(&vendor) {
+                vendors.push(vendor);
+            }
+        }
+    }
+    vendors.len() > 1
 }

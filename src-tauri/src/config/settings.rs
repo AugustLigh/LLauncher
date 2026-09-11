@@ -159,6 +159,22 @@ pub struct AppSettings {
     /// the 3DMigoto path it costs nothing extra in renderer terms.
     #[serde(default)]
     pub use_vkbasalt: bool,
+    /// Linux only: PROTON_DLSS_UPGRADE — swap the DLSS libraries the game
+    /// ships for the newer ones in the NVIDIA driver, the way the NVIDIA App's
+    /// "DLSS override" does on Windows. Gets the game the current DLSS 4
+    /// model without waiting for a patch. Needs an NVIDIA driver that
+    /// carries them (570 and later).
+    #[serde(default)]
+    pub dlss_upgrade: bool,
+    /// Linux only: PROTON_DLSS_INDICATOR — the driver's on-screen DLSS
+    /// status overlay, the one way to see the upscaler really is running.
+    #[serde(default)]
+    pub dlss_indicator: bool,
+    /// Linux only: DXVK_NVAPI_VKREFLEX — dxvk-nvapi's Vulkan Reflex layer, so
+    /// the game's Reflex setting works on the native Vulkan renderer too.
+    /// Ignored by Proton builds without the layer.
+    #[serde(default)]
+    pub use_vk_reflex: bool,
     /// Show the "play with mods" action: the game then starts on its D3D11
     /// path with the `d3d11.dll` proxy (3DMigoto/EFMI) loaded. Off by default —
     /// it costs frames and the game is anti-cheat protected, so it is opt-in.
@@ -220,6 +236,9 @@ impl Default for AppSettings {
             windows_high_perf_power: false,
             windows_high_priority: false,
             use_vkbasalt: false,
+            dlss_upgrade: false,
+            dlss_indicator: false,
+            use_vk_reflex: false,
             mods_enabled: false,
             total_playtime_secs: 0,
             last_played: 0,

@@ -27,7 +27,7 @@ case 'get_settings':return {...settings};case 'save_settings':if(state.saveError
 case 'get_transfers':if(scenario==='task-error'&&!state.tasksRecovered)return Promise.reject('IPC unavailable');return structuredClone(state.transfers);
 case 'get_launcher_content':if(scenario==='no-news')return Promise.reject('News unavailable');return {background:{url:bg,video_url:'/test-video.webm'},banners:[{url:bg+'#banner1',jump_url:'https://example.com/banner1'},{url:bg+'#banner2',jump_url:'https://example.com/banner2'}],news_tabs:[{tabName:'Уведомления',announcements:Array.from({length:8},(_,i)=>({content:['Обновление игры: основные изменения','Новое событие — подробности и награды','Расписание технических работ'][i%3]+' '+i,jump_url:'https://example.com/news'}))},{tabName:'События',announcements:[]}],sidebars:[{media:'VK',jump_url:'https://example.com/vk',sidebar_labels:[{content:'VK'}]},{media:'Telegram',jump_url:'https://example.com/telegram',sidebar_labels:[{content:'Telegram'}]},{media:'discord',jump_url:'https://example.com/discord',sidebar_labels:[{content:'Discord'}]}]};
 case 'check_game_state':if(state.offline)return Promise.reject('Connection refused');return !state.installed?{status:'not_installed',latest_version:'1.1'}:scenario==='update'?{status:'update_available',installed_version:'1.0',latest_version:'1.1'}:{status:'ready',version:settings.installed_version};
-case 'check_system_requirements':return {platform:scenario==='windows'?'windows':'linux',has_proton:state.proton,has_ntsync:true,has_gamemode:false,has_mangohud:true,has_gamescope:true,has_vkbasalt:false};
+case 'check_system_requirements':return {platform:scenario==='windows'?'windows':'linux',has_proton:state.proton,has_ntsync:true,has_gamemode:false,has_mangohud:true,has_gamescope:true,has_vkbasalt:false,has_nvidia:false,hybrid_graphics:true};
 case 'get_install_plan':if(state.planError)return Promise.reject('Manifest unavailable');return {download_bytes:48000000000,unpacked_bytes:82000000000,disks:[{path:settings.game_dir,available:scenario==='disk-full'?10000000000:170000000000,required:130000000000}],blocked:scenario==='disk-full'};
 case 'plugin:dialog|open':return '/home/player/Games/Existing';
 case 'import_existing_game':state.installed=true;settings.game_dir=args.path;settings.installed_version='1.0';return;
@@ -42,6 +42,7 @@ case 'recommended_proton_tag':return 'dwproton-10.0-26';
 case 'list_dwproton_releases':return [{tag_name:'dwproton-10.0-26',size:400000000,published_at:'2026-01-01'},{tag_name:'dwproton-11.0',size:410000000,published_at:'2026-01-02'}];
 case 'list_installed_protons':return state.proton?[{name:'dwproton-10.0-26',path:settings.proton_dir}]:[];
 case 'get_prefix_info':return {exists:true,path:'/home/player/.local/share/llauncher/prefix'};
+case 'get_optiscaler_status':return {installed:scenario==='optiscaler',version:scenario==='optiscaler'?'v0.9.4':'',game_dir_missing:!state.installed};
 case 'get_mods_status':return {loader_installed:true,loader_configured:true,efmi:true,mod_count:3,reshade_installed:false,game_dir_missing:!state.installed};
 case 'read_launch_log':if(state.logError)return Promise.reject('Permission denied');return 'Example log\\nSecond line';
 case 'get_debug_info':return 'Example debug info';
