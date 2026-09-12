@@ -1,30 +1,7 @@
 import { createContext, useContext, useMemo } from 'react';
-import en from './en';
-import ru from './ru';
+import { BUNDLES, resolveLocale, getByPath, format } from './resolve.js';
 
-const BUNDLES = { en, ru };
-
-function resolveLocale(language) {
-  if (!language) return 'en';
-  const lower = language.toLowerCase();
-  if (lower.startsWith('ru')) return 'ru';
-  return 'en';
-}
-
-function getByPath(obj, path) {
-  const parts = path.split('.');
-  let cur = obj;
-  for (const p of parts) {
-    if (cur == null) return undefined;
-    cur = cur[p];
-  }
-  return cur;
-}
-
-function format(template, vars) {
-  if (!vars || typeof template !== 'string') return template;
-  return template.replace(/\{(\w+)\}/g, (m, key) => (vars[key] != null ? String(vars[key]) : m));
-}
+export { resolveLocale, BUNDLES };
 
 const I18nContext = createContext({
   locale: 'en',

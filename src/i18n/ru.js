@@ -1,4 +1,5 @@
-import ui from './ui.ru';
+import uiModule from './ui.ru.js';
+const ui = uiModule.default || uiModule;
 export default {
   ui,
   common: {
