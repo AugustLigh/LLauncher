@@ -1,4 +1,5 @@
-import ui from './ui.en';
+import uiModule from './ui.en.js';
+const ui = uiModule.default || uiModule;
 export default {
   ui,
   common: {

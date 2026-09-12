@@ -5,17 +5,17 @@ import "./LanguageSelector.css";
 const LANGUAGES = [
   { code: "en-us", name: "English" },
   { code: "ru-ru", name: "Русский" },
+  { code: "zh-cn", name: "简体中文" },
+  { code: "zh-tw", name: "繁體中文" },
   { code: "ja-jp", name: "日本語" },
   { code: "ko-kr", name: "한국어" },
-  { code: "zh-tw", name: "繁體中文" },
-  { code: "zh-cn", name: "简体中文" },
   { code: "de-de", name: "Deutsch" },
   { code: "fr-fr", name: "Français" },
   { code: "es-es", name: "Español" },
   { code: "pt-br", name: "Português (Brasil)" },
   { code: "id-id", name: "Bahasa Indonesia" },
-  { code: "th-th", name: "ไทย" },
   { code: "vi-vn", name: "Tiếng Việt" },
+  { code: "th-th", name: "ไทย" },
 ];
 
 export default function LanguageSelector({ value, onChange, id }) {

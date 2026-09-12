@@ -14,7 +14,18 @@
         "installMode": "currentUser",
         "languages": [
           "English",
-          "Russian"
+          "Russian",
+          "SimpChinese",
+          "TradChinese",
+          "Japanese",
+          "Korean",
+          "German",
+          "French",
+          "Spanish",
+          "PortugueseBR",
+          "Indonesian",
+          "Thai",
+          "Vietnamese"
         ]
       }
     }
