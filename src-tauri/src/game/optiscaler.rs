@@ -394,8 +394,8 @@ fn set_ini_key(ini: &str, section: &str, key: &str, value: &str) -> String {
     let mut in_section = false;
     let mut section_end: Option<usize> = None;
     let mut replaced = false;
-    for i in 0..lines.len() {
-        let line = lines[i].trim();
+    for (i, line) in lines.iter().enumerate() {
+        let line = line.trim();
         if line.starts_with('[') {
             if in_section {
                 section_end = Some(i);

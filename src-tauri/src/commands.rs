@@ -236,7 +236,8 @@ async fn run_verify_game_integrity(
 /// files live solely in the packs. So we first check (via the latest packs'
 /// ZIP central directory) whether any non-VFS file changed:
 ///   - engine unchanged → per-file VFS delta (download only changed assets);
-///   - engine changed, or the check is inconclusive → full pack download.
+///   - engine changed, or the check is inconclusive -> full pack download.
+///
 /// Either way the resulting install is complete. Progress for the delta path is
 /// emitted on the `update://` channel; the pack path uses `download://`.
 async fn run_start_update(
