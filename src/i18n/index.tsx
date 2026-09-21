@@ -1,7 +1,7 @@
 // @ts-nocheck
 
 import { createContext, useContext, useMemo } from 'react';
-import { BUNDLES, resolveLocale, getByPath, format } from './resolve.js';
+import { BUNDLES, resolveLocale, getByPath, format } from './resolve.ts';
 
 export { resolveLocale, BUNDLES };
 

@@ -1,6 +1,6 @@
 // @ts-nocheck
 
-import uiModule from './ui.th-th.js';
+import uiModule from './ui.th-th.ts';
 const ui = (uiModule as any).default || uiModule;
 export default {
   ui,

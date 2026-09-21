@@ -1,6 +1,6 @@
 // @ts-nocheck
 
-import uiModule from './ui.ko-kr.js';
+import uiModule from './ui.ko-kr.ts';
 const ui = (uiModule as any).default || uiModule;
 export default {
   ui,

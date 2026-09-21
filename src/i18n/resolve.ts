@@ -1,18 +1,18 @@
 // @ts-nocheck
 
-import en from "./en.js";
-import ru from "./ru.js";
-import zhCn from "./zh-cn.js";
-import zhTw from "./zh-tw.js";
-import jaJp from "./ja-jp.js";
-import idId from "./id-id.js";
-import koKr from "./ko-kr.js";
-import deDe from "./de-de.js";
-import frFr from "./fr-fr.js";
-import esEs from "./es-es.js";
-import ptBr from "./pt-br.js";
-import viVn from "./vi-vn.js";
-import thTh from "./th-th.js";
+import en from "./en.ts";
+import ru from "./ru.ts";
+import zhCn from "./zh-cn.ts";
+import zhTw from "./zh-tw.ts";
+import jaJp from "./ja-jp.ts";
+import idId from "./id-id.ts";
+import koKr from "./ko-kr.ts";
+import deDe from "./de-de.ts";
+import frFr from "./fr-fr.ts";
+import esEs from "./es-es.ts";
+import ptBr from "./pt-br.ts";
+import viVn from "./vi-vn.ts";
+import thTh from "./th-th.ts";
 
 export const BUNDLES = {
   en,

@@ -1,6 +1,6 @@
 // @ts-nocheck
 
-import uiModule from './ui.vi-vn.js';
+import uiModule from './ui.vi-vn.ts';
 const ui = (uiModule as any).default || uiModule;
 export default {
   ui,

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { launcherState } from "../src/utils/launcherState.js";
+import { launcherState } from "../src/utils/launcherState.ts";
 
 const ready = {
   gameState: { status: "ready" },

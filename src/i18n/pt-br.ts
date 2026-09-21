@@ -1,6 +1,6 @@
 // @ts-nocheck
 
-import uiModule from './ui.pt-br.js';
+import uiModule from './ui.pt-br.ts';
 const ui = (uiModule as any).default || uiModule;
 export default {
   ui,
