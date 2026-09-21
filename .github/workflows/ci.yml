@@ -54,8 +54,19 @@ jobs:
       - name: Frontend
         run: |
           yarn install --frozen-lockfile
-          yarn test
           yarn build
+          yarn test
+
+      - name: Resolve Windows DLLs for Rust tests
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dll = Get-ChildItem -Path "src-tauri/target" -Filter "WebView2Loader.dll" -Recurse | Select-Object -First 1
+          if ($dll) {
+            $dest = "src-tauri/target/debug/deps/"
+            New-Item -ItemType Directory -Force -Path $dest -ErrorAction SilentlyContinue | Out-Null
+            Copy-Item $dll.FullName -Destination $dest
+          }
 
       # The Tauri context embeds ../dist at compile time, so the frontend
       # build above must come first.
