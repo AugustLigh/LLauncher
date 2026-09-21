@@ -15,7 +15,7 @@ pub fn has_existing_install(game_dir: &Path) -> bool {
     game_dir.join("Endfield.exe").exists() && !incomplete_marker(game_dir).exists()
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(tag = "status")]
 pub enum GameState {
     #[serde(rename = "not_installed")]
@@ -67,3 +67,4 @@ pub async fn determine_game_state(
         version: installed_version.to_string(),
     })
 }
+

@@ -141,3 +141,4 @@ pub fn default_wine_dir() -> PathBuf {
 pub fn default_proton_prefix_dir() -> PathBuf {
     data_base().join("prefix")
 }
+

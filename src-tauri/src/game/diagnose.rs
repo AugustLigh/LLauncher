@@ -116,3 +116,4 @@ mod tests {
         assert!(!is_dwproton_11("/opt/dwproton-11.0-12/dwproton-10.0-26"));
     }
 }
+

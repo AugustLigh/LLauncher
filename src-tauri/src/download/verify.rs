@@ -28,3 +28,4 @@ where
     let result = format!("{:x}", hasher.finalize());
     Ok(result == expected)
 }
+

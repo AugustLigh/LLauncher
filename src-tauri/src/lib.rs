@@ -130,7 +130,7 @@ pub fn run() {
     if std::env::args().any(|a| a == "--debug-info") {
         #[cfg(windows)]
         attach_parent_console();
-        println!("{}", commands::build_debug_info(settings));
+        println!("{}", commands::diagnostics::build_debug_info(settings));
         return;
     }
 
@@ -141,6 +141,60 @@ pub fn run() {
     // straight away and stay in the tray instead of showing the window.
     let play_requested = std::env::args().any(|a| a == "--play");
 
+        let builder = tauri_specta::Builder::<tauri::Wry>::new()
+        .commands(tauri_specta::collect_commands![
+            commands::settings::get_settings,
+            tasks::get_transfers,
+            tasks::stop_transfer,
+            install_plan::get_install_plan,
+            commands::settings::save_settings,
+            commands::game::get_game_version,
+            commands::settings::get_launcher_content,
+            commands::game::check_game_state,
+            commands::download::start_download,
+            commands::download::cancel_download,
+            commands::download::clear_download_cache,
+            commands::download::verify_game_integrity,
+            commands::download::start_update,
+            commands::game::launch_game,
+            commands::mods::get_mods_status,
+            commands::mods::install_mod_loader,
+            commands::mods::uninstall_mod_loader,
+            commands::mods::open_mods_folder,
+            commands::mods::get_optiscaler_status,
+            commands::mods::install_optiscaler,
+            commands::mods::uninstall_optiscaler,
+            commands::game::stop_game,
+            commands::game::is_game_running,
+            commands::game::import_existing_game,
+            commands::game::uninstall_game,
+            commands::diagnostics::get_debug_info,
+            commands::diagnostics::read_launch_log,
+            commands::download::repair_game,
+            commands::game::update_installed_version,
+            commands::proton::check_system_requirements,
+            commands::proton::get_dwproton_latest,
+            commands::proton::list_dwproton_releases,
+            commands::proton::recommended_proton_tag,
+            commands::proton::list_installed_protons,
+            commands::proton::set_active_proton,
+            commands::proton::download_dwproton,
+            commands::proton::cancel_proton_download,
+            commands::game::get_game_sessions,
+            commands::prefix::get_prefix_info,
+            commands::prefix::open_prefix_folder,
+            commands::prefix::run_prefix_tool,
+            commands::prefix::clear_shader_cache,
+            commands::prefix::backup_prefix,
+            commands::prefix::restore_prefix,
+            commands::prefix::reset_prefix,
+            commands::settings::turn_off_screen,
+        ]);
+
+    #[cfg(debug_assertions)]
+    builder.export(specta_typescript::Typescript::default(), "../src/bindings.ts")
+        .expect("Failed to export typescript bindings");
+
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             // A second `--play` invocation launches the game in the running
@@ -150,7 +204,7 @@ pub fn run() {
                 tauri::async_runtime::spawn(async move {
                     // Immediate failures (not installed, no Proton) have no
                     // dialog of their own — fall back to showing the window.
-                    if commands::launch_and_watch(app.clone(), false)
+                    if commands::game::launch_and_watch(app.clone(), false)
                         .await
                         .is_err()
                     {
@@ -211,7 +265,7 @@ pub fn run() {
                             // Errors (already running, missing proton, ...) are
                             // surfaced through the launch://failed flow or
                             // silently ignored — there is no UI here.
-                            let _ = commands::launch_and_watch(app, false).await;
+                            let _ = commands::game::launch_and_watch(app, false).await;
                         });
                     }
                     "show" => {
@@ -250,7 +304,7 @@ pub fn run() {
                     // Crashes after spawn reopen the window via launch://failed;
                     // immediate failures (not installed, no Proton) get no
                     // dialog, so bring the window back for those.
-                    if commands::launch_and_watch(app_handle.clone(), false)
+                    if commands::game::launch_and_watch(app_handle.clone(), false)
                         .await
                         .is_err()
                     {
@@ -276,54 +330,66 @@ pub fn run() {
                 let _ = window.hide();
             }
         })
-        .invoke_handler(tauri::generate_handler![
-            commands::get_settings,
-            tasks::get_transfers,
-            tasks::stop_transfer,
-            install_plan::get_install_plan,
-            commands::save_settings,
-            commands::get_game_version,
-            commands::get_launcher_content,
-            commands::check_game_state,
-            commands::start_download,
-            commands::cancel_download,
-            commands::clear_download_cache,
-            commands::verify_game_integrity,
-            commands::start_update,
-            commands::launch_game,
-            commands::get_mods_status,
-            commands::install_mod_loader,
-            commands::uninstall_mod_loader,
-            commands::open_mods_folder,
-            commands::get_optiscaler_status,
-            commands::install_optiscaler,
-            commands::uninstall_optiscaler,
-            commands::stop_game,
-            commands::is_game_running,
-            commands::import_existing_game,
-            commands::uninstall_game,
-            commands::get_debug_info,
-            commands::read_launch_log,
-            commands::repair_game,
-            commands::update_installed_version,
-            commands::check_system_requirements,
-            commands::get_dwproton_latest,
-            commands::list_dwproton_releases,
-            commands::recommended_proton_tag,
-            commands::list_installed_protons,
-            commands::set_active_proton,
-            commands::download_dwproton,
-            commands::cancel_proton_download,
-            commands::get_game_sessions,
-            commands::get_prefix_info,
-            commands::open_prefix_folder,
-            commands::run_prefix_tool,
-            commands::clear_shader_cache,
-            commands::backup_prefix,
-            commands::restore_prefix,
-            commands::reset_prefix,
-            commands::turn_off_screen,
-        ])
+        .invoke_handler(builder.invoke_handler())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn export_bindings() {
+        let builder = tauri_specta::Builder::<tauri::Wry>::new()
+            .commands(tauri_specta::collect_commands![
+                commands::settings::get_settings,
+                tasks::get_transfers,
+                tasks::stop_transfer,
+                install_plan::get_install_plan,
+                commands::settings::save_settings,
+                commands::game::get_game_version,
+                commands::settings::get_launcher_content,
+                commands::game::check_game_state,
+                commands::download::start_download,
+                commands::download::cancel_download,
+                commands::download::clear_download_cache,
+                commands::download::verify_game_integrity,
+                commands::download::start_update,
+                commands::game::launch_game,
+                commands::mods::get_mods_status,
+                commands::mods::install_mod_loader,
+                commands::mods::uninstall_mod_loader,
+                commands::mods::open_mods_folder,
+                commands::mods::get_optiscaler_status,
+                commands::mods::install_optiscaler,
+                commands::mods::uninstall_optiscaler,
+                commands::game::stop_game,
+                commands::game::is_game_running,
+                commands::game::import_existing_game,
+                commands::game::uninstall_game,
+                commands::diagnostics::get_debug_info,
+                commands::diagnostics::read_launch_log,
+                commands::download::repair_game,
+                commands::game::update_installed_version,
+                commands::proton::check_system_requirements,
+                commands::proton::get_dwproton_latest,
+                commands::proton::list_dwproton_releases,
+                commands::proton::recommended_proton_tag,
+                commands::proton::list_installed_protons,
+                commands::proton::set_active_proton,
+                commands::proton::download_dwproton,
+                commands::proton::cancel_proton_download,
+                commands::game::get_game_sessions,
+                commands::prefix::get_prefix_info,
+                commands::prefix::open_prefix_folder,
+                commands::prefix::run_prefix_tool,
+                commands::prefix::clear_shader_cache,
+                commands::prefix::backup_prefix,
+                commands::prefix::restore_prefix,
+                commands::prefix::reset_prefix,
+                commands::settings::turn_off_screen,
+            ]);
+        builder.export(specta_typescript::Typescript::default(), "../src/bindings.ts").unwrap();
+    }
 }

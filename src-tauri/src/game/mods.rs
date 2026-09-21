@@ -62,7 +62,7 @@ const LOADER_DIRS: [&str; 2] = ["Core", "ShaderFixes"];
 const RESHADE_DLL: &str = "dxgi.dll";
 
 /// What the launcher knows about the mod setup in the game directory.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct ModsStatus {
     /// A `d3d11.dll` proxy is present next to the game executable.
     pub loader_installed: bool,
@@ -77,6 +77,7 @@ pub struct ModsStatus {
     /// Absolute path of the `Mods` directory (whether or not it exists).
     pub mods_dir: String,
     /// Number of mods installed — every direct subdirectory counts as one.
+    #[specta(type = f64)]
     pub mod_count: usize,
     /// ReShade (or another `dxgi.dll` proxy) is present. Detected rather than
     /// installed: ReShade ships as an interactive setup, and its add-ons —
@@ -172,12 +173,13 @@ fn needs_backup(rel: &str) -> bool {
     rel.eq_ignore_ascii_case("d3dcompiler_47.dll")
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct LoaderInstallResult {
     /// EFMI release tag that was installed — the version a user comparing
     /// notes with a mod author cares about.
     pub version: String,
     /// Number of files written into the game directory.
+    #[specta(type = f64)]
     pub files: usize,
 }
 
@@ -187,14 +189,14 @@ struct Package {
     bytes: Vec<u8>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 struct GhRelease {
     tag_name: String,
     #[serde(default)]
     assets: Vec<GhAsset>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 struct GhAsset {
     name: String,
     browser_download_url: String,
@@ -586,3 +588,4 @@ mod tests {
         assert!(!s.loader_installed);
     }
 }
+

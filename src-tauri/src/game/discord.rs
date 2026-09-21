@@ -50,3 +50,4 @@ pub fn start_presence() -> Arc<AtomicBool> {
 
     active
 }
+

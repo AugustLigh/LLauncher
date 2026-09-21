@@ -14,9 +14,11 @@ use serde::Serialize;
 
 use crate::error::AppError;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct ShaderCacheResult {
+    #[specta(type = f64)]
     pub files_removed: u64,
+    #[specta(type = f64)]
     pub bytes_freed: u64,
 }
 
@@ -208,3 +210,4 @@ pub fn restore(_compat_data: &std::path::Path, _archive: &std::path::Path) -> Re
 pub fn reset(_compat_data: &std::path::Path) -> Result<(), AppError> {
     Err(AppError::Unsupported("prefix reset".to_string()))
 }
+

@@ -274,3 +274,4 @@ pub fn emit_progress(
     )
     .ok();
 }
+

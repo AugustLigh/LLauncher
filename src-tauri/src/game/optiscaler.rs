@@ -77,7 +77,7 @@ const KNOWN_FILES: [&str; 17] = [
 const KNOWN_DIRS: [&str; 4] = ["D3D12_Optiscaler", "Licenses", "DlssOverrides", "OptiScaler"];
 
 /// What the launcher knows about OptiScaler in the game directory.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct OptiScalerStatus {
     /// The proxy and its ini are both next to the game executable.
     pub installed: bool,
@@ -135,22 +135,23 @@ pub fn host_options() -> InstallOptions {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct InstallResult {
     /// Release tag that was installed.
     pub version: String,
     /// Number of files written into the game directory.
+    #[specta(type = f64)]
     pub files: usize,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 struct GhRelease {
     tag_name: String,
     #[serde(default)]
     assets: Vec<GhAsset>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 struct GhAsset {
     name: String,
     browser_download_url: String,
@@ -688,3 +689,4 @@ mod tests {
         assert!(!s.installed);
     }
 }
+

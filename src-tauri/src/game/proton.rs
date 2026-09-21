@@ -10,7 +10,7 @@ use serde::Serialize;
 
 use crate::config::settings::AppSettings;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct SystemCheck {
     /// `"linux"`, `"macos"` or `"windows"`. The frontend keys every
     /// Proton/Wine-only section off this rather than guessing from the other
@@ -212,3 +212,4 @@ fn check_hybrid_graphics() -> bool {
     }
     vendors.len() > 1
 }
+

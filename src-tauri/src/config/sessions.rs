@@ -3,10 +3,12 @@ use serde::{Deserialize, Serialize};
 use super::paths;
 
 /// One completed play session.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct GameSession {
     /// Unix timestamp (seconds) when the session started.
+    #[specta(type = f64)]
     pub start: u64,
+    #[specta(type = f64)]
     pub duration_secs: u64,
 }
 
@@ -43,3 +45,4 @@ pub fn append(session: GameSession) {
         }
     }
 }
+
