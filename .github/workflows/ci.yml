@@ -57,6 +57,11 @@ jobs:
           yarn build
           yarn test
 
+      # The Tauri context embeds ../dist at compile time, so the frontend
+      # build above must come first.
+      - name: Build Rust tests
+        run: cargo test --no-run --manifest-path src-tauri/Cargo.toml
+
       - name: Resolve Windows DLLs for Rust tests
         if: runner.os == 'Windows'
         shell: pwsh
@@ -68,8 +73,6 @@ jobs:
             Copy-Item $dll.FullName -Destination $dest
           }
 
-      # The Tauri context embeds ../dist at compile time, so the frontend
-      # build above must come first.
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
