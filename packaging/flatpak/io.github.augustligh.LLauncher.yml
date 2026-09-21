@@ -150,6 +150,8 @@ modules:
         CARGO_HOME: /run/build/llauncher/cargo
     build-commands:
       - echo 'yarn-offline-mirror "/run/build/llauncher/flatpak-node/yarn-mirror"' > .yarnrc
+      - sed -i '/"@tauri-apps\/cli":/d' package.json
+      - sed -i '/^"@tauri-apps\/cli@/,/^$/d' yarn.lock
       - yarn install --offline --frozen-lockfile
       - yarn --offline build
       - cargo --offline build --release --features tauri/custom-protocol --manifest-path src-tauri/Cargo.toml
