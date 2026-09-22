@@ -11,6 +11,7 @@ import "./LaunchFailedDialog.css";
 // fixes, which are the only ones the shortcut into those settings helps with.
 const HINTS = {
   "dwproton11-ntoskrnl": { key: "launchFailed.hintDwproton11", proton: true },
+  "ntoskrnl-generic": { key: "launchFailed.hintNtoskrnl", proton: true },
   "x-clients-exhausted": { key: "launchFailed.hintXClients" },
 };
 

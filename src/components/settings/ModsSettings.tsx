@@ -129,6 +129,11 @@ export default function ModsSettings({
           )}
         </div>
       </div>
+      <ErrorNotice
+        title={t("ui.modsStatusFailed")}
+        error={error}
+        onRetry={refresh}
+      />
       <div className="mods-row">
         <div>
           <strong>{t("settings.mods.skins.folder")}</strong>
@@ -263,11 +268,6 @@ export default function ModsSettings({
           <Status kind="success">{message}</Status>
         </div>
       )}
-      <ErrorNotice
-        title={t("ui.modsStatusFailed")}
-        error={error}
-        onRetry={refresh}
-      />
     </>
   );
 }

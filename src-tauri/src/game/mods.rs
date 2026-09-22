@@ -219,12 +219,21 @@ pub async fn install_loader(
         )));
     }
 
+    crate::logging::info(format!(
+        "mods: installing mod loader into {}",
+        game_dir.display()
+    ));
+
     let libs = fetch_package(client, LIBS_REPO).await?;
     let efmi = fetch_package(client, EFMI_REPO).await?;
 
     let game_dir = game_dir.to_path_buf();
     let version = efmi.tag.clone();
     let libs_version = libs.tag.clone();
+    crate::logging::info(format!(
+        "mods: unpacking 3DMigoto {} and EFMI {}...",
+        libs_version, version
+    ));
     let files = tokio::task::spawn_blocking(move || -> Result<usize, AppError> {
         // Stale scripts are worse than missing ones: EFMI moves ini files
         // between releases, and 3DMigoto happily loads whatever is left over
@@ -249,6 +258,8 @@ pub async fn install_loader(
 
 /// Fetch a repository's latest release and download its `.zip` asset.
 async fn fetch_package(client: &reqwest::Client, repo: &str) -> Result<Package, AppError> {
+    crate::logging::info(format!("mods: fetching latest release for {}", repo));
+
     let release: GhRelease = client
         .get(format!(
             "https://api.github.com/repos/{}/releases/latest",
@@ -268,6 +279,11 @@ async fn fetch_package(client: &reqwest::Client, repo: &str) -> Result<Package, 
         .ok_or_else(|| {
             AppError::Api(format!("The latest {} release has no .zip asset", repo))
         })?;
+
+    crate::logging::info(format!(
+        "mods: downloading asset '{}' ({})",
+        asset.name, asset.browser_download_url
+    ));
 
     let bytes = client
         .get(&asset.browser_download_url)

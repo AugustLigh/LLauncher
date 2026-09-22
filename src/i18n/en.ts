@@ -378,6 +378,7 @@ export default {
     viewLog: 'View full log',
     noLog: 'No log output captured.',
     hintDwproton11: 'Your installed DWProton version (11.x series) is incompatible with Endfield: the anti-cheat calls kernel functions Wine 11 does not implement yet, and the game aborts. Open the Proton settings and install the recommended build (10.0-26).',
+    hintNtoskrnl: 'The game called a kernel function that this Proton version does not implement yet, and aborted. Open the Proton settings to check for a newer DWProton release or try a different build.',
     hintXClients: 'The X server refused the connection — it has run out of client slots, so the game froze before it could open a window. Log out and back in (or reboot) to clear them. The launcher now shuts the game\u2019s Wine prefix down after every session, which stops leftovers from a crash piling up like this.',
     openProtonSettings: 'Open Proton settings',
   },

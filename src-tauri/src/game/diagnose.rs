@@ -7,6 +7,7 @@
 /// to translated, actionable advice — keep them in sync with `launchFailed.*`
 /// hint strings in `src/i18n/`.
 pub const HINT_DWPROTON11_NTOSKRNL: &str = "dwproton11-ntoskrnl";
+pub const HINT_NTOSKRNL_GENERIC: &str = "ntoskrnl-generic";
 pub const HINT_X_CLIENTS_EXHAUSTED: &str = "x-clients-exhausted";
 
 /// Scan the launch log tail for failure signatures we know the fix for.
@@ -17,6 +18,10 @@ pub const HINT_X_CLIENTS_EXHAUSTED: &str = "x-clients-exhausted";
 /// dawn-winery/dwproton#30 and the pin rationale on
 /// `RECOMMENDED_DWPROTON_TAG`. Match any ntoskrnl stub abort rather than the
 /// individual function names: each 11.x build has died on a different one.
+///
+/// On other Proton versions (e.g. 10.x), an ntoskrnl abort indicates the game
+/// anti-cheat called stubs that the build also lacks, so generic guidance is
+/// returned to advise trying a newer or different build.
 pub fn diagnose_launch_failure(log_tail: &str, proton_dir: &str) -> Option<&'static str> {
     let ntoskrnl_abort = log_tail
         .lines()
@@ -35,6 +40,10 @@ pub fn diagnose_launch_failure(log_tail: &str, proton_dir: &str) -> Option<&'sta
         .any(|l| l.trim() == "Maximum number of clients reached")
     {
         return Some(HINT_X_CLIENTS_EXHAUSTED);
+    }
+
+    if ntoskrnl_abort {
+        return Some(HINT_NTOSKRNL_GENERIC);
     }
 
     None
@@ -101,13 +110,19 @@ mod tests {
     }
 
     #[test]
-    fn ignores_ntoskrnl_aborts_on_other_proton_versions() {
-        // On a 10.x build the abort would be something new, not the known
-        // 11.x regression — wrong advice is worse than none.
+    fn recognizes_ntoskrnl_aborts_on_other_proton_versions() {
+        // On a 10.x build (or unknown build) the abort is new kernel calls from
+        // an updated game — generic advice to check for a newer build is given.
         let log =
             "wine: Call from 0x1 to unimplemented function ntoskrnl.exe.PsGetProcessExitStatus, aborting\n";
-        assert_eq!(diagnose_launch_failure(log, PROTON_10), None);
-        assert_eq!(diagnose_launch_failure(log, ""), None);
+        assert_eq!(
+            diagnose_launch_failure(log, PROTON_10),
+            Some(HINT_NTOSKRNL_GENERIC)
+        );
+        assert_eq!(
+            diagnose_launch_failure(log, ""),
+            Some(HINT_NTOSKRNL_GENERIC)
+        );
     }
 
     #[test]
@@ -116,4 +131,3 @@ mod tests {
         assert!(!is_dwproton_11("/opt/dwproton-11.0-12/dwproton-10.0-26"));
     }
 }
-
