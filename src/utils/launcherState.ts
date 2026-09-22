@@ -25,8 +25,10 @@ export function launcherState({
       ? task.progress?.stage || "fetching"
       : "pausing";
   if (task?.status === "paused") return "paused";
-  if (task?.status === "error") return "downloadError";
-  if (protonTask?.status === "error" || protonTask?.status === "paused")
+  if (
+    (!systemCheck || !systemCheck.has_proton) &&
+    (protonTask?.status === "error" || protonTask?.status === "paused")
+  )
     return "protonError";
   if (gameLoading || tasksLoading) return "checking";
   if (tasksError) return "taskError";

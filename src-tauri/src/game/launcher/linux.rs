@@ -221,13 +221,13 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
         )));
     }
 
-    let proton_path = Path::new(&settings.proton_dir).join("proton");
-    if !proton_path.exists() {
-        return Err(AppError::ProtonNotFound(format!(
+    let proton_dir = crate::game::proton::resolve_proton_dir(settings).ok_or_else(|| {
+        AppError::ProtonNotFound(format!(
             "Proton not found at: {}",
-            proton_path.display()
-        )));
-    }
+            Path::new(&settings.proton_dir).join("proton").display()
+        ))
+    })?;
+    let proton_path = proton_dir.join("proton");
 
     // Convert Linux path to Wine Z: path
     let wine_path = format!("Z:{}", exe_path.to_string_lossy().replace('/', "\\"));
@@ -238,7 +238,9 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
     let log_path = paths::launch_log_path();
     std::fs::create_dir_all(log_path.parent().unwrap())?;
 
-    let mut script = build_env_script(settings, &compat_data, with_mods);
+    let mut effective_settings = settings.clone();
+    effective_settings.proton_dir = proton_dir.to_string_lossy().to_string();
+    let mut script = build_env_script(&effective_settings, &compat_data, with_mods);
 
     // cd into game directory
     script.push_str(&format!("cd {}\n", shell_escape(&game_path.to_string_lossy())));
@@ -331,7 +333,11 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
 ///
 /// Call after the game session ends, never while it may still be running.
 pub fn shutdown_wineserver(settings: &AppSettings, force: bool) {
-    let wineserver = Path::new(&settings.proton_dir).join("files/bin/wineserver");
+    let proton_dir = match crate::game::proton::resolve_proton_dir(settings) {
+        Some(d) => d,
+        None => return,
+    };
+    let wineserver = proton_dir.join("files/bin/wineserver");
     if !wineserver.exists() {
         return;
     }
@@ -351,18 +357,20 @@ pub fn shutdown_wineserver(settings: &AppSettings, force: bool) {
 pub fn run_prefix_tool(settings: &AppSettings, tool: &str) -> Result<(), AppError> {
     let game_path = Path::new(&settings.game_dir);
 
-    let proton_path = Path::new(&settings.proton_dir).join("proton");
-    if !proton_path.exists() {
-        return Err(AppError::ProtonNotFound(format!(
+    let proton_dir = crate::game::proton::resolve_proton_dir(settings).ok_or_else(|| {
+        AppError::ProtonNotFound(format!(
             "Proton not found at: {}",
-            proton_path.display()
-        )));
-    }
+            Path::new(&settings.proton_dir).join("proton").display()
+        ))
+    })?;
+    let proton_path = proton_dir.join("proton");
 
     let compat_data = resolve_prefix_dir(settings, game_path);
     std::fs::create_dir_all(&compat_data)?;
 
-    let mut script = build_env_script(settings, &compat_data, false);
+    let mut effective_settings = settings.clone();
+    effective_settings.proton_dir = proton_dir.to_string_lossy().to_string();
+    let mut script = build_env_script(&effective_settings, &compat_data, false);
     script.push_str(&format!(
         "exec {} run {} > /dev/null 2>&1\n",
         shell_escape(&proton_path.to_string_lossy()),

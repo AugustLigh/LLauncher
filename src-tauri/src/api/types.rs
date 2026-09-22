@@ -171,6 +171,7 @@ pub struct ProtonReleaseInfo {
     pub download_url: String,
     pub file_name: String,
     #[specta(type = f64)]
+    #[serde(default)]
     pub size: u64,
     #[serde(default)]
     pub published_at: String,

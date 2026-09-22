@@ -22,7 +22,8 @@ export default function ProtonPrompt({ onClose, onConfigureManually, onDownloadC
 
   useEffect(() => {
     commands.recommendedProtonTag().then(res => {
-      if (res.status === 'ok') setRecommendedTag(res.data);
+      const tag = typeof res === 'string' ? res : (res?.status === 'ok' ? res.data : '');
+      if (tag) setRecommendedTag(tag);
     }).catch(() => {});
   }, []);
 

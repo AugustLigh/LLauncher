@@ -49,6 +49,18 @@ test("active and paused work survives version refreshes and takes priority over 
     launcherState({ ...ready, protonTask: { status: "running" } }),
     "protonDownloading",
   );
+  assert.equal(
+    launcherState({ ...ready, protonTask: { status: "error" } }),
+    "ready",
+  );
+  assert.equal(
+    launcherState({
+      ...ready,
+      systemCheck: { platform: "linux", has_proton: false },
+      protonTask: { status: "error" },
+    }),
+    "protonError",
+  );
 });
 test("launch cannot be offered during startup, launch or unknown task state", () => {
   assert.equal(launcherState({ ...ready, launching: true }), "launching");

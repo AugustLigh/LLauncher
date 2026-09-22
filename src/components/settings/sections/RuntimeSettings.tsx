@@ -40,9 +40,11 @@ export default function RuntimeSettings({
         commands.listInstalledProtons(),
         commands.recommendedProtonTag(),
       ]);
-      setReleases(r?.status === 'ok' ? r.data : []);
-      setInstalled(i?.status === 'ok' ? i.data : []);
-      setRecommended(tag?.status === 'ok' ? tag.data : "");
+      setReleases(r?.status === 'ok' ? r.data : (Array.isArray(r) ? r : []));
+      setInstalled(i?.status === 'ok' ? i.data : (Array.isArray(i) ? i : []));
+      setRecommended(typeof tag === 'string' ? tag : (tag?.status === 'ok' ? tag.data : ""));
+      if (r?.status === 'error') setError(r.error);
+      else if (i?.status === 'error') setError(i.error);
     } catch (e) {
       setError(e);
     } finally {

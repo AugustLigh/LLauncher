@@ -159,7 +159,9 @@ pub async fn download_and_extract_dwproton(
     let _ = std::fs::remove_file(&archive_path);
 
     // Find the extracted proton directory
-    let proton_dir = find_proton_dir(dest_path)?;
+    let proton_dir = find_proton_dir(dest_path, Some(&info.file_name))
+        .or_else(|_| find_proton_dir(dest_path, Some(&info.tag_name)))
+        .or_else(|_| find_proton_dir(dest_path, None))?;
 
     let version = info.tag_name.clone();
 
@@ -235,7 +237,31 @@ pub async fn download_asset(
     Ok((downloaded, total_size))
 }
 
-fn find_proton_dir(base: &Path) -> Result<String, AppError> {
+fn find_proton_dir(base: &Path, expected: Option<&str>) -> Result<String, AppError> {
+    if let Some(name) = expected {
+        let trimmed = name
+            .strip_suffix(".tar.xz")
+            .or_else(|| name.strip_suffix(".tar.gz"))
+            .unwrap_or(name);
+
+        let direct = base.join(trimmed);
+        if direct.is_dir() && direct.join("proton").exists() {
+            return Ok(direct.to_string_lossy().to_string());
+        }
+
+        if let Ok(entries) = std::fs::read_dir(base) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() && path.join("proton").exists() {
+                    let entry_name = path.file_name().unwrap_or_default().to_string_lossy();
+                    if entry_name == trimmed || entry_name.starts_with(trimmed) || trimmed.starts_with(&*entry_name) {
+                        return Ok(path.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+    }
+
     // Look for a directory containing a `proton` executable
     if let Ok(entries) = std::fs::read_dir(base) {
         for entry in entries.flatten() {
@@ -273,5 +299,29 @@ pub fn emit_progress(
         },
     )
     .ok();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn find_proton_dir_prefers_expected_build() {
+        let dir = std::env::temp_dir().join(format!("proton-test-{}", std::process::id()));
+        let p10 = dir.join("dwproton-10.0-26-x86_64");
+        let p11 = dir.join("dwproton-11.0-11-x86_64");
+        std::fs::create_dir_all(&p10).unwrap();
+        std::fs::create_dir_all(&p11).unwrap();
+        std::fs::write(p10.join("proton"), b"stub").unwrap();
+        std::fs::write(p11.join("proton"), b"stub").unwrap();
+
+        let found = find_proton_dir(&dir, Some("dwproton-11.0-11-x86_64.tar.xz")).unwrap();
+        assert_eq!(Path::new(&found), p11);
+
+        let found_tag = find_proton_dir(&dir, Some("dwproton-10.0-26")).unwrap();
+        assert_eq!(Path::new(&found_tag), p10);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
 }
 

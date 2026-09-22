@@ -56,15 +56,21 @@ export const useTaskStore = create<TaskStoreState>((set, get) => ({
 
     try {
       if (kind === "proton") {
-        await commands.downloadDwproton(args);
+        const release = args?.release ?? (args?.tag_name ? args : null);
+        const res = await commands.downloadDwproton(release);
+        if (res?.status === "error") throw new Error(String(res.error));
       } else if (kind === "install") {
-        await commands.startDownload();
+        const res = await commands.startDownload();
+        if (res?.status === "error") throw new Error(String(res.error));
       } else if (kind === "update") {
-        await commands.startUpdate();
+        const res = await commands.startUpdate();
+        if (res?.status === "error") throw new Error(String(res.error));
       } else if (kind === "integrity") {
-        await commands.verifyGameIntegrity();
+        const res = await commands.verifyGameIntegrity();
+        if (res?.status === "error") throw new Error(String(res.error));
       } else if (kind === "repair") {
-        await commands.repairGame();
+        const res = await commands.repairGame();
+        if (res?.status === "error") throw new Error(String(res.error));
       }
       
       await get().refresh();

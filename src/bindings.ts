@@ -90,7 +90,7 @@ export const commands = {
 	tag_name: string,
 	download_url: string,
 	file_name: string,
-	size: number | null,
+	size?: number | null,
 	published_at?: string,
 } | null) => typedError<null, AppError>(__TAURI_INVOKE("download_dwproton", { release })),
 	cancelProtonDownload: () => typedError<null, AppError>(__TAURI_INVOKE("cancel_proton_download")),
@@ -441,7 +441,7 @@ export type ProtonReleaseInfo = {
 	tag_name: string,
 	download_url: string,
 	file_name: string,
-	size: number | null,
+	size?: number | null,
 	published_at?: string,
 };
 

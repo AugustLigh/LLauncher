@@ -50,15 +50,54 @@ pub struct SystemCheck {
 }
 
 #[cfg(target_os = "linux")]
-pub fn check_system(settings: &AppSettings) -> SystemCheck {
-    use std::path::Path;
+pub fn resolve_proton_dir(settings: &AppSettings) -> Option<std::path::PathBuf> {
+    use std::path::{Path, PathBuf};
 
-    let proton_dir = settings.proton_dir.as_str();
-    let has_proton = if proton_dir.is_empty() {
-        false
-    } else {
-        Path::new(proton_dir).join("proton").exists()
-    };
+    let hint = settings.proton_dir.trim();
+    if !hint.is_empty() {
+        let p = Path::new(hint);
+        if p.join("proton").exists() {
+            return Some(p.to_path_buf());
+        }
+        // Hint might be the parent directory containing proton builds
+        if let Ok(entries) = std::fs::read_dir(p) {
+            let mut builds: Vec<PathBuf> = entries
+                .flatten()
+                .map(|e| e.path())
+                .filter(|dir| dir.is_dir() && dir.join("proton").exists())
+                .collect();
+            builds.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+            if let Some(first) = builds.into_iter().next() {
+                return Some(first);
+            }
+        }
+    }
+
+    // Fall back to default_proton_dir()
+    let base = crate::config::paths::default_proton_dir();
+    if let Ok(entries) = std::fs::read_dir(&base) {
+        let mut builds: Vec<PathBuf> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|dir| dir.is_dir() && dir.join("proton").exists())
+            .collect();
+        builds.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+        if let Some(first) = builds.into_iter().next() {
+            return Some(first);
+        }
+    }
+
+    None
+}
+
+#[cfg(target_os = "linux")]
+pub fn check_system(settings: &AppSettings) -> SystemCheck {
+    let resolved = resolve_proton_dir(settings);
+    let has_proton = resolved.is_some();
+    let proton_path = resolved
+        .as_ref()
+        .map(|p| p.join("proton").to_string_lossy().to_string())
+        .unwrap_or_default();
 
     SystemCheck {
         platform: "linux",
@@ -71,14 +110,7 @@ pub fn check_system(settings: &AppSettings) -> SystemCheck {
         hybrid_graphics: check_hybrid_graphics(),
         has_vkbasalt: check_vulkan_layer("vkBasalt"),
         can_turn_off_screen: crate::power::screen_off_supported(),
-        proton_path: if has_proton {
-            Path::new(proton_dir)
-                .join("proton")
-                .to_string_lossy()
-                .to_string()
-        } else {
-            String::new()
-        },
+        proton_path,
         has_rosetta: true,
         dxmt_version: String::new(),
         wine_patch_version: String::new(),
