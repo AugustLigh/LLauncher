@@ -43,7 +43,8 @@ fn build_env_script(settings: &AppSettings, compat_data: &Path, with_mods: bool)
          export UMU_USE_STEAM=1\n\
          export STEAM_COMPAT_CLIENT_INSTALL_PATH={}\n\
          export STEAM_COMPAT_DATA_PATH={}\n\
-         export PROTON_USE_WINED3D=0\n",
+         export PROTON_USE_WINED3D=0\n\
+         export PROTON_USE_XALIA=0\n",
         shell_escape(&settings.proton_dir),
         shell_escape(&compat_data.to_string_lossy()),
     ));

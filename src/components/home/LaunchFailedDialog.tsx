@@ -13,12 +13,15 @@ const HINTS = {
   "dwproton11-ntoskrnl": { key: "launchFailed.hintDwproton11", proton: true },
   "ntoskrnl-generic": { key: "launchFailed.hintNtoskrnl", proton: true },
   "x-clients-exhausted": { key: "launchFailed.hintXClients" },
+  "xalia-crash": { key: "launchFailed.hintXalia" },
+  "prefix-corrupted": { key: "launchFailed.hintPrefixCorrupted", diagnostics: true },
 };
 
 export default function LaunchFailedDialog({
   failure,
   onClose,
   onOpenProtonSettings,
+  onOpenDiagnosticsSettings,
 }: any) {
   const { t } = useTranslation();
   const [showFullLog, setShowFullLog] = useState(false);
@@ -68,6 +71,14 @@ export default function LaunchFailedDialog({
                     onClick={onOpenProtonSettings}
                   >
                     {t("launchFailed.openProtonSettings")}
+                  </button>
+                )}
+                {hint.diagnostics && onOpenDiagnosticsSettings && (
+                  <button
+                    className="launch-failed__btn launch-failed__btn--primary"
+                    onClick={onOpenDiagnosticsSettings}
+                  >
+                    {t("launchFailed.openDiagnosticsSettings")}
                   </button>
                 )}
               </div>
