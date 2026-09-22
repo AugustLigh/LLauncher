@@ -20,8 +20,9 @@ export default function LogViewer({ initialContent, onClose }: any) {
     setError(null);
     setCopyStatus(null);
     try {
-      const text = await commands.readLaunchLog();
-      setContent(text);
+      const res = await commands.readLaunchLog();
+      if (res.status === 'error') throw new Error(String(res.error));
+      setContent(res.data);
     } catch (e) {
       console.error('Failed to read log:', e);
       setError(typeof e === 'string' ? e : e?.message || String(e));
