@@ -38,7 +38,8 @@ export default function FilesSettings({
   const check = async () => {
     setError(null);
     try {
-      const latest = await commands.getGameVersion();
+      const latestRes = await commands.getGameVersion();
+      const latest = latestRes?.status === 'ok' ? latestRes.data : latestRes;
       confirm({
         title: t("settings.integrity.name"),
         message: t("settings.integrity.confirm", {

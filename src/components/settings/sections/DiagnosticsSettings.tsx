@@ -43,7 +43,12 @@ export default function DiagnosticsSettings({
           ]
         : [["Windows", null]];
   useEffect(() => {
-    if (linux) commands.getPrefixInfo().then(setPrefix).catch(setError);
+    if (linux) {
+      commands
+        .getPrefixInfo()
+        .then((res) => setPrefix(res?.status === "ok" ? res.data : res))
+        .catch(setError);
+    }
   }, [linux]);
   const run = async (command, args = {}, done) => {
     setWorking(true);
@@ -52,7 +57,10 @@ export default function DiagnosticsSettings({
     try {
       const result = await invoke(command, args);
       if (done) setMessage(done(result));
-      if (linux) setPrefix(await commands.getPrefixInfo());
+      if (linux) {
+        const res = await commands.getPrefixInfo();
+        setPrefix(res?.status === "ok" ? res.data : res);
+      }
     } catch (e) {
       setError(e);
     } finally {
@@ -124,7 +132,8 @@ export default function DiagnosticsSettings({
           onClick={async () => {
             setError(null);
             try {
-              const info = await commands.getDebugInfo();
+              const res = await commands.getDebugInfo();
+              const info = res?.status === "ok" ? res.data : (typeof res === "string" ? res : JSON.stringify(res));
               if (!(await copyText(info)))
                 throw new Error(t("settings.debugInfo.fallback"));
               setMessage(t("ui.copied"));

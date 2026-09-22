@@ -30,29 +30,54 @@ export default function ModsSettings({
   const refresh = useCallback(async () => {
     setError(null);
     try {
-      const [mods, upscaler] = await Promise.all([
+      const [modsRes, upscalerRes] = await Promise.all([
         commands.getModsStatus(),
         commands.getOptiscalerStatus(),
       ]);
-      setStatus(mods);
-      setOpti(upscaler);
-    } catch (e) {
-      setError(e);
+
+      if (modsRes?.status === "error") {
+        setError(modsRes.error);
+        setStatus(null);
+      } else {
+        const mods = modsRes?.status === "ok" ? modsRes.data : modsRes;
+        setStatus(mods);
+      }
+
+      if (upscalerRes?.status === "ok") {
+        setOpti(upscalerRes.data);
+      } else if (upscalerRes && !("status" in upscalerRes)) {
+        setOpti(upscalerRes);
+      }
+    } catch (e: any) {
+      setError(e.message || String(e));
     }
   }, []);
   useEffect(() => {
     refresh();
-  }, [refresh, form.installed_version]);
-  const run = async (key, command, done) => {
+  }, [refresh, form.installed_version, form.game_dir]);
+  const run = async (key: string, action: string | (() => Promise<any>), done?: (r: any) => string) => {
     setBusy(key);
     setError(null);
     setMessage("");
     try {
-      const r = await invoke(command);
+      let r: any;
+      if (typeof action === "function") {
+        const res = await action();
+        if (res && typeof res === "object" && "status" in res) {
+          if (res.status === "error") {
+            throw new Error(String(res.error));
+          }
+          r = res.data;
+        } else {
+          r = res;
+        }
+      } else {
+        r = await invoke(action);
+      }
       if (done) setMessage(done(r));
       await refresh();
-    } catch (e) {
-      setError(e);
+    } catch (e: any) {
+      setError(e.message || String(e));
     } finally {
       setBusy(null);
     }
@@ -64,8 +89,8 @@ export default function ModsSettings({
       setError(e);
     }
   };
-  const ready = status?.loader_installed && status?.loader_configured;
-  const legacy = ready && !status?.efmi;
+  const ready = !!(status?.loader_installed && status?.loader_configured);
+  const legacy = !!(ready && !status?.efmi);
   if (!status)
     return error ? (
       <ErrorNotice
@@ -100,8 +125,8 @@ export default function ModsSettings({
               icon="download"
               disabled={disabled || !!busy}
               onClick={() =>
-                run("install", "install_mod_loader", (r) =>
-                  t("settings.mods.installed", { version: r.version }),
+                run("install", () => commands.installModLoader(), (r) =>
+                  t("settings.mods.installed", { version: r?.version }),
                 )
               }
             >
@@ -119,7 +144,7 @@ export default function ModsSettings({
               variant="ghost"
               disabled={disabled || !!busy}
               onClick={() =>
-                run("remove", "uninstall_mod_loader", () =>
+                run("remove", () => commands.uninstallModLoader(), () =>
                   t("settings.mods.uninstalled"),
                 )
               }
@@ -142,7 +167,7 @@ export default function ModsSettings({
           </small>
         </div>
         <div className="mods-row__actions">
-          <Button icon="folder" onClick={() => run("open", "open_mods_folder")}>
+          <Button icon="folder" onClick={() => run("open", () => commands.openModsFolder())}>
             {t("settings.mods.skins.open")}
           </Button>
           <Button
@@ -215,9 +240,9 @@ export default function ModsSettings({
                 icon="download"
                 disabled={disabled || !!busy}
                 onClick={() =>
-                  run("optiscaler", "install_optiscaler", (r) =>
+                  run("optiscaler", () => commands.installOptiscaler(), (r) =>
                     t("settings.mods.upscaling.installed", {
-                      version: r.version,
+                      version: r?.version,
                     }),
                   )
                 }
@@ -235,7 +260,7 @@ export default function ModsSettings({
                   variant="ghost"
                   disabled={disabled || !!busy}
                   onClick={() =>
-                    run("optiscaler-remove", "uninstall_optiscaler", () =>
+                    run("optiscaler-remove", () => commands.uninstallOptiscaler(), () =>
                       t("settings.mods.upscaling.uninstalled"),
                     )
                   }

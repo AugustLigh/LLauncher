@@ -260,33 +260,83 @@ pub async fn install_loader(
 async fn fetch_package(client: &reqwest::Client, repo: &str) -> Result<Package, AppError> {
     crate::logging::info(format!("mods: fetching latest release for {}", repo));
 
-    let release: GhRelease = client
-        .get(format!(
-            "https://api.github.com/repos/{}/releases/latest",
-            repo
-        ))
+    let api_url = format!("https://api.github.com/repos/{}/releases/latest", repo);
+    let api_res = client
+        .get(&api_url)
         .header("User-Agent", "LLauncher")
         .send()
-        .await?
-        .error_for_status()?
-        .json()
+        .await;
+
+    if let Ok(resp) = api_res {
+        if resp.status().is_success() {
+            if let Ok(release) = resp.json::<GhRelease>().await {
+                if let Some(asset) = release
+                    .assets
+                    .iter()
+                    .find(|a| a.name.to_lowercase().ends_with(".zip"))
+                {
+                    crate::logging::info(format!(
+                        "mods: downloading asset '{}' ({})",
+                        asset.name, asset.browser_download_url
+                    ));
+
+                    let bytes = client
+                        .get(&asset.browser_download_url)
+                        .header("User-Agent", "LLauncher")
+                        .send()
+                        .await?
+                        .error_for_status()?
+                        .bytes()
+                        .await?;
+
+                    return Ok(Package {
+                        tag: release.tag_name,
+                        bytes: bytes.to_vec(),
+                    });
+                }
+            }
+        }
+    }
+
+    // Fallback: GitHub API might be rate-limited (403/429) or unavailable.
+    // Query https://github.com/{repo}/releases/latest which redirects to the tag.
+    crate::logging::warn(format!(
+        "mods: GitHub API unavailable for {}, attempting release redirect fallback",
+        repo
+    ));
+    let latest_url = format!("https://github.com/{}/releases/latest", repo);
+    let resp = client
+        .get(&latest_url)
+        .header("User-Agent", "LLauncher")
+        .send()
         .await?;
 
-    let asset = release
-        .assets
-        .iter()
-        .find(|a| a.name.to_lowercase().ends_with(".zip"))
+    let final_url = resp.url().as_str();
+    let tag = final_url
+        .rsplit('/')
+        .next()
+        .filter(|t| !t.is_empty() && *t != "latest")
         .ok_or_else(|| {
-            AppError::Api(format!("The latest {} release has no .zip asset", repo))
+            AppError::Api(format!("Could not resolve latest release tag for {}", repo))
         })?;
 
+    // Assets follow standard naming: XXMI-PACKAGE-{tag}.zip or EFMI-PACKAGE-{tag}.zip
+    let pkg_name = if repo.contains("XXMI") {
+        "XXMI-PACKAGE"
+    } else {
+        "EFMI-PACKAGE"
+    };
+    let download_url = format!(
+        "https://github.com/{}/releases/download/{}/{}-{}.zip",
+        repo, tag, pkg_name, tag
+    );
     crate::logging::info(format!(
-        "mods: downloading asset '{}' ({})",
-        asset.name, asset.browser_download_url
+        "mods: downloading package via fallback url: {}",
+        download_url
     ));
 
     let bytes = client
-        .get(&asset.browser_download_url)
+        .get(&download_url)
         .header("User-Agent", "LLauncher")
         .send()
         .await?
@@ -295,7 +345,7 @@ async fn fetch_package(client: &reqwest::Client, repo: &str) -> Result<Package, 
         .await?;
 
     Ok(Package {
-        tag: release.tag_name,
+        tag: tag.to_string(),
         bytes: bytes.to_vec(),
     })
 }
