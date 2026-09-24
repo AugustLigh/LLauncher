@@ -11,6 +11,18 @@ use crate::error::AppError;
 const DWPROTON_RELEASES_URL: &str =
     "https://dawn.wine/api/v1/repos/dawn-winery/dwproton/releases";
 
+/// The Dawn Winery's own mirror of the same releases on GitHub. dawn.wine sits
+/// behind a CDN that answers with an HTML "504 Gateway Timeout" page whenever
+/// the origin is down, which the launcher used to feed straight to the JSON
+/// parser — the "error decoding response body" of issue #36, with no way to
+/// get Proton at all. The mirror carries the same tags and archives.
+const DWPROTON_MIRROR_RELEASES_URL: &str =
+    "https://api.github.com/repos/dawn-winery/dwproton-mirror/releases";
+
+/// Where the mirror serves a release's assets, by tag and file name.
+const DWPROTON_MIRROR_DOWNLOAD_URL: &str =
+    "https://github.com/dawn-winery/dwproton-mirror/releases/download";
+
 /// The DWProton release we install by default and flag as recommended.
 ///
 /// We deliberately do **not** track upstream `/latest`. The 11.x series (built
@@ -64,16 +76,46 @@ pub fn parse_release_with(
 pub async fn get_latest_dwproton_info(
     client: &reqwest::Client,
 ) -> Result<ProtonReleaseInfo, AppError> {
-    let resp: serde_json::Value = client
-        .get(format!("{}/latest", DWPROTON_RELEASES_URL))
-        .timeout(API_REQUEST_TIMEOUT)
-        .send()
-        .await?
-        .json()
-        .await?;
+    let resp = match fetch_json(client, &format!("{}/latest", DWPROTON_RELEASES_URL), &[]).await {
+        Ok(resp) => resp,
+        Err(e) => {
+            crate::logging::warn(format!(
+                "dawn.wine unavailable ({}), using the GitHub mirror",
+                e
+            ));
+            fetch_json(
+                client,
+                &format!("{}/latest", DWPROTON_MIRROR_RELEASES_URL),
+                &[],
+            )
+            .await
+            .map_err(|_| e)?
+        }
+    };
 
     parse_release(&resp)
         .ok_or_else(|| AppError::ProtonDownloadFailed("No x86_64.tar.xz asset found".into()))
+}
+
+/// GET a JSON document, treating an error status as the error it is rather
+/// than handing a CDN's HTML error page to the JSON parser.
+async fn fetch_json(
+    client: &reqwest::Client,
+    url: &str,
+    query: &[(&str, &str)],
+) -> Result<serde_json::Value, AppError> {
+    let value = client
+        .get(url)
+        .query(query)
+        // GitHub's API refuses requests without one; dawn.wine does not care.
+        .header("User-Agent", "LLauncher")
+        .timeout(API_REQUEST_TIMEOUT)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    Ok(value)
 }
 
 /// Resolve the release info for the recommended (pinned) DWProton build.
@@ -101,17 +143,41 @@ pub async fn get_recommended_dwproton_info(
 pub async fn list_dwproton_releases(
     client: &reqwest::Client,
 ) -> Result<Vec<ProtonReleaseInfo>, AppError> {
-    let resp: Vec<serde_json::Value> = client
-        .get(DWPROTON_RELEASES_URL)
-        .query(&[("limit", "20")])
-        .timeout(API_REQUEST_TIMEOUT)
-        .send()
-        .await?
-        .json()
-        .await?;
+    let resp = match fetch_json(client, DWPROTON_RELEASES_URL, &[("limit", "20")]).await {
+        Ok(resp) => resp,
+        Err(e) => {
+            crate::logging::warn(format!(
+                "dawn.wine unavailable ({}), using the GitHub mirror",
+                e
+            ));
+            // The mirror keeps every tag back to 10.0-9; 30 is enough to
+            // reach the recommended build past a burst of new releases.
+            fetch_json(client, DWPROTON_MIRROR_RELEASES_URL, &[("per_page", "30")])
+                .await
+                .map_err(|_| e)?
+        }
+    };
 
-    let releases: Vec<ProtonReleaseInfo> = resp.iter().filter_map(parse_release).collect();
+    let releases: Vec<ProtonReleaseInfo> = resp
+        .as_array()
+        .map(|list| list.iter().filter_map(parse_release).collect())
+        .unwrap_or_default();
     Ok(releases)
+}
+
+/// The same release on the GitHub mirror, for when its dawn.wine download
+/// fails. `None` when the release already points somewhere else.
+fn mirror_release(info: &ProtonReleaseInfo) -> Option<ProtonReleaseInfo> {
+    if !info.download_url.starts_with("https://dawn.wine/") {
+        return None;
+    }
+    Some(ProtonReleaseInfo {
+        download_url: format!(
+            "{}/{}/{}",
+            DWPROTON_MIRROR_DOWNLOAD_URL, info.tag_name, info.file_name
+        ),
+        ..info.clone()
+    })
 }
 
 pub async fn download_and_extract_dwproton(
@@ -133,8 +199,28 @@ pub async fn download_and_extract_dwproton(
 
     let archive_path = dest_path.join(&info.file_name);
 
-    let (downloaded, total_size) =
-        download_asset(app, client, cancel_flag, &info, &archive_path).await?;
+    let (downloaded, total_size) = match download_asset(
+        app,
+        client,
+        cancel_flag,
+        &info,
+        &archive_path,
+    )
+    .await
+    {
+        Err(AppError::Cancelled) => return Err(AppError::Cancelled),
+        Err(e) => match mirror_release(&info) {
+            Some(mirror) => {
+                crate::logging::warn(format!(
+                    "DWProton download from dawn.wine failed ({}), retrying from the GitHub mirror",
+                    e
+                ));
+                download_asset(app, client, cancel_flag, &mirror, &archive_path).await?
+            }
+            None => return Err(e),
+        },
+        Ok(done) => done,
+    };
 
     // Extract
     emit_progress(app, downloaded, total_size, 0, "extracting");
@@ -190,9 +276,17 @@ pub async fn download_asset(
 ) -> Result<(u64, u64), AppError> {
     emit_progress(app, 0, info.size, 0, "downloading");
 
-    let response =
-        crate::util::send_with_stall_timeout(client.get(&info.download_url), DOWNLOAD_STALL_TIMEOUT)
-            .await?;
+    // An error page is not an archive: without the status check a CDN's 504
+    // page is saved as the .tar.xz and tar fails on it with a message that
+    // points nowhere near the real problem.
+    let response = crate::util::send_with_stall_timeout(
+        client
+            .get(&info.download_url)
+            .header("User-Agent", "LLauncher"),
+        DOWNLOAD_STALL_TIMEOUT,
+    )
+    .await?
+    .error_for_status()?;
     let total_size = response.content_length().unwrap_or(info.size);
 
     let mut stream = response.bytes_stream();
