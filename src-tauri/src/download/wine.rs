@@ -460,7 +460,7 @@ pub fn list_installed(base_dir: &Path) -> Vec<InstalledProton> {
             ))
         })
         .collect();
-    installed.sort_by(|a, b| b.0.cmp(&a.0));
+    installed.sort_by_key(|a| std::cmp::Reverse(a.0));
     installed.into_iter().map(|(_, w)| w).collect()
 }
 
@@ -616,3 +616,4 @@ mod tests {
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }
+

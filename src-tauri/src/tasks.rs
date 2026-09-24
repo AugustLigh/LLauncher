@@ -13,7 +13,7 @@ use std::{
 };
 use tauri::{Emitter, Listener, Manager};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct Transfer {
     pub id: String,
     pub slot: String,
@@ -21,8 +21,10 @@ pub struct Transfer {
     pub status: String,
     pub game_dir: String,
     pub download_dir: String,
+    #[specta(type = std::collections::HashMap<String, String>)]
     pub progress: Value,
     pub error: Option<String>,
+    #[specta(type = std::collections::HashMap<String, String>)]
     pub result: Value,
     #[serde(default)]
     pub discard: bool,
@@ -273,11 +275,13 @@ pub fn register(app: &tauri::AppHandle) {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn get_transfers(state: tauri::State<'_, AppState>) -> BTreeMap<String, Transfer> {
     state.transfers.snapshot()
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn stop_transfer(
     app: tauri::AppHandle,
     state: tauri::State<'_, AppState>,
@@ -326,3 +330,4 @@ mod tests {
         let _ = std::fs::remove_file(path);
     }
 }
+

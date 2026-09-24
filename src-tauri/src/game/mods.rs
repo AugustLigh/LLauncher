@@ -62,7 +62,7 @@ const LOADER_DIRS: [&str; 2] = ["Core", "ShaderFixes"];
 const RESHADE_DLL: &str = "dxgi.dll";
 
 /// What the launcher knows about the mod setup in the game directory.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct ModsStatus {
     /// A `d3d11.dll` proxy is present next to the game executable.
     pub loader_installed: bool,
@@ -77,6 +77,7 @@ pub struct ModsStatus {
     /// Absolute path of the `Mods` directory (whether or not it exists).
     pub mods_dir: String,
     /// Number of mods installed — every direct subdirectory counts as one.
+    #[specta(type = f64)]
     pub mod_count: usize,
     /// ReShade (or another `dxgi.dll` proxy) is present. Detected rather than
     /// installed: ReShade ships as an interactive setup, and its add-ons —
@@ -245,12 +246,13 @@ fn needs_backup(rel: &str) -> bool {
     rel.eq_ignore_ascii_case("d3dcompiler_47.dll")
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct LoaderInstallResult {
     /// EFMI release tag that was installed — the version a user comparing
     /// notes with a mod author cares about.
     pub version: String,
     /// Number of files written into the game directory.
+    #[specta(type = f64)]
     pub files: usize,
 }
 
@@ -260,14 +262,14 @@ struct Package {
     bytes: Vec<u8>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 struct GhRelease {
     tag_name: String,
     #[serde(default)]
     assets: Vec<GhAsset>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 struct GhAsset {
     name: String,
     browser_download_url: String,
@@ -290,12 +292,21 @@ pub async fn install_loader(
         )));
     }
 
+    crate::logging::info(format!(
+        "mods: installing mod loader into {}",
+        game_dir.display()
+    ));
+
     let libs = fetch_package(client, LIBS_REPO).await?;
     let efmi = fetch_package(client, EFMI_REPO).await?;
 
     let game_dir = game_dir.to_path_buf();
     let version = efmi.tag.clone();
     let libs_version = libs.tag.clone();
+    crate::logging::info(format!(
+        "mods: unpacking 3DMigoto {} and EFMI {}...",
+        libs_version, version
+    ));
     let files = tokio::task::spawn_blocking(move || -> Result<usize, AppError> {
         // Stale scripts are worse than missing ones: EFMI moves ini files
         // between releases, and 3DMigoto happily loads whatever is left over
@@ -320,28 +331,85 @@ pub async fn install_loader(
 
 /// Fetch a repository's latest release and download its `.zip` asset.
 async fn fetch_package(client: &reqwest::Client, repo: &str) -> Result<Package, AppError> {
-    let release: GhRelease = client
-        .get(format!(
-            "https://api.github.com/repos/{}/releases/latest",
-            repo
-        ))
+    crate::logging::info(format!("mods: fetching latest release for {}", repo));
+
+    let api_url = format!("https://api.github.com/repos/{}/releases/latest", repo);
+    let api_res = client
+        .get(&api_url)
         .header("User-Agent", "LLauncher")
         .send()
-        .await?
-        .error_for_status()?
-        .json()
+        .await;
+
+    if let Ok(resp) = api_res {
+        if resp.status().is_success() {
+            if let Ok(release) = resp.json::<GhRelease>().await {
+                if let Some(asset) = release
+                    .assets
+                    .iter()
+                    .find(|a| a.name.to_lowercase().ends_with(".zip"))
+                {
+                    crate::logging::info(format!(
+                        "mods: downloading asset '{}' ({})",
+                        asset.name, asset.browser_download_url
+                    ));
+
+                    let bytes = client
+                        .get(&asset.browser_download_url)
+                        .header("User-Agent", "LLauncher")
+                        .send()
+                        .await?
+                        .error_for_status()?
+                        .bytes()
+                        .await?;
+
+                    return Ok(Package {
+                        tag: release.tag_name,
+                        bytes: bytes.to_vec(),
+                    });
+                }
+            }
+        }
+    }
+
+    // Fallback: GitHub API might be rate-limited (403/429) or unavailable.
+    // Query https://github.com/{repo}/releases/latest which redirects to the tag.
+    crate::logging::warn(format!(
+        "mods: GitHub API unavailable for {}, attempting release redirect fallback",
+        repo
+    ));
+    let latest_url = format!("https://github.com/{}/releases/latest", repo);
+    let resp = client
+        .get(&latest_url)
+        .header("User-Agent", "LLauncher")
+        .send()
         .await?;
 
-    let asset = release
-        .assets
-        .iter()
-        .find(|a| a.name.to_lowercase().ends_with(".zip"))
+    let final_url = resp.url().as_str();
+    let tag = final_url
+        .rsplit('/')
+        .next()
+        .filter(|t| !t.is_empty() && *t != "latest")
         .ok_or_else(|| {
-            AppError::Api(format!("The latest {} release has no .zip asset", repo))
+            AppError::Api(format!("Could not resolve latest release tag for {}", repo))
         })?;
 
+    // Assets follow standard naming: XXMI-PACKAGE-{tag}.zip or EFMI-PACKAGE-{tag}.zip
+    let pkg_name = if repo.contains("XXMI") {
+        "XXMI-PACKAGE"
+    } else {
+        "EFMI-PACKAGE"
+    };
+    let download_url = format!(
+        "https://github.com/{}/releases/download/{}/{}-{}.zip",
+        repo, tag, pkg_name, tag
+    );
+    crate::logging::info(format!(
+        "mods: downloading package via fallback url: {}",
+        download_url
+    ));
+
     let bytes = client
-        .get(&asset.browser_download_url)
+        .get(&download_url)
         .header("User-Agent", "LLauncher")
         .send()
         .await?
@@ -350,7 +418,7 @@ async fn fetch_package(client: &reqwest::Client, repo: &str) -> Result<Package, 
         .await?;
 
     Ok(Package {
-        tag: release.tag_name,
+        tag: tag.to_string(),
         bytes: bytes.to_vec(),
     })
 }
@@ -373,9 +441,11 @@ fn clear_loader_files(game_dir: &Path) -> Result<(), AppError> {
             std::fs::remove_dir_all(&path)?;
         }
     }
-    let ini = game_dir.join(LOADER_INI);
-    if ini.is_file() {
-        std::fs::remove_file(&ini)?;
+    for file in [LOADER_DLL, LOADER_INI] {
+        let path = game_dir.join(file);
+        if path.is_file() {
+            std::fs::remove_file(&path)?;
+        }
     }
     Ok(())
 }
@@ -496,13 +566,16 @@ mod tests {
     use super::*;
 
     fn tempdir() -> PathBuf {
+        static COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let count = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let dir = std::env::temp_dir().join(format!(
-            "llauncher-mods-test-{}-{:?}",
+            "llauncher-mods-test-{}-{:?}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
+                .as_nanos(),
+            count
         ));
         std::fs::create_dir_all(&dir).unwrap();
         dir
@@ -719,3 +792,4 @@ mod tests {
         assert!(!s.loader_installed);
     }
 }
+

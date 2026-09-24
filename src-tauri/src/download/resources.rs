@@ -33,25 +33,25 @@ const PLATFORM: &str = "Windows";
 
 // ─── API response shapes ───
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 struct ResourcesResponse {
     #[serde(default)]
     resources: Vec<ResourceEntry>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, specta::Type)]
 struct ResourceEntry {
     name: String,
     path: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 struct ResourceIndex {
     #[serde(default)]
     files: Vec<IndexFile>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 struct IndexFile {
     name: String,
     #[serde(default)]
@@ -72,21 +72,29 @@ struct ManifestFile {
 
 // ─── Progress events ───
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct IntegrityProgress {
     /// `fetching` | `verifying` | `downloading`
     pub stage: String,
+    #[specta(type = f64)]
     pub files_done: usize,
+    #[specta(type = f64)]
     pub total_files: usize,
+    #[specta(type = f64)]
     pub bytes_done: u64,
+    #[specta(type = f64)]
     pub bytes_total: u64,
+    #[specta(type = f64)]
     pub speed_bps: u64,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct IntegrityComplete {
+    #[specta(type = f64)]
     pub checked: usize,
+    #[specta(type = f64)]
     pub repaired: usize,
+    #[specta(type = f64)]
     pub bytes_downloaded: u64,
 }
 
@@ -675,3 +683,4 @@ mod tests {
         assert_eq!(idx.files[0].size, 12);
     }
 }
+

@@ -7,17 +7,21 @@
 /// to translated, actionable advice — keep them in sync with `launchFailed.*`
 /// hint strings in `src/i18n/`.
 pub const HINT_DWPROTON11_NTOSKRNL: &str = "dwproton11-ntoskrnl";
+pub const HINT_NTOSKRNL_GENERIC: &str = "ntoskrnl-generic";
 pub const HINT_X_CLIENTS_EXHAUSTED: &str = "x-clients-exhausted";
+pub const HINT_XALIA_CRASH: &str = "xalia-crash";
+pub const HINT_PREFIX_CORRUPTED: &str = "prefix-corrupted";
 
 /// Scan the launch log tail for failure signatures we know the fix for.
-///
-/// DWProton 11.x (wine-11 based) cannot run Endfield: the game's anti-cheat
-/// driver calls ntoskrnl stubs wine leaves unimplemented (`PsGetProcessExitStatus`,
-/// `InbvAcquireDisplayOwnership`, ...) and wine aborts the process — see
-/// dawn-winery/dwproton#30 and the pin rationale on
-/// `RECOMMENDED_DWPROTON_TAG`. Match any ntoskrnl stub abort rather than the
-/// individual function names: each 11.x build has died on a different one.
 pub fn diagnose_launch_failure(log_tail: &str, proton_dir: &str) -> Option<&'static str> {
+    // Prefix corruption / downgrade mismatch between Proton versions
+    if log_tail
+        .lines()
+        .any(|l| l.contains("Prefix has an invalid version") || l.contains("delete this prefix"))
+    {
+        return Some(HINT_PREFIX_CORRUPTED);
+    }
+
     let ntoskrnl_abort = log_tail
         .lines()
         .any(|l| l.contains("unimplemented function ntoskrnl.exe.") && l.contains("aborting"));
@@ -35,6 +39,19 @@ pub fn diagnose_launch_failure(log_tail: &str, proton_dir: &str) -> Option<&'sta
         .any(|l| l.trim() == "Maximum number of clients reached")
     {
         return Some(HINT_X_CLIENTS_EXHAUSTED);
+    }
+
+    // Proton's bundled Xalia accessibility tool failed to create an SDL windowing system
+    // (e.g. "PlatformNotSupportedException: Video driver  not supported").
+    if log_tail
+        .lines()
+        .any(|l| l.contains("Xalia.") || l.contains("Video driver  not supported"))
+    {
+        return Some(HINT_XALIA_CRASH);
+    }
+
+    if ntoskrnl_abort {
+        return Some(HINT_NTOSKRNL_GENERIC);
     }
 
     None
@@ -101,18 +118,49 @@ mod tests {
     }
 
     #[test]
-    fn ignores_ntoskrnl_aborts_on_other_proton_versions() {
-        // On a 10.x build the abort would be something new, not the known
-        // 11.x regression — wrong advice is worse than none.
+    fn recognizes_ntoskrnl_aborts_on_other_proton_versions() {
+        // On a 10.x build (or unknown build) the abort is new kernel calls from
+        // an updated game — generic advice to check for a newer build is given.
         let log =
             "wine: Call from 0x1 to unimplemented function ntoskrnl.exe.PsGetProcessExitStatus, aborting\n";
-        assert_eq!(diagnose_launch_failure(log, PROTON_10), None);
-        assert_eq!(diagnose_launch_failure(log, ""), None);
+        assert_eq!(
+            diagnose_launch_failure(log, PROTON_10),
+            Some(HINT_NTOSKRNL_GENERIC)
+        );
+        assert_eq!(
+            diagnose_launch_failure(log, ""),
+            Some(HINT_NTOSKRNL_GENERIC)
+        );
     }
 
     #[test]
     fn matches_dwproton_11_on_the_directory_name_only() {
         assert!(is_dwproton_11("/opt/protons/dwproton-11.0-12-x86_64"));
         assert!(!is_dwproton_11("/opt/dwproton-11.0-12/dwproton-10.0-26"));
+    }
+
+    #[test]
+    fn recognizes_xalia_crash() {
+        let log = "ProtonFixes[182113] WARN: Skipping fix execution. We are probably running a unit test.\n\
+                   ProtonFixes[182113] INFO: Automatic DLSS upgrade enabled.\n\
+                   ProtonFixes[182113] WARN: Skipping fix execution. We are probably running a unit test.\n\
+                   System.PlatformNotSupportedException: Video driver  not supported\n\
+                     at Xalia.Sdl.WindowingSystem.Create () [0x0003e] in <743e8bdcd9c54484ad89463ed4e626f6>:0 \n\
+                     at Xalia.Sdl.WindowingSystem.get_Instance () [0x00007] in <743e8bdcd9c54484ad89463ed4e626f6>:0 \n";
+        assert_eq!(
+            diagnose_launch_failure(log, PROTON_11),
+            Some(HINT_XALIA_CRASH)
+        );
+    }
+
+    #[test]
+    fn recognizes_corrupted_prefix() {
+        let log = "Proton: Upgrading prefix from dwproton-11.0-12 to dwproton-10.0-26 (/path/to/pfx)\n\
+                   Proton: Prefix has an invalid version?! You may want to back up user files and delete this prefix.\n\
+                   wine: Call from 0x1 to unimplemented function ntoskrnl.exe.PsGetProcessExitStatus, aborting\n";
+        assert_eq!(
+            diagnose_launch_failure(log, PROTON_10),
+            Some(HINT_PREFIX_CORRUPTED)
+        );
     }
 }

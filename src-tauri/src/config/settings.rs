@@ -22,7 +22,7 @@ fn default_gamescope_upscaler() -> String {
     "auto".to_string()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 pub struct AppSettings {
     pub game_dir: String,
     pub download_dir: String,
@@ -56,6 +56,7 @@ pub struct AppSettings {
     #[serde(default)]
     pub disable_esync: bool,
     #[serde(default)]
+    #[specta(type = f64)]
     pub download_speed_limit: u64,
     #[serde(default = "default_max_concurrent")]
     pub download_max_concurrent: u32,
@@ -188,9 +189,11 @@ pub struct AppSettings {
     pub mods_enabled: bool,
     /// Accumulated in-game time in seconds.
     #[serde(default)]
+    #[specta(type = f64)]
     pub total_playtime_secs: u64,
     /// Unix timestamp (seconds) of the last game launch, 0 = never.
     #[serde(default)]
+    #[specta(type = f64)]
     pub last_played: u64,
 }
 
@@ -311,3 +314,4 @@ impl AppSettings {
             .map_err(|e| crate::error::AppError::Api(format!("settings save task failed: {}", e)))?
     }
 }
+

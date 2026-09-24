@@ -331,3 +331,4 @@ mod size_tests {
         assert_eq!(unpacked_size(u32::MAX, &extra), Some(9_000_000_000));
     }
 }
+

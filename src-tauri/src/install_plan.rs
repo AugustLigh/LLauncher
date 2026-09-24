@@ -5,15 +5,19 @@ use std::{
     path::{Path, PathBuf},
 };
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 pub struct DiskRequirement {
     path: String,
+    #[specta(type = f64)]
     pub available: Option<u64>,
+    #[specta(type = f64)]
     pub required: u64,
 }
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 pub struct InstallPlan {
+    #[specta(type = f64)]
     pub download_bytes: u64,
+    #[specta(type = f64)]
     pub unpacked_bytes: Option<u64>,
     pub disks: Vec<DiskRequirement>,
     pub blocked: bool,
@@ -62,6 +66,7 @@ fn requirements(parts: Vec<(PathBuf, u64)>) -> Vec<DiskRequirement> {
     disks.into_values().collect()
 }
 #[tauri::command]
+#[specta::specta]
 pub async fn get_install_plan(state: tauri::State<'_, AppState>) -> Result<InstallPlan, AppError> {
     let settings = state.settings.lock().await.clone();
     let info = crate::api::client::get_latest_game_version(&state.http_client, "").await?;
@@ -136,3 +141,4 @@ mod tests {
         assert_eq!(disks[0].required, 120);
     }
 }
+

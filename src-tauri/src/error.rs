@@ -1,6 +1,7 @@
 use serde::Serialize;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, specta::Type)]
+#[specta(type = String)]
 pub enum AppError {
     #[error("HTTP error: {0}")]
     Http(#[from] reqwest::Error),
@@ -77,3 +78,4 @@ impl Serialize for AppError {
         serializer.serialize_str(&self.to_string())
     }
 }
+

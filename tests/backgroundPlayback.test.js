@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createBackgroundPlayback } from "../src/utils/backgroundPlayback.js";
+import { createBackgroundPlayback } from "../src/utils/backgroundPlayback.ts";
 
 function setup({ frames = false, abort = false } = {}) {
   let time = 0;

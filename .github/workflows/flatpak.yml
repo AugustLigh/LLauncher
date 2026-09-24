@@ -40,7 +40,6 @@ jobs:
               r"      - type: git\n        url: https://github\.com/AugustLigh/LLauncher\.git\n(?:        (?:tag|commit): [^\n]+\n)+",
               "      - type: dir\n        path: ../..\n        skip:\n          - .git\n          - node_modules\n          - src-tauri/target\n",
               s,
-          )
           assert s2 != s, "git source block not found in the manifest"
           open("packaging/flatpak/ci.yml", "w").write(s2)
           PY

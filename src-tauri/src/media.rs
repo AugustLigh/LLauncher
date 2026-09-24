@@ -121,3 +121,4 @@ mod tests {
         assert!(!dirs_have_plugins(&[], &["libgstautodetect.so"]));
     }
 }
+

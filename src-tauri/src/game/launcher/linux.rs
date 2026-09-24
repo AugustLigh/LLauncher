@@ -43,7 +43,8 @@ fn build_env_script(settings: &AppSettings, compat_data: &Path, with_mods: bool)
          export UMU_USE_STEAM=1\n\
          export STEAM_COMPAT_CLIENT_INSTALL_PATH={}\n\
          export STEAM_COMPAT_DATA_PATH={}\n\
-         export PROTON_USE_WINED3D=0\n",
+         export PROTON_USE_WINED3D=0\n\
+         export PROTON_USE_XALIA=0\n",
         shell_escape(&settings.proton_dir),
         shell_escape(&compat_data.to_string_lossy()),
     ));
@@ -95,24 +96,49 @@ fn build_env_script(settings: &AppSettings, compat_data: &Path, with_mods: bool)
         );
     }
 
-    // A modded launch needs Wine to load the game's own d3d11.dll — the
-    // 3DMigoto proxy — ahead of its builtin. Without the override Wine picks
-    // DXVK directly and the proxy never runs, which looks exactly like "the
-    // mods do nothing". `n,b` keeps the builtin as fallback, and the proxy
-    // chains to it for the real D3D11 work. Placed before the user's own
-    // variables so a hand-written WINEDLLOVERRIDES still overrides it.
-    // `dxgi` rides along unconditionally: it is where ReShade installs itself
-    // (d3d11 being taken by 3DMigoto), and `n,b` falls back to the builtin
-    // when no native DLL is there, so listing it costs nothing when it is not.
-    let mut dll_overrides: Vec<&str> = Vec::new();
+    // For a modded launch, 3DMigoto supplies `d3d11.dll` next to `Endfield.exe`.
+    //
+    // CRITICAL: We do NOT export `d3d11=n,b` globally via WINEDLLOVERRIDES!
+    // Exporting it globally forces ALL child processes in the Wine session
+    // (specifically PlatformProcess.exe and QtWebEngineProcess.exe) to load
+    // 3DMigoto's proxy d3d11.dll. 3DMigoto is designed solely for Endfield.exe
+    // (`target = Endfield.exe` in d3dx.ini), so when Qt5WebEngineCore / Chromium
+    // attempts to use D3D11 through 3DMigoto, it crashes with an access violation
+    // (c0000005) or throws a "d3d11.dll error" dialog (XXMI-Launcher issue #276).
+    //
+    // Instead, per-application overrides are configured in Wine's registry
+    // (AppDefaults\\Endfield.exe has d3d11=native,builtin, while
+    // AppDefaults\\PlatformProcess.exe and QtWebEngineProcess.exe have d3d11=builtin).
+    // We ensure user.reg has them both ahead-of-time in Rust and via an inline
+    // guard in this script.
     if with_mods {
-        dll_overrides.push("d3d11=n,b");
-        dll_overrides.push("dxgi=n,b");
+        script.push_str(
+            "if [ ! -f \"$STEAM_COMPAT_DATA_PATH/pfx/user.reg\" ]; then\n\
+  \"$STEAM_COMPAT_CLIENT_INSTALL_PATH/proton\" run wineboot -u\n\
+fi\n\
+if [ -f \"$STEAM_COMPAT_DATA_PATH/pfx/user.reg\" ] && ! grep -q \"PlatformProcess.exe\" \"$STEAM_COMPAT_DATA_PATH/pfx/user.reg\"; then\n\
+cat << 'EOF' >> \"$STEAM_COMPAT_DATA_PATH/pfx/user.reg\"\n\
+\n\
+[Software\\\\Wine\\\\AppDefaults\\\\Endfield.exe\\\\DllOverrides]\n\
+\"d3d11\"=\"native,builtin\"\n\
+\"dxgi\"=\"native,builtin\"\n\
+\n\
+[Software\\\\Wine\\\\AppDefaults\\\\PlatformProcess.exe\\\\DllOverrides]\n\
+\"d3d11\"=\"builtin\"\n\
+\"dxgi\"=\"builtin\"\n\
+\n\
+[Software\\\\Wine\\\\AppDefaults\\\\QtWebEngineProcess.exe\\\\DllOverrides]\n\
+\"d3d11\"=\"builtin\"\n\
+\"dxgi\"=\"builtin\"\n\
+EOF\n\
+fi\n",
+        );
     }
-    // OptiScaler is the same kind of proxy: `winmm.dll` next to the game,
-    // which Wine ignores in favour of its builtin unless told otherwise. It
-    // hooks the NGX loader rather than D3D11, so it rides along with a normal
-    // Vulkan launch — presence in the game directory is the switch.
+
+    // OptiScaler is a proxy (`winmm.dll` next to the game) which Wine ignores
+    // in favour of its builtin unless told otherwise. It hooks the NGX loader
+    // rather than D3D11, so it rides along with a normal Vulkan launch.
+    let mut dll_overrides: Vec<&str> = Vec::new();
     if crate::game::optiscaler::is_installed(Path::new(&settings.game_dir)) {
         dll_overrides.push("winmm=n,b");
     }
@@ -207,46 +233,27 @@ fn build_gamescope_args(settings: &AppSettings) -> String {
     args.join(" ")
 }
 
-/// Start the game. `with_mods` swaps the native Vulkan renderer for the D3D11
-/// path and lets the 3DMigoto proxy in — see `crate::game::mods` for why the
-/// two are inseparable.
-pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGame, AppError> {
-    let game_path = Path::new(&settings.game_dir);
-    let exe_path = game_path.join("Endfield.exe");
-
-    if !exe_path.exists() {
-        return Err(AppError::GameNotFound(format!(
-            "Executable not found: {}",
-            exe_path.display()
-        )));
+/// The renderer switch on the command line. Native Vulkan is the default on
+/// Linux, translated directly by the host Vulkan driver. 3DMigoto only hooks
+/// Direct3D 11, so a modded launch forces D3D11 (which Proton maps through
+/// DXVK) and ignores the Vulkan toggle. Selecting DirectX 11 in settings
+/// similarly forces D3D11.
+fn renderer_args(settings: &AppSettings, with_mods: bool) -> &'static str {
+    if settings.use_native_vulkan && !with_mods {
+        "-vulkan"
+    } else {
+        "-force-d3d11"
     }
+}
 
-    let proton_path = Path::new(&settings.proton_dir).join("proton");
-    if !proton_path.exists() {
-        return Err(AppError::ProtonNotFound(format!(
-            "Proton not found at: {}",
-            proton_path.display()
-        )));
-    }
-
-    // Convert Linux path to Wine Z: path
-    let wine_path = format!("Z:{}", exe_path.to_string_lossy().replace('/', "\\"));
-
-    let compat_data = resolve_prefix_dir(settings, game_path);
-    std::fs::create_dir_all(&compat_data)?;
-
-    let log_path = paths::launch_log_path();
-    std::fs::create_dir_all(log_path.parent().unwrap())?;
-
-    let mut script = build_env_script(settings, &compat_data, with_mods);
-
-    // cd into game directory
-    script.push_str(&format!("cd {}\n", shell_escape(&game_path.to_string_lossy())));
-
-    // Build the launch command with optional wrappers
-    let proton_escaped = shell_escape(&proton_path.to_string_lossy());
-    let wine_escaped = shell_escape(&wine_path);
-
+/// Build the launch command line with all wrappers, Proton execution, renderer
+/// flags, and custom arguments.
+fn build_launch_cmd(
+    settings: &AppSettings,
+    proton_escaped: &str,
+    wine_escaped: &str,
+    with_mods: bool,
+) -> String {
     let mut launch_cmd = String::new();
     if settings.use_gamemode {
         // Deliberately unquoted, like the custom launch arguments: the user's
@@ -273,11 +280,10 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
     }
     launch_cmd.push_str(&format!("{} run {}", proton_escaped, wine_escaped));
 
-    // Native Vulkan renderer. Suppressed for a modded launch: 3DMigoto hooks
-    // D3D11 and has no Vulkan equivalent, so `-vulkan` would leave every mod
-    // silently inert.
-    if settings.use_native_vulkan && !with_mods {
-        launch_cmd.push_str(" -vulkan");
+    let renderer = renderer_args(settings, with_mods);
+    if !renderer.is_empty() {
+        launch_cmd.push(' ');
+        launch_cmd.push_str(renderer);
     }
 
     // Custom launch args
@@ -285,6 +291,90 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
         launch_cmd.push(' ');
         launch_cmd.push_str(&settings.custom_launch_args);
     }
+
+    launch_cmd
+}
+
+/// Ensure the prefix's user.reg has per-application DLL overrides so 3DMigoto
+/// is only loaded into Endfield.exe, while helper processes (PlatformProcess.exe,
+/// QtWebEngineProcess.exe) use Wine's builtin DXVK/d3d11.
+pub fn ensure_prefix_appdefaults(compat_data: &Path) -> std::io::Result<()> {
+    let user_reg = compat_data.join("pfx").join("user.reg");
+    if !user_reg.exists() {
+        return Ok(());
+    }
+    let content = std::fs::read_to_string(&user_reg)?;
+    if content.contains("[Software\\\\Wine\\\\AppDefaults\\\\PlatformProcess.exe\\\\DllOverrides]") {
+        return Ok(());
+    }
+
+    let entries = "\n\
+[Software\\\\Wine\\\\AppDefaults\\\\Endfield.exe\\\\DllOverrides]\n\
+\"d3d11\"=\"native,builtin\"\n\
+\"dxgi\"=\"native,builtin\"\n\
+\n\
+[Software\\\\Wine\\\\AppDefaults\\\\PlatformProcess.exe\\\\DllOverrides]\n\
+\"d3d11\"=\"builtin\"\n\
+\"dxgi\"=\"builtin\"\n\
+\n\
+[Software\\\\Wine\\\\AppDefaults\\\\QtWebEngineProcess.exe\\\\DllOverrides]\n\
+\"d3d11\"=\"builtin\"\n\
+\"dxgi\"=\"builtin\"\n";
+
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&user_reg)?;
+    file.write_all(entries.as_bytes())?;
+    Ok(())
+}
+
+/// Start the game. `with_mods` swaps the native Vulkan renderer for the D3D11
+/// path and lets the 3DMigoto proxy in — see `crate::game::mods` for why the
+/// two are inseparable.
+pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGame, AppError> {
+    let game_path = Path::new(&settings.game_dir);
+    let exe_path = game_path.join("Endfield.exe");
+
+    if !exe_path.exists() {
+        return Err(AppError::GameNotFound(format!(
+            "Executable not found: {}",
+            exe_path.display()
+        )));
+    }
+
+    let proton_dir = crate::game::proton::resolve_proton_dir(settings).ok_or_else(|| {
+        AppError::ProtonNotFound(format!(
+            "Proton not found at: {}",
+            Path::new(&settings.proton_dir).join("proton").display()
+        ))
+    })?;
+    let proton_path = proton_dir.join("proton");
+
+    // Convert Linux path to Wine Z: path
+    let wine_path = format!("Z:{}", exe_path.to_string_lossy().replace('/', "\\"));
+
+    let compat_data = resolve_prefix_dir(settings, game_path);
+    std::fs::create_dir_all(&compat_data)?;
+
+    if with_mods {
+        let _ = ensure_prefix_appdefaults(&compat_data);
+    }
+
+    let log_path = paths::launch_log_path();
+    std::fs::create_dir_all(log_path.parent().unwrap())?;
+
+    let mut effective_settings = settings.clone();
+    effective_settings.proton_dir = proton_dir.to_string_lossy().to_string();
+    let mut script = build_env_script(&effective_settings, &compat_data, with_mods);
+
+    // cd into game directory
+    script.push_str(&format!("cd {}\n", shell_escape(&game_path.to_string_lossy())));
+
+    // Build the launch command with optional wrappers
+    let proton_escaped = shell_escape(&proton_path.to_string_lossy());
+    let wine_escaped = shell_escape(&wine_path);
+    let launch_cmd = build_launch_cmd(settings, &proton_escaped, &wine_escaped, with_mods);
 
     // Redirect output to log file
     script.push_str(&format!(
@@ -339,7 +429,11 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
 ///
 /// Call after the game session ends, never while it may still be running.
 pub fn shutdown_wineserver(settings: &AppSettings, force: bool) {
-    let wineserver = Path::new(&settings.proton_dir).join("files/bin/wineserver");
+    let proton_dir = match crate::game::proton::resolve_proton_dir(settings) {
+        Some(d) => d,
+        None => return,
+    };
+    let wineserver = proton_dir.join("files/bin/wineserver");
     if !wineserver.exists() {
         return;
     }
@@ -359,18 +453,20 @@ pub fn shutdown_wineserver(settings: &AppSettings, force: bool) {
 pub fn run_prefix_tool(settings: &AppSettings, tool: &str) -> Result<(), AppError> {
     let game_path = Path::new(&settings.game_dir);
 
-    let proton_path = Path::new(&settings.proton_dir).join("proton");
-    if !proton_path.exists() {
-        return Err(AppError::ProtonNotFound(format!(
+    let proton_dir = crate::game::proton::resolve_proton_dir(settings).ok_or_else(|| {
+        AppError::ProtonNotFound(format!(
             "Proton not found at: {}",
-            proton_path.display()
-        )));
-    }
+            Path::new(&settings.proton_dir).join("proton").display()
+        ))
+    })?;
+    let proton_path = proton_dir.join("proton");
 
     let compat_data = resolve_prefix_dir(settings, game_path);
     std::fs::create_dir_all(&compat_data)?;
 
-    let mut script = build_env_script(settings, &compat_data, false);
+    let mut effective_settings = settings.clone();
+    effective_settings.proton_dir = proton_dir.to_string_lossy().to_string();
+    let mut script = build_env_script(&effective_settings, &compat_data, false);
     script.push_str(&format!(
         "exec {} run {} > /dev/null 2>&1\n",
         shell_escape(&proton_path.to_string_lossy()),
@@ -400,3 +496,93 @@ pub fn force_stop(pid: u32) {
         libc::killpg(pid as i32, libc::SIGKILL);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_renderer_is_native_vulkan() {
+        let mut settings = AppSettings::default();
+        settings.use_native_vulkan = true;
+        assert_eq!(renderer_args(&settings, false), "-vulkan");
+    }
+
+    #[test]
+    fn modded_launch_forces_direct3d_11() {
+        let mut settings = AppSettings::default();
+        settings.use_native_vulkan = true;
+        assert_eq!(renderer_args(&settings, true), "-force-d3d11");
+    }
+
+    #[test]
+    fn directx_11_setting_forces_direct3d_11() {
+        let mut settings = AppSettings::default();
+        settings.use_native_vulkan = false;
+        assert_eq!(renderer_args(&settings, false), "-force-d3d11");
+        assert_eq!(renderer_args(&settings, true), "-force-d3d11");
+    }
+
+    #[test]
+    fn launch_command_includes_wrappers_and_renderer() {
+        let mut settings = AppSettings::default();
+        settings.use_native_vulkan = true;
+        settings.use_gamemode = true;
+        settings.use_mangohud = true;
+        settings.custom_launch_args = "-screen-fullscreen 0".to_string();
+
+        let cmd = build_launch_cmd(&settings, "'proton'", "'Z:\\Endfield.exe'", false);
+        assert_eq!(
+            cmd,
+            "gamemoderun mangohud 'proton' run 'Z:\\Endfield.exe' -vulkan -screen-fullscreen 0"
+        );
+
+        let modded_cmd = build_launch_cmd(&settings, "'proton'", "'Z:\\Endfield.exe'", true);
+        assert_eq!(
+            modded_cmd,
+            "gamemoderun mangohud 'proton' run 'Z:\\Endfield.exe' -force-d3d11 -screen-fullscreen 0"
+        );
+
+        settings.gamemode_command = "taskset -c 0-7 gamemoderun".to_string();
+        let custom_cmd = build_launch_cmd(&settings, "'proton'", "'Z:\\Endfield.exe'", false);
+        assert_eq!(
+            custom_cmd,
+            "taskset -c 0-7 gamemoderun mangohud 'proton' run 'Z:\\Endfield.exe' -vulkan -screen-fullscreen 0"
+        );
+    }
+
+    #[test]
+    fn prefix_appdefaults_are_written_and_idempotent() {
+        let tmp_dir =
+            std::env::temp_dir().join(format!("llauncher_test_pfx_{}", std::process::id()));
+        let pfx_dir = tmp_dir.join("pfx");
+        let _ = std::fs::create_dir_all(&pfx_dir);
+        let user_reg = pfx_dir.join("user.reg");
+
+        std::fs::write(
+            &user_reg,
+            "WINE REGISTRY Version 2\n;; All keys relative to \\\\User\\\\...\n",
+        )
+        .unwrap();
+
+        assert!(ensure_prefix_appdefaults(&tmp_dir).is_ok());
+        let content = std::fs::read_to_string(&user_reg).unwrap();
+        assert!(content.contains("[Software\\\\Wine\\\\AppDefaults\\\\Endfield.exe\\\\DllOverrides]"));
+        assert!(content.contains(
+            "[Software\\\\Wine\\\\AppDefaults\\\\PlatformProcess.exe\\\\DllOverrides]"
+        ));
+        assert!(content.contains(
+            "[Software\\\\Wine\\\\AppDefaults\\\\QtWebEngineProcess.exe\\\\DllOverrides]"
+        ));
+        assert!(content.contains("\"d3d11\"=\"builtin\""));
+        assert!(content.contains("\"d3d11\"=\"native,builtin\""));
+
+        let len_first = content.len();
+        assert!(ensure_prefix_appdefaults(&tmp_dir).is_ok());
+        let content_second = std::fs::read_to_string(&user_reg).unwrap();
+        assert_eq!(content_second.len(), len_first);
+
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+    }
+}
+

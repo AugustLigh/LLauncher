@@ -28,3 +28,4 @@ pub const API_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 /// legitimately take a long time — but must not go this long without the
 /// server even starting to respond before we give up on it.
 pub const DOWNLOAD_STALL_TIMEOUT: Duration = Duration::from_secs(30);
+

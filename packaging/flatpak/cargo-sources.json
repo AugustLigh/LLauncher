@@ -2,6 +2,19 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/Inflector/Inflector-0.11.4.crate",
+        "sha256": "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3",
+        "dest": "cargo/vendor/Inflector-0.11.4"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3\", \"files\": {}}",
+        "dest": "cargo/vendor/Inflector-0.11.4",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/adler2/adler2-2.0.1.crate",
         "sha256": "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa",
         "dest": "cargo/vendor/adler2-2.0.1"
@@ -3473,6 +3486,19 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/paste/paste-1.0.15.crate",
+        "sha256": "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a",
+        "dest": "cargo/vendor/paste-1.0.15"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a\", \"files\": {}}",
+        "dest": "cargo/vendor/paste-1.0.15",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/percent-encoding/percent-encoding-2.3.2.crate",
         "sha256": "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220",
         "dest": "cargo/vendor/percent-encoding-2.3.2"
@@ -4669,6 +4695,71 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/specta/specta-2.0.0-rc.25.crate",
+        "sha256": "38f9a30cbcbb7011f1da7d73483983bf838af123883e45f2b36ed76328df9c50",
+        "dest": "cargo/vendor/specta-2.0.0-rc.25"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"38f9a30cbcbb7011f1da7d73483983bf838af123883e45f2b36ed76328df9c50\", \"files\": {}}",
+        "dest": "cargo/vendor/specta-2.0.0-rc.25",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/specta-macros/specta-macros-2.0.0-rc.25.crate",
+        "sha256": "2ce14957ecc2897f1f848b8255b6531d13ddf49cbcf506b7c2c9fb1d005593bb",
+        "dest": "cargo/vendor/specta-macros-2.0.0-rc.25"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"2ce14957ecc2897f1f848b8255b6531d13ddf49cbcf506b7c2c9fb1d005593bb\", \"files\": {}}",
+        "dest": "cargo/vendor/specta-macros-2.0.0-rc.25",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/specta-serde/specta-serde-0.0.12.crate",
+        "sha256": "ee8a72b755ddb8949fd8f17c5db43f0e8a806ea587d9bc602ee3f73240c00029",
+        "dest": "cargo/vendor/specta-serde-0.0.12"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"ee8a72b755ddb8949fd8f17c5db43f0e8a806ea587d9bc602ee3f73240c00029\", \"files\": {}}",
+        "dest": "cargo/vendor/specta-serde-0.0.12",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/specta-typescript/specta-typescript-0.0.12.crate",
+        "sha256": "639404ee95557f2f8b7e4cb773ffefd45304c7ab8ba21ac83b69051595e083c0",
+        "dest": "cargo/vendor/specta-typescript-0.0.12"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"639404ee95557f2f8b7e4cb773ffefd45304c7ab8ba21ac83b69051595e083c0\", \"files\": {}}",
+        "dest": "cargo/vendor/specta-typescript-0.0.12",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/specta-util/specta-util-0.0.12.crate",
+        "sha256": "29b1fc02b446f7244a92924fe68c0555921209f1d342990cd1539e9138e69502",
+        "dest": "cargo/vendor/specta-util-0.0.12"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"29b1fc02b446f7244a92924fe68c0555921209f1d342990cd1539e9138e69502\", \"files\": {}}",
+        "dest": "cargo/vendor/specta-util-0.0.12",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
         "url": "https://static.crates.io/crates/stable_deref_trait/stable_deref_trait-1.2.1.crate",
         "sha256": "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596",
         "dest": "cargo/vendor/stable_deref_trait-1.2.1"
@@ -5054,6 +5145,19 @@
         "type": "inline",
         "contents": "{\"package\": \"4e6fac707727b7a2f48e4ded90976324267371073edbb415ffb73bb0458d203f\", \"files\": {}}",
         "dest": "cargo/vendor/tauri-runtime-wry-2.11.4",
+        "dest-filename": ".cargo-checksum.json"
+    },
+    {
+        "type": "archive",
+        "archive-type": "tar-gzip",
+        "url": "https://static.crates.io/crates/tauri-specta/tauri-specta-2.0.0-rc.25.crate",
+        "sha256": "ee080f36d2ac17ce2f3a82fb53f02d664e8345457de51b56dad3c394dacc41a2",
+        "dest": "cargo/vendor/tauri-specta-2.0.0-rc.25"
+    },
+    {
+        "type": "inline",
+        "contents": "{\"package\": \"ee080f36d2ac17ce2f3a82fb53f02d664e8345457de51b56dad3c394dacc41a2\", \"files\": {}}",
+        "dest": "cargo/vendor/tauri-specta-2.0.0-rc.25",
         "dest-filename": ".cargo-checksum.json"
     },
     {

@@ -77,7 +77,7 @@ const KNOWN_FILES: [&str; 17] = [
 const KNOWN_DIRS: [&str; 4] = ["D3D12_Optiscaler", "Licenses", "DlssOverrides", "OptiScaler"];
 
 /// What the launcher knows about OptiScaler in the game directory.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct OptiScalerStatus {
     /// The proxy and its ini are both next to the game executable.
     pub installed: bool,
@@ -135,22 +135,23 @@ pub fn host_options() -> InstallOptions {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct InstallResult {
     /// Release tag that was installed.
     pub version: String,
     /// Number of files written into the game directory.
+    #[specta(type = f64)]
     pub files: usize,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 struct GhRelease {
     tag_name: String,
     #[serde(default)]
     assets: Vec<GhAsset>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, specta::Type)]
 struct GhAsset {
     name: String,
     browser_download_url: String,
@@ -394,8 +395,8 @@ fn set_ini_key(ini: &str, section: &str, key: &str, value: &str) -> String {
     let mut in_section = false;
     let mut section_end: Option<usize> = None;
     let mut replaced = false;
-    for i in 0..lines.len() {
-        let line = lines[i].trim();
+    for (i, line) in lines.iter().enumerate() {
+        let line = line.trim();
         if line.starts_with('[') {
             if in_section {
                 section_end = Some(i);
@@ -501,13 +502,16 @@ mod tests {
     use super::*;
 
     fn tempdir() -> PathBuf {
+        static COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let count = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let dir = std::env::temp_dir().join(format!(
-            "llauncher-optiscaler-test-{}-{:?}",
+            "llauncher-optiscaler-test-{}-{:?}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap()
-                .as_nanos()
+                .as_nanos(),
+            count
         ));
         std::fs::create_dir_all(&dir).unwrap();
         dir
@@ -688,3 +692,4 @@ mod tests {
         assert!(!s.installed);
     }
 }
+

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { BUNDLES, resolveLocale } from '../src/i18n/resolve.js';
+import { BUNDLES, resolveLocale } from '../src/i18n/resolve.ts';
 
 test('resolveLocale behavior', () => {
   assert.strictEqual(resolveLocale('en-us'), 'en');
@@ -31,7 +31,7 @@ test('resolveLocale behavior', () => {
   assert.strictEqual(resolveLocale(null), 'en');
 });
 
-test('i18n parity: all keys in en.js must exist in other bundles', () => {
+test('i18n parity: all keys in en.ts must exist in other bundles', () => {
   const enBundle = BUNDLES.en;
   
   function checkKeys(obj1, obj2, path) {
