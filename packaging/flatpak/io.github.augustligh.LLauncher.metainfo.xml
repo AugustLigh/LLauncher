@@ -90,7 +90,8 @@
           aside unless the game is started with mods, which fixes the game
           quitting on the terms dialog after EFMI was installed. DWProton
           downloads fall back to the GitHub mirror when dawn.wine is down.
-          GameMode can run a command of your choice.
+          GameMode can run a command of your choice. The interface is now
+          available in eleven more languages.
         </p>
       </description>
     </release>
