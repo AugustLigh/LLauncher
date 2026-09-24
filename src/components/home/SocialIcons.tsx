@@ -1,6 +1,6 @@
-// @ts-nocheck
+import { SVGProps } from "react";
 
-const iconProps = {
+const iconProps: SVGProps<SVGSVGElement> = {
   width: "100%",
   height: "100%",
   viewBox: "0 0 24 24",
@@ -113,7 +113,7 @@ export function SupportIcon() {
   );
 }
 
-const MEDIA_ICONS = {
+const MEDIA_ICONS: Record<string, () => JSX.Element> = {
   VK: VKIcon,
   Telegram: TelegramIcon,
   X: XIcon,
@@ -126,7 +126,11 @@ const MEDIA_ICONS = {
   CS_gl: SupportIcon,
 };
 
-export default function SocialIcon({ media }: any) {
+export interface SocialIconProps {
+  media?: string;
+}
+
+export default function SocialIcon({ media }: SocialIconProps) {
   const Icon = Object.entries(MEDIA_ICONS).find(
     ([name]) => name.toLowerCase() === media?.toLowerCase(),
   )?.[1];

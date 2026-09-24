@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 export default {
   savePathsFirst: "Save the new paths before working with files.",
   tasksFailed: "Could not check transfers",
@@ -96,6 +94,7 @@ export default {
   fps: "FPS counter",
   controller: "Controller support",
   renderer: "Renderer",
+  gamemodeCommand: "GameMode command",
   systemStatus: "System",
   refreshCheck: "Check again",
   installed: "Installed",

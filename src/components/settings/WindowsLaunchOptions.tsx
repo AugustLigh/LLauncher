@@ -1,15 +1,19 @@
-// @ts-nocheck
-
 import { useTranslation } from "../../i18n";
 import { Switch } from "../common/Controls";
+
+export interface WindowsLaunchOptionsProps {
+  form: Record<string, any>;
+  onChange: (key: string, value: any) => void;
+}
+
 // The launch options that only exist on Windows. The game runs natively, so
 // there is no compatibility layer to configure — what the launcher can do is
 // pick the renderer the game starts on, register the game with Windows' own
 // per-app graphics settings, and shape the host for the session (power plan,
 // process priority, elevation).
-export default function WindowsLaunchOptions({ form, onChange }: any) {
+export default function WindowsLaunchOptions({ form, onChange }: WindowsLaunchOptionsProps) {
   const { t } = useTranslation();
-  const toggle = (key, name, desc) => (
+  const toggle = (key: string, name: string, desc: string) => (
     <Switch
       key={key}
       label={name}

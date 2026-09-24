@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import uiModule from './ui.pt-br.ts';
 const ui = (uiModule as any).default || uiModule;
 export default {
@@ -378,8 +376,12 @@ export default {
     viewLog: 'Visualizar o Registro Completo',
     noLog: 'Nenhuma saída de registro foi capturada.',
     hintDwproton11: 'O DWProton (11.x) não é compatível com Endfield: O anti-cheat depende de mecânicas essenciais do sistema operacional ausentes em sistemas operacionais mais recentes e implementações experimentais, ocasionando quebras durante as chamadas da inicialização. Favor reajustar via Configurações para a plataforma endossada e validada, como as listadas em recomendadas.',
+    hintNtoskrnl: 'O jogo chamou uma função do kernel (PsGetProcessExitStatus) que esta versão do Proton ainda não implementa e foi encerrado. Abra as configurações do Proton para selecionar o DWProton 11.0-13 ou mais recente.',
     hintXClients: 'Os sockets do servidor X estão negando entrada à requisição de inicialização: todos os pontos-de-conexão ("X clients slots") encontram-se travados/sobrecarregados ou sem qualquer fôlego e com limite exaurido! Encerre totalmente a sessão, refaça seu login inicial ou restarte a sua distribuição Linux por completa a fim de forçar uma descarga.',
+    hintXalia: 'O assistente de acessibilidade integrado do Proton (Xalia) não pôde iniciar porque nenhum driver de vídeo compatível foi encontrado. Desativar o Xalia via PROTON_USE_XALIA=0 resolve este problema.',
+    hintPrefixCorrupted: 'O prefixo do Wine está corrompido ou foi revertido de uma versão mais nova do Proton (DWProton 11 para 10), o que quebra fontes e bibliotecas do sistema. Abra as configurações de Diagnóstico e clique em "Redefinir prefixo" para regenerar um prefixo limpo.',
     openProtonSettings: 'Abrir Configurações do Proton',
+    openDiagnosticsSettings: 'Abrir configurações de Diagnóstico',
   },
   logViewer: {
     copy: 'Copiar Registro',

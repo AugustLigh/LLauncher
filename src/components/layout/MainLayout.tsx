@@ -1,12 +1,17 @@
-// @ts-nocheck
-
-import { useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { BackgroundImage } from "../../bindings";
 import { createBackgroundPlayback } from "../../utils/backgroundPlayback";
 import "./MainLayout.css";
-function Background({ background, gameRunning }: any) {
+
+interface BackgroundProps {
+  background?: BackgroundImage;
+  gameRunning?: boolean;
+}
+
+function Background({ background, gameRunning }: BackgroundProps) {
   const [hidden, setHidden] = useState(document.hidden),
-    [visible, setVisible] = useState(null),
+    [visible, setVisible] = useState<boolean | null>(null),
     [focused, setFocused] = useState(document.hasFocus()),
     [epoch, setEpoch] = useState(0);
   const [reduced, setReduced] = useState(
@@ -14,8 +19,8 @@ function Background({ background, gameRunning }: any) {
   );
   const [imageLoaded, setImageLoaded] = useState(false),
     [videoLoaded, setVideoLoaded] = useState(false);
-  const imageRef = useRef(null),
-    videoRef = useRef(null);
+  const imageRef = useRef<HTMLImageElement | null>(null),
+    videoRef = useRef<HTMLVideoElement | null>(null);
   const imageUrl = background?.url,
     videoUrl = !reduced ? background?.video_url : null;
   useEffect(() => {
@@ -144,7 +149,14 @@ function Background({ background, gameRunning }: any) {
     </div>
   );
 }
-export default function MainLayout({ background, paused, children }: any) {
+
+export interface MainLayoutProps {
+  background?: BackgroundImage;
+  paused?: boolean;
+  children?: ReactNode;
+}
+
+export default function MainLayout({ background, paused, children }: MainLayoutProps) {
   return (
     <div className="main-layout">
       <Background background={background} gameRunning={paused} />

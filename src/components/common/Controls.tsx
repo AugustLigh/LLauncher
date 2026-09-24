@@ -1,4 +1,3 @@
-// @ts-nocheck
 import React, { useId, ReactNode } from "react";
 import Icon from "./Icon";
 

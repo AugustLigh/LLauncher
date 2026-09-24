@@ -1,24 +1,29 @@
-// @ts-nocheck
-
-import { commands } from '../../bindings';
-import { invoke } from "@tauri-apps/api/core";
+import { commands, ModsStatus, OptiScalerStatus, SystemCheck } from '../../bindings';
 import { useState, useEffect, useCallback } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useTranslation } from "../../i18n";
 import { Button, Switch, Status } from "../common/Controls";
 import ErrorNotice from "../common/ErrorNotice";
 import "./ModsSettings.css";
+
+export interface ModsSettingsProps {
+  form: Record<string, any>;
+  onChange: (key: string, value: any) => void;
+  systemCheck?: SystemCheck | null;
+  disabled?: boolean;
+}
+
 export default function ModsSettings({
   form,
   onChange,
   systemCheck,
   disabled,
-}: any) {
+}: ModsSettingsProps) {
   const { t } = useTranslation();
-  const [status, setStatus] = useState(null),
-    [opti, setOpti] = useState(null),
-    [busy, setBusy] = useState(null),
-    [error, setError] = useState(null),
+  const [status, setStatus] = useState<ModsStatus | null>(null),
+    [opti, setOpti] = useState<OptiScalerStatus | null>(null),
+    [busy, setBusy] = useState<string | null>(null),
+    [error, setError] = useState<any>(null),
     [message, setMessage] = useState("");
   // vkBasalt is a Vulkan layer, so it exists on Linux only — not on Windows,
   // and not on macOS, where the game reaches Metal through DXMT.
@@ -35,18 +40,18 @@ export default function ModsSettings({
         commands.getOptiscalerStatus(),
       ]);
 
-      if (modsRes?.status === "error") {
+      if (modsRes.status === "error") {
         setError(modsRes.error);
         setStatus(null);
       } else {
-        const mods = modsRes?.status === "ok" ? modsRes.data : modsRes;
-        setStatus(mods);
+        setStatus(modsRes.data);
       }
 
-      if (upscalerRes?.status === "ok") {
+      if (upscalerRes.status === "error") {
+        setError(upscalerRes.error);
+        setOpti(null);
+      } else {
         setOpti(upscalerRes.data);
-      } else if (upscalerRes && !("status" in upscalerRes)) {
-        setOpti(upscalerRes);
       }
     } catch (e: any) {
       setError(e.message || String(e));
@@ -55,24 +60,20 @@ export default function ModsSettings({
   useEffect(() => {
     refresh();
   }, [refresh, form.installed_version, form.game_dir]);
-  const run = async (key: string, action: string | (() => Promise<any>), done?: (r: any) => string) => {
+  const run = async (key: string, action: () => Promise<any>, done?: (r: any) => string) => {
     setBusy(key);
     setError(null);
     setMessage("");
     try {
       let r: any;
-      if (typeof action === "function") {
-        const res = await action();
-        if (res && typeof res === "object" && "status" in res) {
-          if (res.status === "error") {
-            throw new Error(String(res.error));
-          }
-          r = res.data;
-        } else {
-          r = res;
+      const res = await action();
+      if (res && typeof res === "object" && "status" in res) {
+        if (res.status === "error") {
+          throw new Error(String(res.error));
         }
+        r = res.data;
       } else {
-        r = await invoke(action);
+        r = res;
       }
       if (done) setMessage(done(r));
       await refresh();
@@ -82,7 +83,7 @@ export default function ModsSettings({
       setBusy(null);
     }
   };
-  const link = async (url) => {
+  const link = async (url: string) => {
     try {
       await openUrl(url);
     } catch (e) {

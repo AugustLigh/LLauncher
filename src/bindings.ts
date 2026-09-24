@@ -127,6 +127,13 @@ export type AppSettings = {
 	language: string,
 	installed_version: string,
 	use_gamemode?: boolean,
+	/**
+	 *  What GameMode's toggle runs in front of the game, arguments allowed.
+	 *  Empty means `gamemoderun`. A place for a wrapper of one's own — say, a
+	 *  script that pins the game to the V-Cache CCD and swaps the scheduler
+	 *  before handing over to gamemoderun (issue #38).
+	 */
+	gamemode_command?: string,
 	use_mangohud?: boolean,
 	use_native_vulkan?: boolean,
 	use_wayland?: boolean,

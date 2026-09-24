@@ -1,13 +1,18 @@
-// @ts-nocheck
-
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useTranslation } from "../../i18n";
 import useLauncherUpdate from "../../hooks/useLauncherUpdate";
 import Icon from "../common/Icon";
 import "./TitleBar.css";
+
 const appWindow = getCurrentWindow();
-export default function TitleBar({ onOpenSettings, settingsOpen }: any) {
+
+export interface TitleBarProps {
+  onOpenSettings: () => void;
+  settingsOpen?: boolean;
+}
+
+export default function TitleBar({ onOpenSettings, settingsOpen }: TitleBarProps) {
   const { t } = useTranslation();
   const update = useLauncherUpdate();
   return (

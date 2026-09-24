@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import "./LanguageSelector.css";
 
 // Endonyms: a language is listed in itself, so anyone can find their own
@@ -20,7 +18,13 @@ const LANGUAGES = [
   { code: "th-th", name: "ไทย" },
 ];
 
-export default function LanguageSelector({ value, onChange, id }: any) {
+export interface LanguageSelectorProps {
+  value?: string;
+  onChange: (value: string) => void;
+  id?: string;
+}
+
+export default function LanguageSelector({ value, onChange, id }: LanguageSelectorProps) {
   return (
     <select
       id={id}

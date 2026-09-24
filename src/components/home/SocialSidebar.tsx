@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useTranslation } from "../../i18n";
 import SocialIcon from "./SocialIcons";

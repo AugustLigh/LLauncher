@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import uiModule from './ui.fr-fr.ts';
 const ui = (uiModule as any).default || uiModule;
 export default {
@@ -378,8 +376,12 @@ export default {
     viewLog: 'Voir le journal complet',
     noLog: 'Aucune sortie de journal capturée.',
     hintDwproton11: 'Votre version de DWProton installée (série 11.x) est incompatible avec Endfield : l\'anti-triche appelle des fonctions du noyau que Wine 11 n\'a pas encore implémentées, et le jeu s\'arrête. Ouvrez les paramètres de Proton et installez la version recommandée (10.0-26).',
+    hintNtoskrnl: 'Le jeu a appelé une fonction du noyau (PsGetProcessExitStatus) que cette version de Proton n’implémente pas encore, et a été interrompu. Ouvrez les paramètres Proton pour sélectionner DWProton 11.0-13 ou supérieur.',
     hintXClients: 'Le serveur X a refusé la connexion — les clients ont manqué d\'emplacements, de sorte que le jeu se fige avant de pouvoir ouvrir une fenêtre. Déconnectez-vous et reconnectez-vous (ou redémarrez) pour les effacer. Le lanceur tue désormais le préfixe Wine du jeu après chaque session, ce qui empêche l\'accumulation des restes de crash de ce type.',
+    hintXalia: 'L’assistant d’accessibilité de Proton (Xalia) n’a pas pu démarrer car aucun pilote graphique compatible n’a été trouvé. Désactiver Xalia via PROTON_USE_XALIA=0 résout ce problème.',
+    hintPrefixCorrupted: 'Le préfixe Wine est corrompu ou a été rétrogradé d’une version de Proton plus récente (DWProton 11 vers 10), ce qui endommage les polices et les bibliothèques système. Ouvrez les paramètres de diagnostic et cliquez sur « Réinitialiser le préfixe » pour régénérer un préfixe propre.',
     openProtonSettings: 'Ouvrir les paramètres Proton',
+    openDiagnosticsSettings: 'Ouvrir les paramètres de diagnostic',
   },
   logViewer: {
     copy: 'Copier le journal',

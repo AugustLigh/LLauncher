@@ -1,15 +1,18 @@
-// @ts-nocheck
-
 import { useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { Banner } from "../../bindings";
 import { useTranslation } from "../../i18n";
 import Icon from "../common/Icon";
 import "./BannerCarousel.css";
 
-export default function BannerCarousel({ banners = [] }: any) {
+export interface BannerCarouselProps {
+  banners?: Banner[];
+}
+
+export default function BannerCarousel({ banners = [] }: BannerCarouselProps) {
   const { t } = useTranslation();
   const [active, setActive] = useState(0);
-  const [failed, setFailed] = useState([]);
+  const [failed, setFailed] = useState<string[]>([]);
   const items = banners.filter(
     (banner) => banner.url && !failed.includes(banner.url),
   );
@@ -36,7 +39,7 @@ export default function BannerCarousel({ banners = [] }: any) {
                   banner.jump_url
                     ? (event) => {
                         event.preventDefault();
-                        openUrl(banner.jump_url).catch(console.error);
+                        openUrl(banner.jump_url!).catch(console.error);
                       }
                     : undefined
                 }

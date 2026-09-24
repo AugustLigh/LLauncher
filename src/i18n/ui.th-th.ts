@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 export default {
   savePathsFirst: "บันทึกเส้นทางใหม่ก่อนทำงานกับไฟล์",
   tasksFailed: "ไม่สามารถตรวจสอบการถ่ายโอน",
@@ -95,6 +93,7 @@ export default {
   fps: "ตัวนับ FPS",
   controller: "รองรับจอยคอนโทรลเลอร์",
   renderer: "ตัวเรนเดอร์",
+  gamemodeCommand: "คำสั่ง GameMode",
   systemStatus: "ระบบ",
   refreshCheck: "ตรวจสอบอีกครั้ง",
   installed: "ติดตั้งแล้ว",

@@ -1,20 +1,23 @@
-// @ts-nocheck
-
-import { createContext, useContext, useMemo } from 'react';
-import { BUNDLES, resolveLocale, getByPath, format } from './resolve.ts';
+import { createContext, useContext, useMemo, ReactNode } from 'react';
+import { BUNDLES, resolveLocale, getByPath, format } from './resolve';
 
 export { resolveLocale, BUNDLES };
 
-const I18nContext = createContext({
+export interface I18nContextValue {
+  locale: string;
+  t: (key: string, vars?: Record<string, any>) => string;
+}
+
+const I18nContext = createContext<I18nContextValue>({
   locale: 'en',
   t: (key) => key,
 });
 
-export function I18nProvider({ language, children }) {
+export function I18nProvider({ language, children }: { language?: string | null; children: ReactNode }) {
   const value = useMemo(() => {
     const locale = resolveLocale(language);
     const bundle = BUNDLES[locale] || BUNDLES.en;
-    const t = (key, vars) => {
+    const t = (key: string, vars?: Record<string, any>): string => {
       const value = getByPath(bundle, key);
       if (value === undefined) {
         const fallback = getByPath(BUNDLES.en, key);

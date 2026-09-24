@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import uiModule from './ui.vi-vn.ts';
 const ui = (uiModule as any).default || uiModule;
 export default {
@@ -378,8 +376,12 @@ export default {
     viewLog: 'Xem Toàn bộ Nhật ký',
     noLog: 'Không có đầu ra nhật ký nào được ghi lại.',
     hintDwproton11: 'Phiên bản DWProton bạn đang cài đặt (dòng 11.x) không tương thích với Endfield: anti-cheat gọi các tính năng nhân hệ điều hành mà Wine 11 chưa hoàn thiện, gây ra việc trò chơi bị treo. Hãy mở mục Cài đặt Proton và cài bản dựng đề xuất (10.0-26).',
+    hintNtoskrnl: 'Trò chơi đã gọi một hàm hạt nhân (PsGetProcessExitStatus) chưa được triển khai trong phiên bản Proton này và đã bị hủy bỏ. Mở cài đặt Proton để chọn DWProton 11.0-13 trở lên.',
     hintXClients: 'X server từ chối kết nối — Clients đã hết luồng (slots), làm trò chơi bị kẹt trước khi kịp mở bất kỳ cửa sổ nào. Đăng xuất rồi đăng nhập lại (hoặc khởi động lại máy) để xóa hết những luồng này. Sau mỗi phiên bản, Launcher giờ đây sẽ diệt gọn Wine prefix của trò chơi, giúp tránh bị tồn đọng các dữ liệu lỗi hỏng như trên.',
+    hintXalia: 'Trợ lý tiếp cận đi kèm của Proton (Xalia) không thể khởi động vì không tìm thấy trình điều khiển video tương thích. Vô hiệu hóa Xalia qua PROTON_USE_XALIA=0 sẽ giải quyết sự cố này.',
+    hintPrefixCorrupted: 'Wine prefix bị hỏng hoặc đã bị hạ cấp từ phiên bản Proton mới hơn (DWProton 11 xuống 10), gây hỏng phông chữ và thư viện hệ thống. Mở cài đặt Chẩn đoán và nhấp vào "Đặt lại prefix" để tạo lại prefix mới.',
     openProtonSettings: 'Mở Cài đặt Proton',
+    openDiagnosticsSettings: 'Mở cài đặt Chẩn đoán',
   },
   logViewer: {
     copy: 'Sao chép Nhật ký',

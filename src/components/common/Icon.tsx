@@ -1,6 +1,4 @@
-// @ts-nocheck
-
-const paths = {
+const paths: Record<string, string> = {
   play: "m8 5 11 7-11 7Z",
   pause: "M9 5v14M15 5v14",
   close: "m6 6 12 12M18 6 6 18",
@@ -26,7 +24,14 @@ const paths = {
   copy: "M8 8h13v13H8ZM16 8V3H3v13h5",
   menu: "M5 7h14M5 12h14M5 17h10",
 };
-export default function Icon({ name, size = 18, className = "" }: any) {
+
+export interface IconProps {
+  name: string;
+  size?: number;
+  className?: string;
+}
+
+export default function Icon({ name, size = 18, className = "" }: IconProps) {
   return (
     <svg
       className={`icon ${className}`}

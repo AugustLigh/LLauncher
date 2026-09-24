@@ -117,7 +117,8 @@ pub fn status(game_dir: &Path) -> ModsStatus {
         .unwrap_or(0);
 
     ModsStatus {
-        loader_installed: game_dir.join(LOADER_DLL).is_file(),
+        loader_installed: game_dir.join(LOADER_DLL).is_file()
+            || parked(&game_dir.join(LOADER_DLL)).is_file(),
         loader_configured: game_dir.join(LOADER_INI).is_file(),
         efmi: EFMI_MAIN_INI
             .iter()
@@ -128,6 +129,72 @@ pub fn status(game_dir: &Path) -> ModsStatus {
         reshade_installed: game_dir.join(RESHADE_DLL).is_file(),
         game_dir_missing: !game_dir.is_dir(),
     }
+}
+
+fn parked(path: &Path) -> PathBuf {
+    with_suffix(path, PARKED_SUFFIX)
+}
+
+fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(suffix);
+    path.with_file_name(name)
+}
+
+/// Put the loader in place for a modded launch, or take it out of the way for
+/// a normal one.
+///
+/// The proxy cannot simply stay next to `Endfield.exe` between launches. Proton
+/// sets `d3d11=n` for DXVK, and the game directory comes first in the DLL
+/// search order, so every process of the game that touches D3D11 picks up
+/// 3DMigoto — `-vulkan` or not. The likeliest one is the game's
+/// terms-of-service dialog, an embedded Chromium (CefView) that renders
+/// through D3D11 and would load the replaced `d3dcompiler_47.dll` too: with
+/// the loader installed, the game hangs on that dialog and quits even on a
+/// launch that was never meant to be modded (issues #34 and #39). Windows
+/// searches the application directory first as well.
+///
+/// So a normal launch parks both files under `PARKED_SUFFIX` and brings the
+/// game's own compiler back, leaving the directory as the game shipped it,
+/// and a modded launch undoes that. Both directions are no-ops when there is
+/// nothing to move, so this is safe to call before every launch.
+pub fn prepare_launch(game_dir: &Path, with_mods: bool) -> std::io::Result<()> {
+    let dll = game_dir.join(LOADER_DLL);
+    let compiler = game_dir.join(COMPILER_DLL);
+    let original = with_suffix(&compiler, BACKUP_SUFFIX);
+
+    if with_mods {
+        swap_in(&parked(&dll), &dll)?;
+        // The loader's compiler was parked: set the game's own aside again
+        // and put the loader's back.
+        if parked(&compiler).is_file() {
+            if compiler.is_file() {
+                std::fs::rename(&compiler, &original)?;
+            }
+            std::fs::rename(parked(&compiler), &compiler)?;
+        }
+    } else {
+        swap_in(&dll, &parked(&dll))?;
+        // Only a compiler the loader displaced is parked: without the backup
+        // there is no way to tell the loader's copy from the game's.
+        if original.is_file() {
+            swap_in(&compiler, &parked(&compiler))?;
+            std::fs::rename(&original, &compiler)?;
+        }
+    }
+    Ok(())
+}
+
+/// Move `from` to `to` if `from` exists. A copy already at `to` is older —
+/// a reinstall writes the live name — and gives way.
+fn swap_in(from: &Path, to: &Path) -> std::io::Result<()> {
+    if !from.is_file() {
+        return Ok(());
+    }
+    if to.is_file() {
+        std::fs::remove_file(to)?;
+    }
+    std::fs::rename(from, to)
 }
 
 /// Create the `Mods` directory if it is not there yet, so "open mods folder"
@@ -148,6 +215,12 @@ const EFMI_REPO: &str = "SpectrumQT/EFMI-Package";
 /// Suffix appended to a game file we had to move aside, so an uninstall can
 /// put the original back.
 const BACKUP_SUFFIX: &str = ".llauncher-orig";
+
+/// Suffix of a loader file parked out of the game's reach for a normal launch.
+const PARKED_SUFFIX: &str = ".llauncher-off";
+
+/// The game file the loader replaces with its own build (see `needs_backup`).
+const COMPILER_DLL: &str = "d3dcompiler_47.dll";
 
 /// Entries of the release archives we deliberately do not install.
 ///
@@ -350,18 +423,29 @@ async fn fetch_package(client: &reqwest::Client, repo: &str) -> Result<Package, 
     })
 }
 
-/// Delete what a previous loader install put in the game directory, leaving
-/// the user's `Mods` and the displaced-file backup alone.
+/// Delete what a previous loader install put in the game directory and put
+/// back the game file it displaced, leaving the user's `Mods` alone.
 fn clear_loader_files(game_dir: &Path) -> Result<(), AppError> {
+    // Back to the directory as the game shipped it, so the unpack below
+    // backs up the game's compiler rather than a parked loader copy.
+    prepare_launch(game_dir, false)?;
+    for file in [LOADER_DLL, COMPILER_DLL] {
+        let path = parked(&game_dir.join(file));
+        if path.is_file() {
+            std::fs::remove_file(&path)?;
+        }
+    }
     for dir in LOADER_DIRS {
         let path = game_dir.join(dir);
         if path.is_dir() {
             std::fs::remove_dir_all(&path)?;
         }
     }
-    let ini = game_dir.join(LOADER_INI);
-    if ini.is_file() {
-        std::fs::remove_file(&ini)?;
+    for file in [LOADER_DLL, LOADER_INI] {
+        let path = game_dir.join(file);
+        if path.is_file() {
+            std::fs::remove_file(&path)?;
+        }
     }
     Ok(())
 }
@@ -468,25 +552,10 @@ fn common_root<R: std::io::Read + std::io::Seek>(
 
 /// Remove the loader, leaving the user's `Mods` directory untouched.
 pub fn uninstall_loader(game_dir: &Path) -> Result<(), AppError> {
-    for file in [LOADER_DLL, LOADER_INI, "d3dcompiler_47.dll"] {
-        let path = game_dir.join(file);
-        if path.is_file() {
-            std::fs::remove_file(&path)?;
-        }
-    }
-
-    // Put the game's original d3dcompiler back where the loader displaced it.
-    let backup = game_dir.join(format!("d3dcompiler_47.dll{}", BACKUP_SUFFIX));
-    if backup.is_file() {
-        std::fs::rename(&backup, game_dir.join("d3dcompiler_47.dll"))?;
-    }
-
-    for dir in LOADER_DIRS {
-        let path = game_dir.join(dir);
-        if path.is_dir() {
-            std::fs::remove_dir_all(&path)?;
-        }
-    }
+    // Parking restores the game's own compiler where the loader displaced it,
+    // and what is left of the loader after that sits under the parked names,
+    // which clearing removes along with the scripts.
+    clear_loader_files(game_dir)?;
 
     crate::logging::info("mods: removed the mod loader");
     Ok(())
@@ -639,6 +708,7 @@ mod tests {
         std::fs::write(dir.join(LOADER_INI), b"old").unwrap();
         let backup = dir.join(format!("d3dcompiler_47.dll{}", BACKUP_SUFFIX));
         std::fs::write(&backup, b"the game's own").unwrap();
+        std::fs::write(dir.join(COMPILER_DLL), b"the loader's").unwrap();
 
         clear_loader_files(&dir).unwrap();
 
@@ -646,7 +716,71 @@ mod tests {
         assert!(!dir.join("ShaderFixes").exists());
         assert!(!dir.join(LOADER_INI).exists());
         assert!(mods_dir(&dir).join("MySkin").is_dir());
-        assert!(backup.is_file());
+        assert_eq!(
+            std::fs::read(dir.join(COMPILER_DLL)).unwrap(),
+            b"the game's own"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_normal_launch_sees_the_game_as_shipped() {
+        // Installed loader: 3DMigoto's proxy and compiler, the game's own
+        // compiler in the backup. A normal launch must find neither loader
+        // file, and a modded one must find both again (issues #34, #39).
+        let dir = tempdir();
+        std::fs::write(dir.join(LOADER_DLL), b"proxy").unwrap();
+        std::fs::write(dir.join(COMPILER_DLL), b"loader's").unwrap();
+        let original = dir.join(format!("{}{}", COMPILER_DLL, BACKUP_SUFFIX));
+        std::fs::write(&original, b"game's").unwrap();
+
+        prepare_launch(&dir, false).unwrap();
+        assert!(!dir.join(LOADER_DLL).exists());
+        assert_eq!(std::fs::read(dir.join(COMPILER_DLL)).unwrap(), b"game's");
+        assert!(!original.exists());
+        assert!(status(&dir).loader_installed);
+
+        // Twice in a row changes nothing.
+        prepare_launch(&dir, false).unwrap();
+        assert_eq!(std::fs::read(dir.join(COMPILER_DLL)).unwrap(), b"game's");
+
+        prepare_launch(&dir, true).unwrap();
+        assert_eq!(std::fs::read(dir.join(LOADER_DLL)).unwrap(), b"proxy");
+        assert_eq!(std::fs::read(dir.join(COMPILER_DLL)).unwrap(), b"loader's");
+        assert_eq!(std::fs::read(&original).unwrap(), b"game's");
+        prepare_launch(&dir, true).unwrap();
+        assert_eq!(std::fs::read(dir.join(COMPILER_DLL)).unwrap(), b"loader's");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn uninstalling_a_parked_loader_restores_the_game() {
+        let dir = tempdir();
+        std::fs::write(dir.join(LOADER_DLL), b"proxy").unwrap();
+        std::fs::write(dir.join(LOADER_INI), b"[Include]").unwrap();
+        std::fs::write(dir.join(COMPILER_DLL), b"loader's").unwrap();
+        std::fs::write(
+            dir.join(format!("{}{}", COMPILER_DLL, BACKUP_SUFFIX)),
+            b"game's",
+        )
+        .unwrap();
+        std::fs::create_dir_all(mods_dir(&dir).join("MySkin")).unwrap();
+        prepare_launch(&dir, false).unwrap();
+
+        uninstall_loader(&dir).unwrap();
+
+        let mut left: Vec<String> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        left.sort();
+        assert_eq!(
+            left,
+            vec![MODS_SUBDIR.to_string(), COMPILER_DLL.to_string()]
+        );
+        assert_eq!(std::fs::read(dir.join(COMPILER_DLL)).unwrap(), b"game's");
+        assert!(!status(&dir).loader_installed);
         std::fs::remove_dir_all(&dir).ok();
     }
 

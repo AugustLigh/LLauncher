@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import uiModule from './ui.ja-jp.ts';
 const ui = (uiModule as any).default || uiModule;
 export default {
@@ -378,8 +376,12 @@ export default {
     viewLog: '完全なログを表示',
     noLog: 'ログ出力がキャプチャされていません。',
     hintDwproton11: 'インストールされているDWProtonバージョン（11.xシリーズ）はEndfieldと互換性がありません: アンチチートがWine 11でまだ実装されていないカーネル関数を呼び出し、ゲームが中断します。Proton設定を開き、推奨ビルド（10.0-26）をインストールしてください。',
+    hintNtoskrnl: 'ゲームがこのProtonバージョンではまだ実装されていないカーネル関数（PsGetProcessExitStatus）を呼び出し、強制終了しました。Proton設定を開いてDWProton 11.0-13以降を選択してください。',
     hintXClients: 'Xサーバーが接続を拒否しました — クライアントスロットが不足しているため、ゲームはウィンドウを開く前にフリーズしました。ログアウトして再度ログインする（または再起動する）とクリアされます。ランチャーは現在、毎セッション後にゲームのWineプレフィックスをシャットダウンするため、このようにクラッシュの残骸が積み重なるのを防ぎます。',
+    hintXalia: '対応するグラフィックドライバーが見つからなかったため、Proton付属のアクセシビリティアシスタント（Xalia）の起動に失敗しました。PROTON_USE_XALIA=0 でXaliaを無効化すると解決します。',
+    hintPrefixCorrupted: 'Wineプレフィックスが破損しているか、新しいProtonバージョン（DWProton 11から10）からダウングレードされたため、フォントやシステムライブラリが破損しています。診断設定を開き、「プレフィックスをリセット」をクリックして再生成してください。',
     openProtonSettings: 'Proton設定を開く',
+    openDiagnosticsSettings: '診断設定を開く',
   },
   logViewer: {
     copy: 'ログをコピー',

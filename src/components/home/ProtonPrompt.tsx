@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import { commands } from '../../bindings';
 import { useState, useEffect } from 'react';
 import { useTaskStore } from '../../stores/taskStore';
@@ -8,21 +6,26 @@ import { formatSize, formatSpeed, formatPercent } from '../../utils/format';
 import { useTranslation } from '../../i18n';
 import './ProtonPrompt.css';
 
-export default function ProtonPrompt({ onClose, onConfigureManually, onDownloadComplete }: any) {
+export interface ProtonPromptProps {
+  onClose: () => void;
+  onConfigureManually?: () => void;
+  onDownloadComplete?: () => void;
+}
+
+export default function ProtonPrompt({ onClose, onConfigureManually }: ProtonPromptProps) {
   const { t } = useTranslation();
   
   const start = useTaskStore(s => s.start);
   const stop = useTaskStore(s => s.stop);
   const task = useTaskStore(s => s.tasks.proton);
   const downloading = task && task.status === 'running';
-  const progress = task?.progress;
+  const progress: any = task?.progress;
   const error = task?.error;
   
   const [recommendedTag, setRecommendedTag] = useState('');
 
   useEffect(() => {
-    commands.recommendedProtonTag().then(res => {
-      const tag = typeof res === 'string' ? res : (res?.status === 'ok' ? res.data : '');
+    commands.recommendedProtonTag().then(tag => {
       if (tag) setRecommendedTag(tag);
     }).catch(() => {});
   }, []);
@@ -34,6 +37,10 @@ export default function ProtonPrompt({ onClose, onConfigureManually, onDownloadC
     onClose();
   };
   useModalDismiss(handleClose);
+
+  const bytesDownloaded = progress ? Number(progress.bytes_downloaded) || 0 : 0;
+  const bytesTotal = progress ? Number(progress.bytes_total) || 0 : 0;
+  const speedBps = progress ? Number(progress.speed_bps) || 0 : 0;
 
   return (
     <div className="proton-prompt-overlay" onClick={handleClose}>
@@ -80,23 +87,23 @@ export default function ProtonPrompt({ onClose, onConfigureManually, onDownloadC
                     : t('protonPrompt.downloading')}
                 </span>
                 <span>
-                  {progress ? formatPercent(progress.bytes_downloaded, progress.bytes_total) : ''}
-                  {progress?.speed_bps > 0 && ` • ${formatSpeed(progress.speed_bps)}`}
+                  {progress ? formatPercent(bytesDownloaded, bytesTotal) : ''}
+                  {speedBps > 0 && ` • ${formatSpeed(speedBps)}`}
                 </span>
               </div>
               <div className="proton-prompt__progress-bar">
                 <div
                   className="proton-prompt__progress-fill"
                   style={{
-                    width: progress?.bytes_total > 0
-                      ? `${(progress.bytes_downloaded / progress.bytes_total) * 100}%`
+                    width: bytesTotal > 0
+                      ? `${(bytesDownloaded / bytesTotal) * 100}%`
                       : '0%',
                   }}
                 />
               </div>
               <div className="proton-prompt__progress-detail">
                 {progress
-                  ? `${formatSize(progress.bytes_downloaded)} / ${formatSize(progress.bytes_total)}`
+                  ? `${formatSize(bytesDownloaded)} / ${formatSize(bytesTotal)}`
                   : ''}
               </div>
               <button

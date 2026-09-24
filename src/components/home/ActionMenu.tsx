@@ -1,20 +1,29 @@
-// @ts-nocheck
-
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "../../i18n";
 import Icon from "../common/Icon";
 import "./ActionMenu.css";
 
-export default function ActionMenu({ items }: any) {
+export interface ActionMenuItem {
+  label: string;
+  icon: string;
+  disabled?: boolean;
+  onSelect: () => void;
+}
+
+export interface ActionMenuProps {
+  items: ActionMenuItem[];
+}
+
+export default function ActionMenu({ items }: ActionMenuProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const trigger = useRef(null);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
   const id = useId();
   useEffect(() => {
     if (!open) return;
-    const dismiss = (event) => {
-      if (!ref.current?.contains(event.target)) setOpen(false);
+    const dismiss = (event: PointerEvent) => {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
     };
     document.addEventListener("pointerdown", dismiss);
     return () => document.removeEventListener("pointerdown", dismiss);
@@ -31,7 +40,7 @@ export default function ActionMenu({ items }: any) {
         }
       }}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+        if (!event.currentTarget.contains(event.relatedTarget as Node)) setOpen(false);
       }}
     >
       <button

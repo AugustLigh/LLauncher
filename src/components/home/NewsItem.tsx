@@ -1,9 +1,13 @@
-// @ts-nocheck
-
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { Announcement } from "../../bindings";
 import Icon from "../common/Icon";
 import "./NewsItem.css";
-export default function NewsItem({ item }: any) {
+
+export interface NewsItemProps {
+  item: Announcement;
+}
+
+export default function NewsItem({ item }: NewsItemProps) {
   const Tag = item.jump_url ? "a" : "div";
   return (
     <Tag
@@ -14,7 +18,7 @@ export default function NewsItem({ item }: any) {
         item.jump_url
           ? (e) => {
               e.preventDefault();
-              openUrl(item.jump_url).catch(console.error);
+              openUrl(item.jump_url!).catch(console.error);
             }
           : undefined
       }

@@ -1,10 +1,13 @@
-// @ts-nocheck
-
 import { useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { SingleEnt } from '../../bindings';
 import './SingleEntCard.css';
 
-export default function SingleEntCard({ singleEnt }: any) {
+export interface SingleEntCardProps {
+  singleEnt?: SingleEnt | null;
+}
+
+export default function SingleEntCard({ singleEnt }: SingleEntCardProps) {
   const [hovering, setHovering] = useState(false);
 
   if (!singleEnt || !singleEnt.version_url) return null;

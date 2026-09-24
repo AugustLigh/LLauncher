@@ -101,6 +101,16 @@ pub async fn launch_and_watch(app: tauri::AppHandle, with_mods: bool) -> Result<
         settings_clone.use_gamescope,
         with_mods
     ));
+    // The mod loader must only be visible to a modded launch — left in place,
+    // it breaks the normal one (issues #34, #39). See mods::prepare_launch.
+    if let Err(e) =
+        crate::game::mods::prepare_launch(std::path::Path::new(&settings_clone.game_dir), with_mods)
+    {
+        if with_mods {
+            return Err(e.into());
+        }
+        crate::logging::warn(format!("mods: could not park the loader: {}", e));
+    }
     let mut launched = crate::game::launcher::launch_game(&settings_clone, with_mods)?;
     let game_running = state.game_running.clone();
     let game_pid = state.game_pid.clone();

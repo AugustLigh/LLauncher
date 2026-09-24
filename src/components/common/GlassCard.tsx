@@ -1,8 +1,13 @@
-// @ts-nocheck
-
+import { CSSProperties, ReactNode } from 'react';
 import './GlassCard.css';
 
-export default function GlassCard({ children, className = '', style = {} }: any) {
+export interface GlassCardProps {
+  children?: ReactNode;
+  className?: string;
+  style?: CSSProperties;
+}
+
+export default function GlassCard({ children, className = '', style = {} }: GlassCardProps) {
   return (
     <div className={`glass-card ${className}`} style={style}>
       {children}

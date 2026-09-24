@@ -33,6 +33,12 @@ pub struct AppSettings {
     pub installed_version: String,
     #[serde(default)]
     pub use_gamemode: bool,
+    /// What GameMode's toggle runs in front of the game, arguments allowed.
+    /// Empty means `gamemoderun`. A place for a wrapper of one's own — say, a
+    /// script that pins the game to the V-Cache CCD and swaps the scheduler
+    /// before handing over to gamemoderun (issue #38).
+    #[serde(default)]
+    pub gamemode_command: String,
     #[serde(default)]
     pub use_mangohud: bool,
     #[serde(default = "default_true")]
@@ -203,6 +209,7 @@ impl Default for AppSettings {
             language: "en-us".to_string(),
             installed_version: String::new(),
             use_gamemode: false,
+            gamemode_command: String::new(),
             use_mangohud: false,
             use_native_vulkan: true,
             use_wayland: true,

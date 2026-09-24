@@ -1,7 +1,13 @@
-// @ts-nocheck
-
+import { SystemCheck } from "../../bindings";
 import { useTranslation } from "../../i18n";
 import { Switch, Status } from "../common/Controls";
+
+export interface MacosLaunchOptionsProps {
+  form: Record<string, any>;
+  onChange: (key: string, value: any) => void;
+  systemCheck?: SystemCheck | null;
+}
+
 // The launch options that only exist on macOS. There is no wrapper ecosystem
 // here (no gamemode, MangoHud, gamescope): what the Mac has instead is a
 // choice of renderer path — Direct3D 11 through DXMT, or the game's own
@@ -9,9 +15,9 @@ import { Switch, Status } from "../common/Controls";
 // Metal rather than to Wine. Above them, what the active Wine contains: the
 // Endfield module set is what gets the game past its anti-cheat, so a build
 // without it is called out rather than left to fail at launch.
-export default function MacosLaunchOptions({ form, onChange, systemCheck }: any) {
+export default function MacosLaunchOptions({ form, onChange, systemCheck }: MacosLaunchOptionsProps) {
   const { t } = useTranslation();
-  const toggle = (key, name, desc) => (
+  const toggle = (key: string, name: string, desc: string) => (
     <Switch
       key={key}
       label={name}

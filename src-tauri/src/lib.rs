@@ -191,10 +191,6 @@ pub fn run() {
             commands::settings::turn_off_screen,
         ]);
 
-    #[cfg(debug_assertions)]
-    builder.export(specta_typescript::Typescript::default(), "../src/bindings.ts")
-        .expect("Failed to export typescript bindings");
-
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             // A second `--play` invocation launches the game in the running
@@ -390,6 +386,9 @@ mod tests {
                 commands::prefix::reset_prefix,
                 commands::settings::turn_off_screen,
             ]);
-        builder.export(specta_typescript::Typescript::default(), "../src/bindings.ts").unwrap();
+        builder.export(
+            specta_typescript::Typescript::default(),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/bindings.ts"),
+        ).unwrap();
     }
 }

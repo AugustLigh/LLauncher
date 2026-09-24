@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 export default {
   savePathsFirst: "ファイルを操作する前に新しいパスを保存してください。",
   tasksFailed: "転送を確認できませんでした",
@@ -96,6 +94,7 @@ export default {
   fps: "FPSカウンター",
   controller: "コントローラーサポート",
   renderer: "レンダラー",
+  gamemodeCommand: "GameMode のコマンド",
   systemStatus: "システム",
   refreshCheck: "再確認",
   installed: "インストール済み",

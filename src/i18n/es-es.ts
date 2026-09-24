@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import uiModule from './ui.es-es.ts';
 const ui = (uiModule as any).default || uiModule;
 export default {
@@ -378,8 +376,12 @@ export default {
     viewLog: 'Ver registro completo',
     noLog: 'No se ha capturado ninguna salida de registro.',
     hintDwproton11: 'Tu versión instalada de DWProton (serie 11.x) es incompatible con Endfield: el antitrampas llama a funciones del kernel que Wine 11 aún no ha implementado, y el juego se bloquea. Abre los ajustes de Proton e instala la versión recomendada (10.0-26).',
+    hintNtoskrnl: 'El juego llamó a una función del kernel (PsGetProcessExitStatus) que esta versión de Proton aún no implementa y se interrumpió. Abre la configuración de Proton para seleccionar DWProton 11.0-13 o posterior.',
     hintXClients: 'El servidor X rechazó la conexión — los clientes se han quedado sin huecos, por lo que el juego se congela antes de poder abrir una ventana. Cierra sesión y vuelve a iniciarla (o reinicia) para borrarlos. El lanzador ahora finaliza el prefijo Wine del juego después de cada sesión, lo que evita que se acumulen restos de fallos como estos.',
+    hintXalia: 'El asistente de accesibilidad de Proton (Xalia) no pudo iniciarse porque no se encontró un controlador de video compatible. Deshabilitar Xalia mediante PROTON_USE_XALIA=0 soluciona este problema.',
+    hintPrefixCorrupted: 'El prefijo de Wine está corrupto o se degradó desde una versión más reciente de Proton (DWProton 11 a 10), lo que rompe fuentes y bibliotecas del sistema. Abre la configuración de Diagnóstico y haz clic en "Restablecer prefijo" para regenerar un prefijo limpio.',
     openProtonSettings: 'Abrir ajustes de Proton',
+    openDiagnosticsSettings: 'Abrir configuración de Diagnóstico',
   },
   logViewer: {
     copy: 'Copiar registro',

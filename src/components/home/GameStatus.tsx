@@ -1,10 +1,15 @@
-// @ts-nocheck
-
+import { GameState } from '../../bindings';
+import { GameStats } from '../../hooks/useGameStats';
 import { useTranslation } from '../../i18n';
 import { formatPlaytime, formatDate } from '../../utils/format';
 import './GameStatus.css';
 
-export default function GameStatus({ gameState, stats }: any) {
+export interface GameStatusProps {
+  gameState?: GameState | null;
+  stats?: GameStats | null;
+}
+
+export default function GameStatus({ gameState, stats }: GameStatusProps) {
   const { t } = useTranslation();
 
   if (!gameState) {
@@ -61,7 +66,7 @@ export default function GameStatus({ gameState, stats }: any) {
         </div>
         {renderVersion()}
       </div>
-      {stats?.lastPlayed > 0 && (
+      {stats && stats.lastPlayed > 0 && (
         <div className="game-info__stats">
           <div>
             {t('home.stats.playtime', { time: formatPlaytime(stats.totalPlaytimeSecs) })}

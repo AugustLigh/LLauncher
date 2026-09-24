@@ -1,31 +1,36 @@
-// @ts-nocheck
-
-import { commands } from '../../../bindings';
-import { invoke } from "@tauri-apps/api/core";
+import { commands, PrefixInfo, SystemCheck } from '../../../bindings';
 import { useState, useEffect } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { useTranslation } from "../../../i18n";
-import { useTaskStore, taskActive } from "../../../stores/taskStore";
 import { Button, Status } from "../../common/Controls";
 import ErrorNotice from "../../common/ErrorNotice";
 import { copyText } from "../../../utils/clipboard";
 import { formatSize } from "../../../utils/format";
+
+export interface DiagnosticsSettingsProps {
+  systemCheck?: SystemCheck | null;
+  onRefresh?: () => void;
+  onShowLog?: () => void;
+  confirm: (dialog: { title: string; message: string; label: string; danger?: boolean; run: () => void }) => void;
+  busy?: boolean;
+}
+
 export default function DiagnosticsSettings({
   systemCheck,
   onRefresh,
   onShowLog,
   confirm,
   busy,
-}: any) {
+}: DiagnosticsSettingsProps) {
   const { t } = useTranslation();
-  const [error, setError] = useState(null),
+  const [error, setError] = useState<any>(null),
     [message, setMessage] = useState(""),
     [working, setWorking] = useState(false),
-    [prefix, setPrefix] = useState(null);
+    [prefix, setPrefix] = useState<PrefixInfo | null>(null);
   // "linux" here means "has a Wine prefix": macOS does too.
   const platform = systemCheck?.platform || "linux";
   const linux = platform !== "windows";
-  const checks =
+  const checks: [string, keyof SystemCheck | null][] =
     platform === "macos"
       ? [
           ["Wine", "has_proton"],
@@ -46,23 +51,38 @@ export default function DiagnosticsSettings({
     if (linux) {
       commands
         .getPrefixInfo()
-        .then((res) => setPrefix(res?.status === "ok" ? res.data : res))
+        .then((res) => {
+          if (res.status === "ok") {
+            setPrefix(res.data);
+          } else {
+            setError(res.error);
+          }
+        })
         .catch(setError);
     }
   }, [linux]);
-  const run = async (command, args = {}, done) => {
+  const run = async (action: () => Promise<any>, done?: (result: any) => string) => {
     setWorking(true);
     setError(null);
     setMessage("");
     try {
-      const result = await invoke(command, args);
-      if (done) setMessage(done(result));
-      if (linux) {
-        const res = await commands.getPrefixInfo();
-        setPrefix(res?.status === "ok" ? res.data : res);
+      const res = await action();
+      if (res && typeof res === "object" && "status" in res) {
+        if (res.status === "error") throw new Error(String(res.error));
+        if (done) setMessage(done(res.data));
+      } else {
+        if (done) setMessage(done(res));
       }
-    } catch (e) {
-      setError(e);
+      if (linux) {
+        const pRes = await commands.getPrefixInfo();
+        if (pRes.status === "ok") {
+          setPrefix(pRes.data);
+        } else {
+          setError(pRes.error);
+        }
+      }
+    } catch (e: any) {
+      setError(e.message || String(e));
     } finally {
       setWorking(false);
     }
@@ -74,7 +94,7 @@ export default function DiagnosticsSettings({
         filters: [{ name: "Prefix backup", extensions: ["tar.gz", "gz"] }],
       });
       if (dest)
-        run("backup_prefix", { dest }, () =>
+        run(() => commands.backupPrefix(dest), () =>
           t("settings.prefixTools.backupDone"),
         );
     } catch (e) {
@@ -86,14 +106,14 @@ export default function DiagnosticsSettings({
       const archive = await open({
         filters: [{ name: "Prefix backup", extensions: ["gz"] }],
       });
-      if (archive)
+      if (archive && typeof archive === "string")
         confirm({
           title: t("settings.prefixTools.restore"),
           message: t("settings.prefixTools.restoreConfirm"),
           label: t("settings.prefixTools.restore"),
           danger: true,
           run: () =>
-            run("restore_prefix", { archive }, () =>
+            run(() => commands.restorePrefix(archive), () =>
               t("settings.prefixTools.restoreDone"),
             ),
         });
@@ -113,8 +133,8 @@ export default function DiagnosticsSettings({
         {checks.map(([label, key]) => (
           <div key={label}>
             <span>{label}</span>
-            <Status kind={!key || systemCheck?.[key] ? "success" : "neutral"}>
-              {t(!key || systemCheck?.[key] ? "ui.installed" : "ui.notFound")}
+            <Status kind={!key || (key && systemCheck?.[key]) ? "success" : "neutral"}>
+              {t(!key || (key && systemCheck?.[key]) ? "ui.installed" : "ui.notFound")}
             </Status>
           </div>
         ))}
@@ -133,8 +153,8 @@ export default function DiagnosticsSettings({
             setError(null);
             try {
               const res = await commands.getDebugInfo();
-              const info = res?.status === "ok" ? res.data : (typeof res === "string" ? res : JSON.stringify(res));
-              if (!(await copyText(info)))
+              if (res.status === "error") throw new Error(res.error);
+              if (!(await copyText(res.data)))
                 throw new Error(t("settings.debugInfo.fallback"));
               setMessage(t("ui.copied"));
             } catch (e) {
@@ -157,20 +177,20 @@ export default function DiagnosticsSettings({
             <div className="settings-tool-grid">
               <Button
                 disabled={working || !prefix?.exists}
-                onClick={() => run("open_prefix_folder")}
+                onClick={() => run(() => commands.openPrefixFolder())}
               >
                 {t("settings.prefixTools.open")}
               </Button>
               <Button
                 disabled={busy || working}
-                onClick={() => run("run_prefix_tool", { tool: "winecfg" })}
+                onClick={() => run(() => commands.runPrefixTool("winecfg"))}
               >
                 {t("settings.prefixTools.winecfg")}
               </Button>
               <Button
                 disabled={busy || working}
                 onClick={() =>
-                  run("clear_shader_cache", {}, (r) =>
+                  run(() => commands.clearShaderCache(), (r) =>
                     t("settings.prefixTools.cacheDone", {
                       files: r.files_removed,
                       size: formatSize(r.bytes_freed),
@@ -199,7 +219,7 @@ export default function DiagnosticsSettings({
                     label: t("settings.prefixTools.reset"),
                     danger: true,
                     run: () =>
-                      run("reset_prefix", {}, () =>
+                      run(() => commands.resetPrefix(), () =>
                         t("settings.prefixTools.resetDone"),
                       ),
                   })

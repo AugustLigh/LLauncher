@@ -1,7 +1,4 @@
-// @ts-nocheck
-
 import { commands } from '../../../bindings';
-import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 import { useTranslation } from "../../../i18n";
 import { useTaskStore, taskActive } from "../../../stores/taskStore";
@@ -10,6 +7,15 @@ import PathSelector from "../PathSelector";
 import ProgressBar from "../../home/ProgressBar";
 import ErrorNotice from "../../common/ErrorNotice";
 
+export interface FilesSettingsProps {
+  form: Record<string, any>;
+  onChange: (key: string, value: any) => void;
+  confirm: (dialog: { title: string; message: string; label: string; danger?: boolean; run: () => void }) => void;
+  onSync: () => Promise<void>;
+  busy?: boolean;
+  pathsChanged?: boolean;
+}
+
 export default function FilesSettings({
   form,
   onChange,
@@ -17,19 +23,20 @@ export default function FilesSettings({
   onSync,
   busy,
   pathsChanged,
-}: any) {
+}: FilesSettingsProps) {
   const { t } = useTranslation();
   const { tasks, start, stop } = useTaskStore();
-  const [error, setError] = useState(null),
+  const [error, setError] = useState<any>(null),
     [working, setWorking] = useState(false);
   const task = tasks.game;
-  const action = async (command) => {
+  const uninstall = async () => {
     setWorking(true);
     setError(null);
     try {
-      await invoke(command);
+      const res = await commands.uninstallGame();
+      if (res.status === 'error') throw new Error(res.error);
       await onSync();
-    } catch (e) {
+    } catch (e: any) {
       setError(e);
     } finally {
       setWorking(false);
@@ -39,7 +46,8 @@ export default function FilesSettings({
     setError(null);
     try {
       const latestRes = await commands.getGameVersion();
-      const latest = latestRes?.status === 'ok' ? latestRes.data : latestRes;
+      if (latestRes.status === "error") throw new Error(latestRes.error);
+      const latest = latestRes.data;
       confirm({
         title: t("settings.integrity.name"),
         message: t("settings.integrity.confirm", {
@@ -67,86 +75,108 @@ export default function FilesSettings({
         <div className="settings-speed">
           <select
             aria-label={t("settings.speedLimit")}
-            value={form.download_speed_limit > 0 ? "limited" : "unlimited"}
-            onChange={(e) =>
+            value={
+              form.download_speed_limit > 0
+                ? form.download_speed_limit >= 1048576
+                  ? `${Math.round(form.download_speed_limit / 1048576)}M`
+                  : `${Math.round(form.download_speed_limit / 1024)}K`
+                : "none"
+            }
+            onChange={(e) => {
+              const v = e.target.value;
               onChange(
                 "download_speed_limit",
-                e.target.value === "unlimited" ? 0 : 10 * 1024 * 1024,
-              )
-            }
+                v === "none"
+                  ? 0
+                  : v.endsWith("M")
+                    ? parseInt(v, 10) * 1048576
+                    : parseInt(v, 10) * 1024,
+              );
+            }}
           >
-            <option value="unlimited">{t("ui.unlimited")}</option>
-            <option value="limited">{t("ui.limit")}</option>
+            <option value="none">{t("settings.unlimited")}</option>
+            <option value="1M">1 MB/s</option>
+            <option value="5M">5 MB/s</option>
+            <option value="10M">10 MB/s</option>
+            <option value="25M">25 MB/s</option>
+            <option value="50M">50 MB/s</option>
           </select>
-          {form.download_speed_limit > 0 && (
-            <>
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                aria-label={t("settings.speedLimit")}
-                value={+(form.download_speed_limit / 1024 / 1024).toFixed(2)}
-                onChange={(e) =>
-                  onChange(
-                    "download_speed_limit",
-                    Math.max(
-                      1,
-                      Math.round(
-                        (Number(e.target.value) || 0.01) * 1024 * 1024,
-                      ),
-                    ),
-                  )
-                }
-              />
-              <small>MB/s</small>
-            </>
-          )}
         </div>
       </div>
       <Switch
-        label={t("settings.inhibitSleep.name")}
-        note={t("settings.inhibitSleep.desc")}
-        checked={form.inhibit_sleep_on_download !== false}
-        onChange={(v) => onChange("inhibit_sleep_on_download", v)}
+        label={t("settings.keepPacks.name")}
+        note={t("settings.keepPacks.desc")}
+        checked={form.keep_download_packs}
+        onChange={(v) => onChange("keep_download_packs", v)}
+      />
+      <Switch
+        label={t("settings.verifyAfter.name")}
+        note={t("settings.verifyAfter.desc")}
+        checked={form.verify_after_download}
+        onChange={(v) => onChange("verify_after_download", v)}
       />
       <div className="setting-row">
-        <span>{t("settings.integrity.name")}</span>
+        <div className="setting-row__label">
+          <span>{t("settings.integrity.name")}</span>
+          <small>{t("settings.integrity.desc")}</small>
+        </div>
         <Button
-          icon="refresh"
+          disabled={
+            busy || pathsChanged || working || !form.installed_version
+          }
           onClick={check}
-          disabled={busy || pathsChanged || working || !form.installed_version}
         >
-          {t("settings.integrity.button")}…
+          {t("settings.integrity.button")}
         </Button>
       </div>
-      {(taskActive(task) || task?.status === "paused") && (
-        <div className="settings-transfer">
-          <ProgressBar
-            progress={task.progress}
-            paused={task.status === "paused"}
-            stopping={["pausing", "cancelling"].includes(task.status)}
-            onResume={
-              task.status === "paused" && !pathsChanged
-                ? () => start(task.kind)
-                : null
-            }
-            onPause={
-              taskActive(task) && task.progress?.stage !== "extracting"
-                ? () => stop("game").catch(setError)
-                : null
-            }
-          />
-        </div>
+      {taskActive(task) && task?.kind === "integrity" && (
+        <ProgressBar
+          progress={task.progress}
+          paused={task.status === "paused"}
+          stopping={task.status === "pausing"}
+          onResume={() => start("integrity")}
+          onPause={() => stop("game")}
+          onCancel={() => stop("game", true)}
+        />
       )}
-      {task?.kind === "integrity" && task.status === "completed" && (
+      {task?.status === "completed" && task.kind === "integrity" && (
+        <Status
+          kind={
+            Number(task.result?.corrupted) > 0 || Number(task.result?.missing) > 0
+              ? "warning"
+              : "success"
+          }
+        >
+          {t(
+            Number(task.result?.corrupted) > 0 || Number(task.result?.missing) > 0
+              ? "settings.integrity.issuesFound"
+              : "settings.integrity.clean",
+            {
+              missing: Number(task.result?.missing) || 0,
+              corrupted: Number(task.result?.corrupted) || 0,
+              checked: Number(task.result?.files_checked) || 0,
+            },
+          )}
+        </Status>
+      )}
+      {taskActive(task) && task?.kind === "repair" && (
+        <ProgressBar
+          progress={task.progress}
+          paused={task.status === "paused"}
+          stopping={task.status === "pausing"}
+          onResume={() => start("repair")}
+          onPause={() => stop("game")}
+          onCancel={() => stop("game", true)}
+        />
+      )}
+      {task?.status === "completed" && task.kind === "repair" && (
         <Status kind="success">
           {t(
-            task.result?.repaired > 0
-              ? "settings.integrity.resultRepaired"
-              : "settings.integrity.resultOk",
+            Number(task.result?.repaired) > 0
+              ? "settings.repair.done"
+              : "settings.repair.clean",
             {
-              checked: task.result?.checked || 0,
-              repaired: task.result?.repaired || 0,
+              repaired: Number(task.result?.repaired) || 0,
             },
           )}
         </Status>
@@ -210,7 +240,7 @@ export default function FilesSettings({
                   message: t("settings.uninstall.confirm"),
                   label: t("settings.uninstall.button"),
                   danger: true,
-                  run: () => action("uninstall_game"),
+                  run: uninstall,
                 })
               }
             >

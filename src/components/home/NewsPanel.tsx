@@ -1,11 +1,18 @@
-// @ts-nocheck
-
 import { useId, useState } from "react";
 import NewsItem from "./NewsItem";
+import { NewsTab } from "../../bindings";
 import { useTranslation } from "../../i18n";
 import { Button } from "../common/Controls";
 import "./NewsPanel.css";
-export default function NewsPanel({ tabs = [], loading, error, onRetry }: any) {
+
+export interface NewsPanelProps {
+  tabs?: NewsTab[];
+  loading?: boolean;
+  error?: any;
+  onRetry?: () => void;
+}
+
+export default function NewsPanel({ tabs = [], loading, error, onRetry }: NewsPanelProps) {
   const { t } = useTranslation();
   const [active, setActive] = useState(0),
     [expanded, setExpanded] = useState(false);
@@ -60,7 +67,7 @@ export default function NewsPanel({ tabs = [], loading, error, onRetry }: any) {
                 }
               }}
             >
-              {tab.tabName?.trim() || tab.tab_name?.trim() || t("ui.gameNews")}
+              {tab.tabName?.trim() || t("ui.gameNews")}
             </button>
           ))}
         </div>

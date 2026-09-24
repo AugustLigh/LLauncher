@@ -1,31 +1,32 @@
-// @ts-nocheck
-
 import { useEffect, useRef } from "react";
-const stack = [];
+
+const stack: object[] = [];
 const selector =
   'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex]:not([tabindex="-1"])';
-export default function useModalDismiss(onClose, enabled = true) {
+
+export default function useModalDismiss(onClose?: () => void, enabled = true): void {
   const close = useRef(onClose);
   close.current = onClose;
+
   useEffect(() => {
     if (!enabled) return;
     const token = {};
     stack.push(token);
-    const previous = document.activeElement;
+    const previous = document.activeElement as HTMLElement | null;
     const dialogs = document.querySelectorAll('[role="dialog"]');
-    const dialog = dialogs[dialogs.length - 1];
-    const nodes = () =>
+    const dialog = dialogs[dialogs.length - 1] as HTMLElement | undefined;
+    const nodes = (): HTMLElement[] =>
       dialog
-        ? [...dialog.querySelectorAll(selector)].filter(
-            (el) => el.getClientRects().length,
+        ? ([...dialog.querySelectorAll(selector)] as HTMLElement[]).filter(
+            (el) => el.getClientRects().length > 0,
           )
         : [];
-    const initial = dialog?.querySelector("[data-initial-focus]") || nodes()[0];
+    const initial = (dialog?.querySelector("[data-initial-focus]") || nodes()[0]) as HTMLElement | undefined;
     if (dialog) {
       dialog.tabIndex = -1;
       (initial || dialog).focus();
     }
-    const handle = (e) => {
+    const handle = (e: KeyboardEvent) => {
       if (stack[stack.length - 1] !== token) return;
       if (e.key === "Escape") {
         e.preventDefault();
@@ -40,8 +41,8 @@ export default function useModalDismiss(onClose, enabled = true) {
           dialog.focus();
           return;
         }
-        const first = items[0],
-          last = items[items.length - 1];
+        const first = items[0];
+        const last = items[items.length - 1];
         if (!dialog.contains(document.activeElement)) {
           e.preventDefault();
           first.focus();

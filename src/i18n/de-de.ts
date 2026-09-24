@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import uiModule from './ui.de-de.ts';
 const ui = (uiModule as any).default || uiModule;
 export default {
@@ -378,8 +376,12 @@ export default {
     viewLog: 'Ganzes Protokoll anzeigen',
     noLog: 'Keine Protokollausgabe aufgezeichnet.',
     hintDwproton11: 'Ihre installierte DWProton-Version (11.x Serie) ist nicht mit Endfield kompatibel: Anti-Cheat ruft Kernelfunktionen auf, die Wine 11 noch nicht implementiert hat, und das Spiel bleibt hängen. Öffnen Sie die Proton-Einstellungen und installieren Sie den empfohlenen Build (10.0-26).',
+    hintNtoskrnl: 'Das Spiel hat eine Kernelfunktion (PsGetProcessExitStatus) aufgerufen, die diese Proton-Version noch nicht implementiert, und wurde abgebrochen. Öffnen Sie die Proton-Einstellungen, um DWProton 11.0-13 oder neuer auszuwählen.',
     hintXClients: 'X-Server hat Verbindung verweigert — Clients haben keine Slots mehr, sodass das Spiel einfriert, bevor es ein Fenster öffnen kann. Melden Sie sich ab und wieder an (oder starten Sie neu), um diese freizugeben. Der Launcher beendet nun nach jeder Sitzung das Wine-Prefix des Spiels, was verhindert, dass sich solche Absturzreste ansammeln.',
+    hintXalia: 'Protons integrierter Barrierefreiheitsassistent (Xalia) konnte nicht gestartet werden, da kein unterstützter Grafiktreiber gefunden wurde. Das Deaktivieren von Xalia über PROTON_USE_XALIA=0 behebt dieses Problem.',
+    hintPrefixCorrupted: 'Das Wine-Präfix ist beschädigt oder wurde von einer neueren Proton-Version herabgestuft (DWProton 11 auf 10), wodurch Schriftarten und Systembibliotheken beschädigt wurden. Öffnen Sie die Diagnose-Einstellungen und klicken Sie auf „Präfix zurücksetzen“, um ein neues Präfix zu erstellen.',
     openProtonSettings: 'Proton-Einstellungen öffnen',
+    openDiagnosticsSettings: 'Diagnose-Einstellungen öffnen',
   },
   logViewer: {
     copy: 'Protokoll kopieren',

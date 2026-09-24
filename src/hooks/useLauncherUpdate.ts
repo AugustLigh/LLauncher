@@ -1,11 +1,14 @@
-// @ts-nocheck
-
 import { useState, useEffect } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
 
 const RELEASES_API = 'https://api.github.com/repos/AugustLigh/LLauncher/releases/latest';
 
-function isNewer(latest, current) {
+export interface LauncherUpdateInfo {
+  version: string;
+  url: string;
+}
+
+function isNewer(latest: string, current: string): boolean {
   const a = latest.split('.').map(Number);
   const b = current.split('.').map(Number);
   for (let i = 0; i < Math.max(a.length, b.length); i++) {
@@ -16,8 +19,8 @@ function isNewer(latest, current) {
   return false;
 }
 
-export default function useLauncherUpdate() {
-  const [update, setUpdate] = useState(null);
+export default function useLauncherUpdate(): LauncherUpdateInfo | null {
+  const [update, setUpdate] = useState<LauncherUpdateInfo | null>(null);
 
   useEffect(() => {
     (async () => {

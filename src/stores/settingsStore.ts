@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { commands, AppSettings } from '../bindings';
+import { useSystemStore } from './systemStore';
+import { useGameStore } from './gameStore';
 
 interface SettingsState {
   settings: AppSettings | null;
@@ -34,6 +36,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       // The backend keeps its own values for the fields it owns (installed
       // version, play stats), so read back what was actually stored.
       await get().reload();
+      await Promise.all([
+        useSystemStore.getState().refresh(),
+        useGameStore.getState().refreshGameState(),
+      ]);
     } catch (e) {
       console.error('Failed to save settings:', e);
       throw e;

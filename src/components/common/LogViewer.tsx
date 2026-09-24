@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import { commands } from '../../bindings';
 import { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from '../../i18n';
@@ -7,12 +5,17 @@ import { copyText } from '../../utils/clipboard';
 import useModalDismiss from '../../hooks/useModalDismiss';
 import './LogViewer.css';
 
-export default function LogViewer({ initialContent, onClose }: any) {
+export interface LogViewerProps {
+  initialContent?: string | null;
+  onClose: () => void;
+}
+
+export default function LogViewer({ initialContent, onClose }: LogViewerProps) {
   const { t } = useTranslation();
-  const [content, setContent] = useState(initialContent ?? null);
+  const [content, setContent] = useState<string | null>(initialContent ?? null);
   const [loading, setLoading] = useState(initialContent == null);
-  const [error, setError] = useState(null);
-  const [copyStatus, setCopyStatus] = useState(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<string | null>(null);
   useModalDismiss(onClose);
 
   const loadLog = useCallback(async () => {
@@ -23,7 +26,7 @@ export default function LogViewer({ initialContent, onClose }: any) {
       const res = await commands.readLaunchLog();
       if (res.status === 'error') throw new Error(String(res.error));
       setContent(res.data);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to read log:', e);
       setError(typeof e === 'string' ? e : e?.message || String(e));
     } finally {

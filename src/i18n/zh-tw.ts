@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import uiModule from './ui.zh-tw.ts';
 const ui = (uiModule as any).default || uiModule;
 export default {
@@ -378,8 +376,12 @@ export default {
     viewLog: '檢視完整日誌',
     noLog: '沒有擷取到任何日誌輸出。',
     hintDwproton11: '您目前安裝的 DWProton 版本 (11.x 系列) 與 Endfield 不相容：反作弊系統呼叫了 Wine 11 尚未實作的作業系統核心功能，導致遊戲在啟動時當機。請開啟 Proton 設定並安裝推薦版本 (10.0-26)。',
+    hintNtoskrnl: '遊戲呼叫了此 Proton 版本尚未實作的核心函式 (PsGetProcessExitStatus) 並已中止。請開啟 Proton 設定選擇 DWProton 11.0-13 或更新版本。',
     hintXClients: 'X 伺服器拒絕連線 — 客戶端連線數 (slots) 已耗盡，導致遊戲在開啟任何視窗前就卡住。請登出再重新登入（或重新啟動電腦）以清除這些連線。在未來的更新後，啟動器會在每次遊戲結束後強制關閉遊戲的 Wine prefix，以幫助防止這種情況累積。',
+    hintXalia: 'Proton 內建的無障礙助理 (Xalia) 因未找到支援的顯示卡驅動程式而啟動失敗。透過 PROTON_USE_XALIA=0 停用 Xalia 可解決此問題。',
+    hintPrefixCorrupted: 'Wine 前綴容器損毀或從較新的 Proton 版本降級 (DWProton 11 降至 10)，導致字型與系統程式庫損毀。請開啟「診斷」設定並點選「重設前綴」以重新產生乾淨的前綴。',
     openProtonSettings: '開啟 Proton 設定',
+    openDiagnosticsSettings: '開啟診斷設定',
   },
   logViewer: {
     copy: '複製日誌',

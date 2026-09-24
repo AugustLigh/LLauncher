@@ -1,10 +1,8 @@
-// @ts-nocheck
-
 // Some WebKit media pipelines stay "playing" after a window is restored while
 // no frames advance. Recover in stages, and reload only after a real stall.
 export function createBackgroundPlayback(
-  video,
-  { now = () => performance.now(), onRecover = () => {} } = {},
+  video: HTMLVideoElement,
+  { now = () => performance.now(), onRecover = () => {} }: { now?: () => number; onRecover?: () => void } = {},
 ) {
   let stopped = false;
   let lastTime = video.currentTime;
@@ -13,13 +11,13 @@ export function createBackgroundPlayback(
   let softRecovery = false;
   let reloadAttempts = 0;
   let nextReload = 0;
-  let restorePosition;
+  let restorePosition: (() => void) | undefined;
 
-  function frameCount() {
+  function frameCount(): number | null {
     const frames =
       video.getVideoPlaybackQuality?.().totalVideoFrames ??
-      video.webkitDecodedFrameCount;
-    return Number.isFinite(frames) && frames > 0 ? frames : null;
+      (video as HTMLVideoElement & { webkitDecodedFrameCount?: number }).webkitDecodedFrameCount;
+    return Number.isFinite(frames) && typeof frames === 'number' && frames > 0 ? frames : null;
   }
   function play() {
     if (stopped) return;

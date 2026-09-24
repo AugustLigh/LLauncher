@@ -1,10 +1,15 @@
-// @ts-nocheck
-
-import { useState } from "react";
+import { ReactNode, useState } from "react";
 import { useTranslation } from "../../i18n";
 import { copyText } from "../../utils/clipboard";
 import { Button } from "./Controls";
-export default function ErrorNotice({ title, error, onRetry }: any) {
+
+export interface ErrorNoticeProps {
+  title?: ReactNode;
+  error?: any;
+  onRetry?: () => void;
+}
+
+export default function ErrorNotice({ title, error, onRetry }: ErrorNoticeProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   if (!error) return null;
@@ -12,7 +17,7 @@ export default function ErrorNotice({ title, error, onRetry }: any) {
     typeof error === "string" ? error : error.message || String(error);
   return (
     <div className="ui-error" role="alert">
-      <strong>{title}</strong>
+      {title && <strong>{title}</strong>}
       <details>
         <summary>{t("ui.details")}</summary>
         <pre>{text}</pre>

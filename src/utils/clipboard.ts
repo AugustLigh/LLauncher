@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 // Copying text out of the launcher.
 //
 // `navigator.clipboard` is the obvious route and the one that fails: the
@@ -9,7 +7,7 @@
 // The `execCommand` path is deprecated but implemented everywhere the
 // launcher runs, and it works from a user gesture, which is the only place
 // these buttons are ever called from.
-export async function copyText(text) {
+export async function copyText(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text);
@@ -21,8 +19,8 @@ export async function copyText(text) {
   return legacyCopy(text);
 }
 
-function legacyCopy(text) {
-  const previousFocus = document.activeElement;
+function legacyCopy(text: string): boolean {
+  const previousFocus = document.activeElement as HTMLElement | null;
   const area = document.createElement('textarea');
   area.value = text;
   // Off-screen but still focusable: `display: none` would make the selection

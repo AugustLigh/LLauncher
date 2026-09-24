@@ -1,5 +1,4 @@
-// @ts-nocheck
-
+import { ReactNode } from "react";
 import useModalDismiss from "../../hooks/useModalDismiss";
 import { useTranslation } from "../../i18n";
 import "./ConfirmDialog.css";
@@ -8,6 +7,16 @@ import "./ConfirmDialog.css";
 // which render as unstyled WebKit chrome in a decorations-off window and are
 // not keyboard/gamepad friendly. `danger` tints the confirm button red.
 // When `onCancel` is omitted the dialog is a plain alert (single OK button).
+export interface ConfirmDialogProps {
+  title?: ReactNode;
+  message?: ReactNode;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  danger?: boolean;
+  onConfirm: () => void;
+  onCancel?: () => void;
+}
+
 export default function ConfirmDialog({
   title,
   message,
@@ -16,7 +25,7 @@ export default function ConfirmDialog({
   danger = false,
   onConfirm,
   onCancel,
-}: any) {
+}: ConfirmDialogProps) {
   const { t } = useTranslation();
   const dismiss = onCancel || onConfirm;
   useModalDismiss(dismiss);
@@ -27,7 +36,7 @@ export default function ConfirmDialog({
         className="confirm-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-label={typeof title === "string" ? title : undefined}
         onClick={(e) => e.stopPropagation()}
       >
         {title && <div className="confirm-dialog__title">{title}</div>}

@@ -1,10 +1,20 @@
-// @ts-nocheck
-
 import { formatSize, formatSpeed, formatEta } from "../../utils/format";
 import { progressDetails } from "../../utils/progress";
 import { useTranslation } from "../../i18n";
 import { Button } from "../common/Controls";
 import "./ProgressBar.css";
+
+export interface ProgressBarProps {
+  progress?: any;
+  paused?: boolean;
+  proton?: boolean;
+  onPause?: () => void;
+  onResume?: () => void;
+  onCancel?: () => void;
+  onScreenOff?: () => void;
+  stopping?: boolean;
+}
+
 export default function ProgressBar({
   progress,
   paused = false,
@@ -14,7 +24,7 @@ export default function ProgressBar({
   onCancel,
   onScreenOff,
   stopping = false,
-}: any) {
+}: ProgressBarProps) {
   const { t, locale } = useTranslation();
   const p = progress || { stage: "fetching" };
   const { percent, done, total, byFiles } = progressDetails(p);

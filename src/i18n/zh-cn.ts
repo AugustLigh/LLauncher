@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import uiModule from './ui.zh-cn.ts';
 const ui = (uiModule as any).default || uiModule;
 export default {
@@ -385,8 +383,12 @@ export default {
     viewLog: '查看完整日志',
     noLog: '未捕获到日志输出。',
     hintDwproton11: '您安装的 DWProton 版本 (11.x 系列) 与 Endfield 不兼容: 反作弊调用了 Wine 11 尚未实现的内核函数，游戏终止。打开 Proton 设置并安装推荐版本 (10.0-26)。',
+    hintNtoskrnl: '游戏调用了此 Proton 版本尚未实现的内核函数 (PsGetProcessExitStatus) 并已中止。请打开 Proton 设置选择 DWProton 11.0-13 或更新版本。',
     hintXClients: 'X server 拒绝连接 — 客户端槽位已耗尽，导致游戏在能打开窗口前冻结。注销并重新登录 (或重启) 以清除它们。启动器现在会在每次会话后关闭游戏的 Wine 容器，这可以防止崩溃遗留物像这样堆积。',
+    hintXalia: 'Proton 自带的无障碍助手 (Xalia) 因未找到受支持的显卡驱动而启动失败。通过 PROTON_USE_XALIA=0 禁用 Xalia 可解决此问题。',
+    hintPrefixCorrupted: 'Wine 前缀容器损坏或从较新的 Proton 版本降级 (DWProton 11 降至 10)，导致字体和系统库损坏。请打开“诊断”设置并点击“重置前缀”以重新生成全新的前缀。',
     openProtonSettings: '打开 Proton 设置',
+    openDiagnosticsSettings: '打开诊断设置',
   },
   logViewer: {
     copy: '复制日志',

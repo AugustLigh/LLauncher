@@ -1,11 +1,21 @@
-// @ts-nocheck
-
+import { SystemCheck } from "../../../bindings";
 import { useTranslation } from "../../../i18n";
 import { Field } from "../../common/Controls";
 import LinuxLaunchOptions from "../LinuxLaunchOptions";
 import MacosLaunchOptions from "../MacosLaunchOptions";
 import WindowsLaunchOptions from "../WindowsLaunchOptions";
 import RuntimeSettings from "./RuntimeSettings";
+
+export interface LaunchSettingsProps {
+  form: Record<string, any>;
+  onChange: (key: string, value: any) => void;
+  systemCheck?: SystemCheck | null;
+  initialRuntime?: boolean;
+  busy?: boolean;
+  activeProton?: string;
+  onSync?: () => Promise<void>;
+}
+
 export default function LaunchSettings({
   form,
   onChange,
@@ -13,7 +23,7 @@ export default function LaunchSettings({
   initialRuntime,
   busy,
   activeProton,
-}: any) {
+}: LaunchSettingsProps) {
   const { t } = useTranslation();
   // Until the backend answers, assume Linux (the historical behaviour). Both
   // Unix platforms have a runtime to pick and a prefix; only what it is

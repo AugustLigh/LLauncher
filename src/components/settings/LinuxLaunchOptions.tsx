@@ -1,15 +1,22 @@
-// @ts-nocheck
-
+import { ReactNode } from "react";
+import { SystemCheck } from "../../bindings";
 import { useTranslation } from "../../i18n";
 import { Field, Switch } from "../common/Controls";
-export default function LinuxLaunchOptions({ form, onChange, systemCheck }: any) {
+
+export interface LinuxLaunchOptionsProps {
+  form: Record<string, any>;
+  onChange: (key: string, value: any) => void;
+  systemCheck?: SystemCheck | null;
+}
+
+export default function LinuxLaunchOptions({ form, onChange, systemCheck }: LinuxLaunchOptionsProps) {
   const { t } = useTranslation();
   const toggle = (
-    key,
-    label,
-    missing = false,
-    inverse = false,
-    note = null,
+    key: string,
+    label: ReactNode,
+    missing: boolean = false,
+    inverse: boolean = false,
+    note: ReactNode = null,
   ) => (
     <Switch
       key={key}
@@ -22,9 +29,9 @@ export default function LinuxLaunchOptions({ form, onChange, systemCheck }: any)
   );
   // The DLSS knobs go to the NVIDIA driver; without it they do nothing.
   const noNvidia = !!systemCheck && !systemCheck.has_nvidia;
-  const nvidiaToggle = (key, label) =>
+  const nvidiaToggle = (key: string, label: string) =>
     toggle(key, label, noNvidia, false, t("settings.dlss.nvidiaOnly"));
-  const field = (key, label, placeholder = "", type = "text") => (
+  const field = (key: string, label: string, placeholder = "", type = "text") => (
     <Field label={label}>
       {(id) => (
         <input
@@ -46,7 +53,7 @@ export default function LinuxLaunchOptions({ form, onChange, systemCheck }: any)
       )}
     </Field>
   );
-  const select = (key, label, options, fallback) => (
+  const select = (key: string, label: string, options: [string, string][], fallback: string) => (
     <Field label={label}>
       {(id) => (
         <select
@@ -69,7 +76,7 @@ export default function LinuxLaunchOptions({ form, onChange, systemCheck }: any)
       {toggle(
         "use_mangohud",
         t("ui.fps"),
-        systemCheck && !systemCheck.has_mangohud,
+        !!systemCheck && !systemCheck.has_mangohud,
       )}
       <details className="ui-details">
         <summary>{t("ui.advancedLaunch")}</summary>
@@ -92,8 +99,11 @@ export default function LinuxLaunchOptions({ form, onChange, systemCheck }: any)
           {toggle(
             "use_gamemode",
             "GameMode",
-            systemCheck && !systemCheck.has_gamemode,
+            !!systemCheck &&
+              !systemCheck.has_gamemode &&
+              !form.gamemode_command?.trim(),
           )}
+          {field("gamemode_command", t("ui.gamemodeCommand"), "gamemoderun")}
           {toggle("use_dxvk_async", "DXVK Async")}
           {toggle("disable_fsync", t("ui.useFsync"), false, true)}
           {toggle("disable_esync", t("ui.useEsync"), false, true)}
@@ -114,7 +124,7 @@ export default function LinuxLaunchOptions({ form, onChange, systemCheck }: any)
           {toggle(
             "use_gamescope",
             "Gamescope",
-            systemCheck && !systemCheck.has_gamescope,
+            !!systemCheck && !systemCheck.has_gamescope,
           )}
           {form.use_gamescope && (
             <div className="settings-gamescope">

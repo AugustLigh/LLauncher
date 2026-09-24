@@ -1,7 +1,16 @@
-// @ts-nocheck
-
+import { ReactNode } from "react";
 import Icon from "../common/Icon";
 import "./ActionButton.css";
+
+export interface ActionButtonProps {
+  children?: ReactNode;
+  onClick?: () => void | Promise<any>;
+  disabled?: boolean;
+  busy?: boolean;
+  icon?: string | null;
+  attract?: boolean;
+}
+
 export default function ActionButton({
   children,
   onClick,
@@ -9,7 +18,7 @@ export default function ActionButton({
   busy,
   icon,
   attract,
-}: any) {
+}: ActionButtonProps) {
   const label = typeof children === "string" ? children : "";
   const classes = [
     "action-button",

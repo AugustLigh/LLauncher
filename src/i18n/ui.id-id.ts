@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 export default {
   savePathsFirst: "Simpan path baru sebelum bekerja dengan file.",
   tasksFailed: "Tidak dapat memeriksa transfer",
@@ -96,6 +94,7 @@ export default {
   fps: "Penghitung FPS",
   controller: "Dukungan kontroler",
   renderer: "Penyaji",
+  gamemodeCommand: "Perintah GameMode",
   systemStatus: "Sistem",
   refreshCheck: "Periksa lagi",
   installed: "Terinstal",

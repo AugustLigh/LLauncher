@@ -1,6 +1,4 @@
-// @ts-nocheck
-
-import { commands } from '../../bindings';
+import { commands, AppSettings } from '../../bindings';
 import { useState, useEffect, useRef } from "react";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { useTranslation } from "../../i18n";
@@ -22,6 +20,14 @@ import { useSystemStore } from "../../stores/systemStore";
 import { useGameStore } from "../../stores/gameStore";
 
 import "./SettingsModal.css";
+
+interface SettingsConfirmation {
+  title: string;
+  message: string;
+  label: string;
+  danger?: boolean;
+  run: () => void;
+}
 
 interface SettingsModalProps {
   initialTab?: string;
@@ -51,23 +57,23 @@ export default function SettingsModal({
   const onSave = async (s: any) => await saveSettings(s);
 
   const busy = transferring || gameRunning;
-  const tabMap = {
+  const tabMap: Record<string, string> = {
     paths: "files",
     downloads: "files",
     game: "files",
     proton: "launch",
   };
-  const [tab, setTab] = useState(tabMap[initialTab] || initialTab || "general"),
-    [form, setForm] = useState(settings),
-    [baseline, setBaseline] = useState(settings),
+  const [tab, setTab] = useState(tabMap[initialTab || ""] || initialTab || "general"),
+    [form, setForm] = useState<AppSettings | Record<string, any>>(settings || {}),
+    [baseline, setBaseline] = useState<AppSettings | Record<string, any>>(settings || {}),
     [saving, setSaving] = useState(false),
-    [error, setError] = useState(null),
-    [loadError, setLoadError] = useState(null),
-    [confirmation, setConfirmation] = useState(null),
+    [error, setError] = useState<any>(null),
+    [loadError, setLoadError] = useState<any>(null),
+    [confirmation, setConfirmation] = useState<SettingsConfirmation | null>(null),
     [showLog, setShowLog] = useState(false),
-    [autostart, setAutostart] = useState(null),
-    [baseAuto, setBaseAuto] = useState(null),
-    [autoError, setAutoError] = useState(null);
+    [autostart, setAutostart] = useState<boolean | null>(null),
+    [baseAuto, setBaseAuto] = useState<boolean | null>(null),
+    [autoError, setAutoError] = useState<string | null>(null);
   const gamePathChanged =
     !!form &&
     !!settings &&
@@ -135,11 +141,11 @@ export default function SettingsModal({
     if (!settings || !formRef.current || !baseRef.current) return;
     const next = { ...formRef.current };
     for (const key of Object.keys(settings))
-      if (next[key] === baseRef.current[key]) next[key] = settings[key];
+      if (next[key] === baseRef.current[key]) next[key] = (settings as any)[key];
     setForm(next);
     setBaseline(settings);
   }, [settings]);
-  const onChange = (key, value) => {
+  const onChange = (key: string, value: any) => {
     edited.current = true;
     setForm((prev) => ({ ...prev, [key]: value }));
   };
@@ -167,7 +173,7 @@ export default function SettingsModal({
       const fresh = freshRes.data;
       const next = { ...fresh };
       for (const key of Object.keys(form))
-        if (form[key] !== baseline[key]) next[key] = form[key];
+        if (form[key] !== baseline[key]) (next as any)[key] = form[key];
       if (autostart !== baseAuto && autostart != null) {
         await (autostart ? enable() : disable());
         autoChanged = true;

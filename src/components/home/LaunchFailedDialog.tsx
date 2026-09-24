@@ -1,15 +1,14 @@
-// @ts-nocheck
-
 import { useState } from "react";
 import LogViewer from "../common/LogViewer";
 import useModalDismiss from "../../hooks/useModalDismiss";
 import { useTranslation } from "../../i18n";
+import { LaunchFailed } from "../../stores/gameStore";
 import "./LaunchFailedDialog.css";
 
 // Known-failure signature ids from the backend (game::diagnose) mapped to
 // their translated advice. `proton` marks the ones a different Proton build
 // fixes, which are the only ones the shortcut into those settings helps with.
-const HINTS = {
+const HINTS: Record<string, { key: string; proton?: boolean; diagnostics?: boolean }> = {
   "dwproton11-ntoskrnl": { key: "launchFailed.hintDwproton11", proton: true },
   "ntoskrnl-generic": { key: "launchFailed.hintNtoskrnl", proton: true },
   "x-clients-exhausted": { key: "launchFailed.hintXClients" },
@@ -17,12 +16,19 @@ const HINTS = {
   "prefix-corrupted": { key: "launchFailed.hintPrefixCorrupted", diagnostics: true },
 };
 
+export interface LaunchFailedDialogProps {
+  failure: LaunchFailed | null;
+  onClose: () => void;
+  onOpenProtonSettings?: () => void;
+  onOpenDiagnosticsSettings?: () => void;
+}
+
 export default function LaunchFailedDialog({
   failure,
   onClose,
   onOpenProtonSettings,
   onOpenDiagnosticsSettings,
-}: any) {
+}: LaunchFailedDialogProps) {
   const { t } = useTranslation();
   const [showFullLog, setShowFullLog] = useState(false);
   // Escape closes the log viewer first when it is open, then the dialog.
@@ -36,7 +42,7 @@ export default function LaunchFailedDialog({
       : t("launchFailed.exitCodeUnknown");
 
   const tail = (failure.log_tail || "").trim();
-  const hint = HINTS[failure.hint];
+  const hint = failure.hint ? HINTS[failure.hint] : undefined;
 
   return (
     <>

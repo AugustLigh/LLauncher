@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import en from "./en.ts";
 import ru from "./ru.ts";
 import zhCn from "./zh-cn.ts";
@@ -14,7 +12,9 @@ import ptBr from "./pt-br.ts";
 import viVn from "./vi-vn.ts";
 import thTh from "./th-th.ts";
 
-export const BUNDLES = {
+export type TranslationBundle = Record<string, any>;
+
+export const BUNDLES: Record<string, TranslationBundle> = {
   en,
   ru,
   "zh-cn": zhCn,
@@ -30,7 +30,7 @@ export const BUNDLES = {
   "th-th": thTh,
 };
 
-export function resolveLocale(language) {
+export function resolveLocale(language?: string | null): string {
   if (!language) return "en";
   const lower = language.toLowerCase();
   if (lower.startsWith("ru")) return "ru";
@@ -48,7 +48,7 @@ export function resolveLocale(language) {
   return "en";
 }
 
-export function getByPath(obj, path) {
+export function getByPath(obj: any, path: string): any {
   const parts = path.split(".");
   let cur = obj;
   for (const p of parts) {
@@ -58,8 +58,8 @@ export function getByPath(obj, path) {
   return cur;
 }
 
-export function format(template, vars) {
-  if (!vars || typeof template !== "string") return template;
+export function format(template: any, vars?: Record<string, any>): string {
+  if (!vars || typeof template !== "string") return String(template ?? "");
   return template.replace(/\{(\w+)\}/g, (m, key) =>
     vars[key] != null ? String(vars[key]) : m,
   );

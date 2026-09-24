@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 export default {
   savePathsFirst: "Enregistrez le nouveau chemin avant de travailler avec des fichiers.",
   tasksFailed: "Impossible de vérifier le transfert",
@@ -96,6 +94,7 @@ export default {
   fps: "Compteur de FPS",
   controller: "Prise en charge de la manette",
   renderer: "Moteur de rendu",
+  gamemodeCommand: "Commande GameMode",
   systemStatus: "Système",
   refreshCheck: "Vérifier à nouveau",
   installed: "Installé",

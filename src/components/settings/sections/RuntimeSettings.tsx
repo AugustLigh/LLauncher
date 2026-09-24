@@ -1,6 +1,4 @@
-// @ts-nocheck
-
-import { commands } from '../../../bindings';
+import { commands, InstalledProton, ProtonReleaseInfo, SystemCheck } from '../../../bindings';
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "../../../i18n";
 import { useTaskStore, taskActive } from "../../../stores/taskStore";
@@ -8,8 +6,19 @@ import { Button, Status } from "../../common/Controls";
 import ErrorNotice from "../../common/ErrorNotice";
 import PathSelector from "../PathSelector";
 import ProgressBar from "../../home/ProgressBar";
-
 import { formatSize } from "../../../utils/format";
+
+export interface RuntimeSettingsProps {
+  form: Record<string, any>;
+  onChange: (key: string, value: any) => void;
+  systemCheck?: SystemCheck | null;
+  initialOpen?: boolean;
+  busy?: boolean;
+  activeProton?: string;
+  field?: string;
+  mac?: boolean;
+}
+
 export default function RuntimeSettings({
   form,
   onChange,
@@ -21,15 +30,15 @@ export default function RuntimeSettings({
   // `macos_wine_dir` on macOS) and whether to call it Wine rather than Proton.
   field = "proton_dir",
   mac = false,
-}) {
+}: RuntimeSettingsProps) {
   const { t } = useTranslation();
   const runtimeName = mac ? "Wine" : "Proton";
-  const [open, setOpen] = useState(initialOpen),
-    [releases, setReleases] = useState([]),
-    [installed, setInstalled] = useState([]),
+  const [open, setOpen] = useState(Boolean(initialOpen)),
+    [releases, setReleases] = useState<ProtonReleaseInfo[]>([]),
+    [installed, setInstalled] = useState<InstalledProton[]>([]),
     [recommended, setRecommended] = useState(""),
     [loading, setLoading] = useState(false),
-    [error, setError] = useState(null);
+    [error, setError] = useState<any>(null);
   const { tasks, start } = useTaskStore();
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,11 +49,11 @@ export default function RuntimeSettings({
         commands.listInstalledProtons(),
         commands.recommendedProtonTag(),
       ]);
-      setReleases(r?.status === 'ok' ? r.data : (Array.isArray(r) ? r : []));
-      setInstalled(i?.status === 'ok' ? i.data : (Array.isArray(i) ? i : []));
-      setRecommended(typeof tag === 'string' ? tag : (tag?.status === 'ok' ? tag.data : ""));
-      if (r?.status === 'error') setError(r.error);
-      else if (i?.status === 'error') setError(i.error);
+      if (r.status === "error") throw new Error(r.error);
+      if (i.status === "error") throw new Error(i.error);
+      setReleases(r.data);
+      setInstalled(i.data);
+      setRecommended(tag);
     } catch (e) {
       setError(e);
     } finally {
@@ -58,7 +67,7 @@ export default function RuntimeSettings({
   const task = tasks.proton;
   const selected = installed.find((p) => p.path === form[field]);
   const recommendedRelease = releases.find((r) => r.tag_name === recommended);
-  const row = (release) => {
+  const row = (release: ProtonReleaseInfo) => {
     const existing = installed.find(
       // DWProton unpacks to `<tag>-x86_64`, the macOS Wine builds are
       // installed under `wine-staging-<tag>`.
@@ -75,7 +84,7 @@ export default function RuntimeSettings({
             {release.tag_name === recommended
               ? t("ui.recommended")
               : release.published_at}
-            {release.size > 0 && ` · ${formatSize(release.size)}`}
+            {release.size && release.size > 0 && ` · ${formatSize(release.size)}`}
           </small>
         </div>
         {existing ? (
@@ -119,61 +128,47 @@ export default function RuntimeSettings({
                 ? "ui.selected"
                 : systemCheck?.has_proton
                   ? "ui.runtimeReady"
-                  : "ui.notFound",
+                  : "ui.runtimeNeeded",
+              { runtime: runtimeName },
             )}
           </Status>
-          <small title={form[field]}>
+          <span className="runtime-summary__name">
             {selected?.name ||
-              form[field]?.split(/[\\/]/).filter(Boolean).pop() ||
-              runtimeName}
-          </small>
+              (form[field]
+                ? form[field].split(/[/\\]/).filter(Boolean).pop()
+                : null) ||
+              t("ui.noRuntimeSelected", { runtime: runtimeName })}
+          </span>
+          {pending && (
+            <small className="runtime-summary__note">
+              {t("ui.runtimePending", { runtime: runtimeName })}
+            </small>
+          )}
         </div>
-        <Button onClick={() => setOpen(!open)} aria-expanded={!!open}>
-          {t(open ? "ui.lessNews" : "ui.manage")}
+        <Button
+          variant="secondary"
+          onClick={() => {
+            setOpen((v: boolean) => !v);
+            if (!open) load();
+          }}
+        >
+          {t(open ? "ui.hidePicker" : "ui.chooseRuntime", {
+            runtime: runtimeName,
+          })}
         </Button>
       </div>
-      {taskActive(task) && <ProgressBar progress={task.progress} proton />}
-      {task?.error && (
-        <ErrorNotice
-          title={t("errors.protonDownloadFailed")}
-          error={task.error}
-        />
+      {taskActive(task) && (
+        <ProgressBar progress={task?.progress} proton paused={false} />
+      )}
+      {task?.status === "completed" && (
+        <Status kind="success">
+          {t("settings.runtimeDownloaded", { runtime: runtimeName })}
+        </Status>
       )}
       {open && (
-        <div className="runtime-body">
-          {loading && !releases.length && <small>{t("common.loading")}</small>}
-          {error && (
-            <ErrorNotice
-              title={t("ui.protonReleasesFailed")}
-              error={error}
-              onRetry={load}
-            />
-          )}
-          {installed.map((p) => (
-            <div className="runtime-row" key={p.path}>
-              <div>
-                <strong>{p.name}</strong>
-                <small>
-                  {t(
-                    form[field] === p.path ? "ui.selected" : "ui.installed",
-                  )}
-                  {mac && p.wine_patch && ` · ${p.wine_patch}`}
-                  {mac && p.dxmt && ` · DXMT ${p.dxmt}`}
-                  {mac && !p.wine_patch && ` · ${t("ui.wineUnpatched")}`}
-                </small>
-              </div>
-              <Button
-                disabled={busy || form[field] === p.path}
-                onClick={() => onChange(field, p.path)}
-              >
-                {t("settings.use")}
-              </Button>
-            </div>
-          ))}
-          {recommendedRelease && row(recommendedRelease)}
-          <details className="ui-details">
-            <summary>{t("ui.otherVersions")}</summary>
-            {releases.filter((r) => r.tag_name !== recommended).map(row)}
+        <div className="runtime-picker">
+          <div className="runtime-picker__heading">
+            <h4>{t("ui.availableBuilds")}</h4>
             <Button
               variant="ghost"
               icon="refresh"
@@ -182,21 +177,58 @@ export default function RuntimeSettings({
             >
               {t("common.refresh")}
             </Button>
-          </details>
+          </div>
+          {loading && !releases.length && (
+            <Status busy>{t("common.loading")}</Status>
+          )}
+          {error && (
+            <ErrorNotice
+              title={t("ui.runtimeListFailed", { runtime: runtimeName })}
+              error={error}
+              onRetry={load}
+            />
+          )}
+          {recommendedRelease && row(recommendedRelease)}
+          {releases
+            .filter((r) => r.tag_name !== recommended)
+            .map((r) => row(r))}
+          {installed
+            .filter(
+              (p) =>
+                !releases.some(
+                  (r) =>
+                    p.name === r.tag_name ||
+                    p.name.startsWith(r.tag_name + "-"),
+                ),
+            )
+            .map((p) => (
+              <div className="runtime-row" key={p.path}>
+                <div>
+                  <strong>{p.name}</strong>
+                  <small className="selectable">{p.path}</small>
+                </div>
+                <Button
+                  disabled={busy || form[field] === p.path}
+                  onClick={() => onChange(field, p.path)}
+                >
+                  {t(
+                    form[field] === p.path
+                      ? "ui.selected"
+                      : "settings.use",
+                  )}
+                </Button>
+              </div>
+            ))}
           <details className="ui-details">
-            <summary>{t("ui.manualPaths")}</summary>
-            <PathSelector
-              label={t(mac ? "settings.wineDir" : "settings.activeProton")}
-              value={form[field]}
-              onChange={(v) => onChange(field, v)}
-              disabled={busy}
-            />
-            <PathSelector
-              label={t("settings.prefixDir")}
-              value={form.proton_prefix_dir}
-              onChange={(v) => onChange("proton_prefix_dir", v)}
-              disabled={busy}
-            />
+            <summary>{t("ui.customRuntime", { runtime: runtimeName })}</summary>
+            <div className="ui-details__body">
+              <PathSelector
+                label={t("ui.runtimeDirectory", { runtime: runtimeName })}
+                value={form[field]}
+                onChange={(v) => onChange(field, v)}
+                disabled={busy}
+              />
+            </div>
           </details>
         </div>
       )}

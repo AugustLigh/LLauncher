@@ -1,16 +1,23 @@
-// @ts-nocheck
-
 import { useTranslation } from "../../../i18n";
 import { Field, Switch } from "../../common/Controls";
 import Icon from "../../common/Icon";
 import LanguageSelector from "../LanguageSelector";
+
+export interface GeneralSettingsProps {
+  form: Record<string, any>;
+  onChange: (key: string, value: any) => void;
+  autostart?: boolean | null;
+  onAutostart: (enabled: boolean) => void;
+  autoError?: string | null;
+}
+
 export default function GeneralSettings({
   form,
   onChange,
   autostart,
   onAutostart,
   autoError,
-}: any) {
+}: GeneralSettingsProps) {
   const { t } = useTranslation();
   const action = form.on_launch_action === "nothing" ? "nothing" : "hide";
   return (
@@ -41,7 +48,7 @@ export default function GeneralSettings({
       </div>
       <Switch
         label={t("ui.autostart")}
-        checked={autostart}
+        checked={!!autostart}
         onChange={onAutostart}
         disabled={autostart == null}
         note={autoError}

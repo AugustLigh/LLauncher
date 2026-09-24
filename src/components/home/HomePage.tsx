@@ -1,7 +1,4 @@
-// @ts-nocheck
-
 import { commands } from '../../bindings';
-import { invoke } from "@tauri-apps/api/core";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -84,9 +81,9 @@ export default function HomePage({ hidden, onOpenSettings }: HomePageProps) {
   const latestSync = useRef(onSync);
   const installDetails = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
-    const close = (event) => {
+    const close = (event: PointerEvent) => {
       const details = installDetails.current;
-      if (details?.open && !details.contains(event.target))
+      if (details?.open && !details.contains(event.target as Node))
         details.open = false;
     };
     document.addEventListener("pointerdown", close);
@@ -133,7 +130,13 @@ export default function HomePage({ hidden, onOpenSettings }: HomePageProps) {
     setPlan(null);
     try {
       const next = await commands.getInstallPlan();
-      if (id === planRequest.current) setPlan(next);
+      if (id === planRequest.current) {
+        if (next.status === "ok") {
+          setPlan(next.data);
+        } else {
+          setPlanError(next.error);
+        }
+      }
     } catch (e) {
       if (id === planRequest.current) setPlanError(e);
     } finally {
@@ -164,14 +167,18 @@ export default function HomePage({ hidden, onOpenSettings }: HomePageProps) {
       });
       if (!dir) return;
       setImporting(true);
-      if (existing) await commands.importExistingGame(dir);
-      else {
-        const fresh = await commands.getSettings();
+      if (existing) {
+        const res = await commands.importExistingGame(dir);
+        if (res.status === "error") throw new Error(res.error);
+      } else {
+        const freshRes = await commands.getSettings();
+        if (freshRes.status === "error") throw new Error(freshRes.error);
+        const fresh = freshRes.data;
         const sep = dir.includes("\\") ? "\\" : "/";
         const oldDefault =
           fresh.download_dir.replace(/\\/g, "/") ===
           `${fresh.game_dir.replace(/\\/g, "/")}/_download`;
-        await onSaveSettings({
+        await saveSettings({
           ...fresh,
           game_dir: dir,
           download_dir: oldDefault
@@ -192,7 +199,8 @@ export default function HomePage({ hidden, onOpenSettings }: HomePageProps) {
     setLaunching(true);
     setLocalError(null);
     try {
-      await invoke("launch_game", { withMods });
+      const res = await commands.launchGame(withMods);
+      if (res.status === "error") throw new Error(res.error);
       markRunning();
       if (["hide", "close"].includes(settings?.on_launch_action || "hide"))
         await getCurrentWindow().hide();
@@ -233,17 +241,19 @@ export default function HomePage({ hidden, onOpenSettings }: HomePageProps) {
       run: () => stopTask(slot, true),
     });
   const screenOff = systemCheck?.can_turn_off_screen
-    ? () => commands.turnOffScreen().catch(() => {})
-    : null;
+    ? () => { commands.turnOffScreen().catch(() => {}); }
+    : undefined;
   const resume = () =>
     start(
       task?.kind ||
         (gameState?.status === "update_available" ? "update" : "install"),
     );
   const version =
-    gameState?.version ||
-    gameState?.installed_version ||
-    gameState?.latest_version;
+    gameState && "version" in gameState
+      ? gameState.version
+      : gameState && "installed_version" in gameState
+        ? gameState.installed_version
+        : gameState?.latest_version;
   const labels = {
     versionError: "versionFailed",
     systemError: "systemFailed",
@@ -279,12 +289,12 @@ export default function HomePage({ hidden, onOpenSettings }: HomePageProps) {
             : state === "downloadError"
               ? resume
               : state === "versionError"
-                ? onRetryGameState
+                ? refreshGameState
                 : state === "systemError"
-                  ? onRetrySystem
+                  ? refreshSystem
                   : state === "taskError"
                     ? refreshTasks
-                    : null;
+                    : undefined;
   const primaryLabel =
     state === "ready"
       ? t("home.action.launch")
@@ -306,7 +316,7 @@ export default function HomePage({ hidden, onOpenSettings }: HomePageProps) {
         ? "download"
         : errorState
           ? "refresh"
-          : null;
+          : undefined;
   const menuItems = [
     ...(state === "ready" && settings?.mods_enabled
       ? [
@@ -388,7 +398,7 @@ export default function HomePage({ hidden, onOpenSettings }: HomePageProps) {
               if (event.key === "Escape" && event.currentTarget.open) {
                 event.stopPropagation();
                 event.currentTarget.open = false;
-                event.currentTarget.querySelector("summary").focus();
+                event.currentTarget.querySelector<HTMLElement>("summary")?.focus();
               }
             }}
           >
@@ -443,7 +453,7 @@ export default function HomePage({ hidden, onOpenSettings }: HomePageProps) {
                         <span
                           style={{
                             width:
-                              disk.available > 0
+                              disk.available != null && disk.required != null && disk.available > 0
                                 ? `${Math.min(100, (disk.required / disk.available) * 100)}%`
                                 : "0%",
                           }}
@@ -465,7 +475,7 @@ export default function HomePage({ hidden, onOpenSettings }: HomePageProps) {
                 <ErrorNotice
                   title={t("ui.systemFailed")}
                   error={systemError}
-                  onRetry={onRetrySystem}
+                  onRetry={refreshSystem}
                 />
               )}
               {planError && (
@@ -496,12 +506,12 @@ export default function HomePage({ hidden, onOpenSettings }: HomePageProps) {
             </div>
           </>
         )}
-        {state === "update" && (
+        {state === "update" && gameState?.status === "update_available" && (
           <div className="home-page__update">
             <h2>{t("ui.updateTitle")}</h2>
             <span>
-              v{gameState?.installed_version} <Icon name="arrow" size={15} /> v
-              {gameState?.latest_version}
+              v{gameState.installed_version} <Icon name="arrow" size={15} /> v
+              {gameState.latest_version}
             </span>
           </div>
         )}
@@ -510,16 +520,16 @@ export default function HomePage({ hidden, onOpenSettings }: HomePageProps) {
             progress={task?.progress}
             paused={state === "paused"}
             stopping={state === "pausing"}
-            onResume={state === "paused" ? resume : null}
+            onResume={state === "paused" ? resume : undefined}
             onPause={
               taskActive(task) && task?.progress?.stage !== "extracting"
-                ? () => stopTask("game")
-                : null
+                ? () => { stopTask("game"); }
+                : undefined
             }
             onCancel={
-              state !== "extracting" ? () => confirmCancel("game") : null
+              state !== "extracting" ? () => confirmCancel("game") : undefined
             }
-            onScreenOff={taskActive(task) ? screenOff : null}
+            onScreenOff={taskActive(task) ? screenOff : undefined}
           />
         )}
         {state === "protonDownloading" && (
@@ -530,9 +540,9 @@ export default function HomePage({ hidden, onOpenSettings }: HomePageProps) {
             onCancel={
               protonTask?.progress?.stage !== "extracting"
                 ? () => confirmCancel("proton")
-                : null
+                : undefined
             }
-            onScreenOff={protonTask?.status === "running" ? screenOff : null}
+            onScreenOff={protonTask?.status === "running" ? screenOff : undefined}
           />
         )}
         {errorState && (
@@ -586,7 +596,8 @@ export default function HomePage({ hidden, onOpenSettings }: HomePageProps) {
                 label: t("home.stopGame"),
                 run: async () => {
                   try {
-                    await commands.stopGame();
+                    const res = await commands.stopGame();
+                    if (res.status === "error") throw new Error(res.error);
                   } catch (e) {
                     setLocalError({ title: t("errors.stopFailed"), error: e });
                   }
@@ -609,7 +620,7 @@ export default function HomePage({ hidden, onOpenSettings }: HomePageProps) {
       </section>
       <footer className="home-page__footer">
         <span>
-          {stats?.totalPlaytimeSecs > 0 && (
+          {stats && stats.totalPlaytimeSecs > 0 && (
             <>
               {t("ui.stats", {
                 time: formatPlaytime(stats.totalPlaytimeSecs, locale),

@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 export default {
   savePathsFirst: "파일을 작업하기 전에 새 경로를 저장하십시오.",
   tasksFailed: "전송을 확인할 수 없습니다",
@@ -96,6 +94,7 @@ export default {
   fps: "FPS 카운터",
   controller: "컨트롤러 지원",
   renderer: "렌더러",
+  gamemodeCommand: "GameMode 명령",
   systemStatus: "시스템",
   refreshCheck: "다시 확인",
   installed: "설치됨",

@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import uiModule from './ui.id-id.ts';
 const ui = (uiModule as any).default || uiModule;
 export default {
@@ -378,8 +376,12 @@ export default {
     viewLog: 'Lihat log penuh',
     noLog: 'Tidak ada output log yang ditangkap.',
     hintDwproton11: 'Versi DWProton Anda yang terinstal (seri 11.x) tidak kompatibel dengan Endfield: anti-cheat memanggil fungsi kernel yang belum diterapkan Wine 11, dan game terhenti. Buka pengaturan Proton dan instal build yang direkomendasikan (10.0-26).',
+    hintNtoskrnl: 'Game memanggil fungsi kernel (PsGetProcessExitStatus) yang belum diimplementasikan di versi Proton ini dan terhenti. Buka pengaturan Proton untuk memilih DWProton 11.0-13 atau lebih baru.',
     hintXClients: 'Server X menolak koneksi — klien telah kehabisan slot, sehingga game membeku sebelum dapat membuka jendela. Keluar dan masuk kembali (atau restart) untuk membersihkannya. Peluncur sekarang mematikan prefix Wine game setelah setiap sesi, yang menghentikan sisa-sisa crash menumpuk seperti ini.',
+    hintXalia: 'Asisten aksesibilitas bawaan Proton (Xalia) gagal dijalankan karena tidak ditemukan driver grafis yang kompatibel. Menonaktifkan Xalia melalui PROTON_USE_XALIA=0 akan menyelesaikan masalah ini.',
+    hintPrefixCorrupted: 'Wine prefix rusak atau di-downgrade dari versi Proton yang lebih baru (DWProton 11 ke 10), sehingga merusak font dan pustaka sistem. Buka pengaturan Diagnostik dan klik "Reset prefix" untuk membuat prefix yang baru.',
     openProtonSettings: 'Buka pengaturan Proton',
+    openDiagnosticsSettings: 'Buka pengaturan Diagnostik',
   },
   logViewer: {
     copy: 'Salin log',

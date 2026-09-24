@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 export default {
   savePathsFirst: "Speichern Sie den neuen Pfad, bevor Sie mit Dateien arbeiten.",
   tasksFailed: "Übertragung konnte nicht überprüft werden",
@@ -96,6 +94,7 @@ export default {
   fps: "FPS-Zähler",
   controller: "Controller-Unterstützung",
   renderer: "Renderer",
+  gamemodeCommand: "GameMode-Befehl",
   systemStatus: "System",
   refreshCheck: "Erneut prüfen",
   installed: "Installiert",

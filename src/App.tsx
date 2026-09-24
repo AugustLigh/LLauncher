@@ -45,15 +45,28 @@ export default function App() {
   }, [settings?.language, refreshContent]);
 
   useEffect(() => {
-    let unlistenGame: () => void;
-    let unlistenTasks: () => void;
-    
-    initGameListeners().then(u => unlistenGame = u);
-    initTaskListeners(sync).then(u => unlistenTasks = u);
-    
+    let disposed = false;
+    const cleanups: (() => void)[] = [];
+
+    initGameListeners().then((u) => {
+      if (disposed) {
+        u();
+      } else {
+        cleanups.push(u);
+      }
+    });
+
+    initTaskListeners(sync).then((u) => {
+      if (disposed) {
+        u();
+      } else {
+        cleanups.push(u);
+      }
+    });
+
     return () => {
-      if (unlistenGame) unlistenGame();
-      if (unlistenTasks) unlistenTasks();
+      disposed = true;
+      cleanups.forEach((c) => c());
     };
   }, [initGameListeners, initTaskListeners, sync]);
 

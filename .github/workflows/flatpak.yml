@@ -40,14 +40,6 @@ jobs:
               r"      - type: git\n        url: https://github\.com/AugustLigh/LLauncher\.git\n(?:        (?:tag|commit): [^\n]+\n)+",
               "      - type: dir\n        path: ../..\n        skip:\n          - .git\n          - node_modules\n          - src-tauri/target\n",
               s,
-          )
-          # Inject the yarn offline fix for older tags that don't have it yet
-          if "sed -i" not in s2:
-              s2 = s2.replace(
-                  "      - yarn install --offline --frozen-lockfile",
-                  "      - sed -i -E '/^    \"@(tauri-apps|esbuild|rollup|typescript)\\/.*(aix|darwin|freebsd|netbsd|openbsd|sunos|win32|android|arm64|arm|loong64|mips64el|ppc64|riscv64|s390x|ia32|musl)/d' yarn.lock\n      - yarn install --offline --frozen-lockfile"
-              )
-          
           assert s2 != s, "git source block not found in the manifest"
           open("packaging/flatpak/ci.yml", "w").write(s2)
           PY

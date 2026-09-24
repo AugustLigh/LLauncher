@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 export default {
   savePathsFirst: "Lưu đường dẫn mới trước khi làm việc với các tệp.",
   tasksFailed: "Không thể xác minh quá trình chuyển dữ liệu",
@@ -95,6 +93,7 @@ export default {
   fps: "Bộ đếm FPS",
   controller: "Hỗ trợ tay cầm",
   renderer: "Trình kết xuất",
+  gamemodeCommand: "Lệnh GameMode",
   systemStatus: "Hệ thống",
   refreshCheck: "Kiểm tra lại",
   installed: "Đã cài đặt",

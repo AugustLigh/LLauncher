@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import uiModule from './ui.ko-kr.ts';
 const ui = (uiModule as any).default || uiModule;
 export default {
@@ -378,8 +376,12 @@ export default {
     viewLog: '전체 로그 보기',
     noLog: '로그 출력이 캡처되지 않았습니다.',
     hintDwproton11: '설치된 DWProton 버전(11.x 시리즈)이 Endfield와 호환되지 않습니다: 안티 치트가 Wine 11에서 아직 구현되지 않은 커널 함수를 호출하여 게임이 중단됩니다. Proton 설정을 열고 권장 빌드(10.0-26)를 설치하십시오.',
+    hintNtoskrnl: '게임이 이 Proton 버전에서 아직 구현되지 않은 커널 함수(PsGetProcessExitStatus)를 호출하여 중단되었습니다. Proton 설정을 열고 DWProton 11.0-13 이상을 선택하십시오.',
     hintXClients: 'X 서버가 연결을 거부했습니다 — 클라이언트 슬롯이 부족하여 게임이 창을 열기 전에 멈췄습니다. 로그아웃 후 다시 로그인하거나 재부팅하여 슬롯을 지우십시오. 이제 런처는 매 세션 후에 게임의 Wine 접두사를 종료하여 충돌의 잔재가 이와 같이 쌓이는 것을 방지합니다.',
+    hintXalia: '지원되는 비디오 드라이버를 찾을 수 없어 Proton 번들 접근성 도우미(Xalia)를 시작하지 못했습니다. PROTON_USE_XALIA=0으로 Xalia를 비활성화하면 이 문제가 해결됩니다.',
+    hintPrefixCorrupted: 'Wine 접두사가 손상되었거나 최신 Proton 버전(DWProton 11에서 10으로)에서 다운그레이드되어 글꼴 및 시스템 라이브러리가 손상되었습니다. 진단 설정을 열고 "접두사 재설정"을 클릭하여 새 접두사를 다시 생성하십시오.',
     openProtonSettings: 'Proton 설정 열기',
+    openDiagnosticsSettings: '진단 설정 열기',
   },
   logViewer: {
     copy: '로그 복사',

@@ -1,28 +1,34 @@
-// @ts-nocheck
-
-import { Component } from 'react';
+import { Component, ErrorInfo, ReactNode } from 'react';
 import { copyText } from '../../utils/clipboard';
 import './ErrorBoundary.css';
+
+export interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+export interface ErrorBoundaryState {
+  error: Error | null;
+}
 
 // Top-level safety net: a render throw anywhere below would otherwise leave a
 // blank window with no system chrome to close it (decorations are off). Catch
 // it, show the error plus a way to copy it and reload the webview.
-export default class ErrorBoundary extends Component {
-  constructor(props) {
+export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { error: null };
   }
 
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { error };
   }
 
-  componentDidCatch(error, info) {
+  componentDidCatch(error: Error, info: ErrorInfo): void {
     // eslint-disable-next-line no-console
     console.error('Unhandled UI error:', error, info);
   }
 
-  render() {
+  render(): ReactNode {
     if (!this.state.error) return this.props.children;
 
     const text = String(this.state.error?.stack || this.state.error?.message || this.state.error);
