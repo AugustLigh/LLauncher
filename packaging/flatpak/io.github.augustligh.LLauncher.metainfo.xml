@@ -82,6 +82,18 @@
   </content_rating>
 
   <releases>
+    <release version="1.3.4" date="2026-09-24">
+      <url>https://github.com/AugustLigh/LLauncher/releases/tag/1.3.4</url>
+      <description>
+        <p>
+          The mod loader no longer affects a normal launch: its DLLs are put
+          aside unless the game is started with mods, which fixes the game
+          quitting on the terms dialog after EFMI was installed. DWProton
+          downloads fall back to the GitHub mirror when dawn.wine is down.
+          GameMode can run a command of your choice.
+        </p>
+      </description>
+    </release>
     <release version="1.3.3" date="2026-09-11">
       <url>https://github.com/AugustLigh/LLauncher/releases/tag/1.3.3</url>
       <description>
