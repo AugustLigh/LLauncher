@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLauncher Flatpak repository</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0 auto; padding: 3rem 1.25rem; max-width: 46rem;
+         font: 16px/1.6 system-ui, sans-serif; }
+  pre { padding: 1rem; overflow-x: auto; border-radius: 8px;
+        background: rgba(127,127,127,.14); }
+  code { font-family: ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<h1>LLauncher Flatpak repository</h1>
+<p>Add the remote once, then install and update like any other Flatpak app.</p>
+<pre><code>flatpak remote-add --if-not-exists --user llauncher \
+    https://augustligh.github.io/LLauncher/llauncher.flatpakrepo
+flatpak install --user llauncher io.github.augustligh.LLauncher</code></pre>
+<p>Later updates come with <code>flatpak update</code>.</p>
+<p>The repository is signed; the public key is pinned when the remote is added.</p>
+<p><a href="https://github.com/AugustLigh/LLauncher">Source code and other install methods</a></p>
+</body>
+</html>

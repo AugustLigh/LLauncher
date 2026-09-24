@@ -1,0 +1,10 @@
+[core]
+repo_version=1
+mode=archive-z2
+indexed-deltas=true
+
+[flatpak]
+title=LLauncher
+comment=Linux launcher for Arknights: Endfield
+description=Flatpak repository for LLauncher, published from GitHub Actions on every release.
+homepage=https://github.com/AugustLigh/LLauncher
