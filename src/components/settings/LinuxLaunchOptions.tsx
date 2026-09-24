@@ -99,6 +99,8 @@ export default function LinuxLaunchOptions({ form, onChange, systemCheck }: Linu
           {toggle(
             "use_gamemode",
             "GameMode",
+            // A custom command stands in for gamemoderun, so its absence
+            // stops mattering once one is set.
             !!systemCheck &&
               !systemCheck.has_gamemode &&
               !form.gamemode_command?.trim(),

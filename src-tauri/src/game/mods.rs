@@ -698,7 +698,8 @@ mod tests {
     fn clearing_the_loader_leaves_the_mods_alone() {
         // An install clears what the previous loader owned so its stale ini
         // files cannot load alongside the new ones — but Mods is the user's,
-        // and so is the backup of the file the loader displaced.
+        // and the file the loader displaced goes back where the game had it,
+        // for the new install to back up again.
         let dir = tempdir();
         std::fs::create_dir_all(dir.join("Core/EFMI")).unwrap();
         std::fs::create_dir_all(dir.join("ShaderFixes")).unwrap();

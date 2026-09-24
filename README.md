@@ -393,6 +393,26 @@ Recent AppImages bundle the GIO TLS module and disable the WebKit DMA-BUF render
 GIO_MODULE_DIR=/usr/lib/gio/modules WEBKIT_DISABLE_COMPOSITING_MODE=1 ./LLauncher_*.AppImage
 ```
 
+**Launcher window stays blank with `GStreamer element autoaudiosink not found`**
+
+The animated background plays through the host's GStreamer, and a broken
+GStreamer install can take the whole window down with it. The launcher skips
+the video when the plugins are missing; if it still comes up blank, force the
+static background:
+
+```bash
+LLAUNCHER_NO_VIDEO=1 llauncher
+```
+
+**DualSense / DualShock shows Xbox button icons**
+
+"Controller support (SDL)" hands every gamepad to the game as an XInput
+controller, which is what makes it work without Steam — and XInput has no
+notion of PlayStation buttons. To let the game see the controller as the Sony
+device it is, turn that switch off: Proton then passes it through as a raw HID
+device. That needs read/write access to its `/dev/hidraw*` node, which the udev
+rules of the `steam-devices` package (or Steam itself) grant.
+
 **`libayatana-appindicator is deprecated` warning**
 
 Harmless — it comes from the system tray library and does not affect functionality.
