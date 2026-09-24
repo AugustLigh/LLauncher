@@ -16,6 +16,13 @@ use std::path::PathBuf;
 /// the static image, which needs no GStreamer.
 #[cfg(target_os = "linux")]
 pub fn can_play_video_background() -> bool {
+    // The probe only sees plugin files, not whether GStreamer can load them —
+    // a stale registry or a mismatched plugin still takes the UI down. A
+    // setting would sit behind the very UI that fails to come up, so the
+    // escape hatch is an environment variable.
+    if std::env::var_os("LLAUNCHER_NO_VIDEO").is_some_and(|v| !v.is_empty() && v != "0") {
+        return false;
+    }
     // `autodetect` provides autoaudiosink — the exact element WebKit dies
     // without — and `playback` provides playbin, the pipeline it builds.
     // Both ship in every functional GStreamer install (base + good plugins).
