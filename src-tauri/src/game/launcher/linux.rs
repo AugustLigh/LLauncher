@@ -249,7 +249,15 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
 
     let mut launch_cmd = String::new();
     if settings.use_gamemode {
-        launch_cmd.push_str("gamemoderun ");
+        // Deliberately unquoted, like the custom launch arguments: the user's
+        // own command line, arguments and all.
+        let gamemode = settings.gamemode_command.trim();
+        launch_cmd.push_str(if gamemode.is_empty() {
+            "gamemoderun"
+        } else {
+            gamemode
+        });
+        launch_cmd.push(' ');
     }
     if settings.use_gamescope {
         // gamescope hosts the game in its own compositor; MangoHud is folded

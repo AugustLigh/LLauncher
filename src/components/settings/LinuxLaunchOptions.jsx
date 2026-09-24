@@ -90,8 +90,13 @@ export default function LinuxLaunchOptions({ form, onChange, systemCheck }) {
           {toggle(
             "use_gamemode",
             "GameMode",
-            systemCheck && !systemCheck.has_gamemode,
+            // A custom command stands in for gamemoderun, so its absence
+            // stops mattering once one is set.
+            systemCheck &&
+              !systemCheck.has_gamemode &&
+              !form.gamemode_command?.trim(),
           )}
+          {field("gamemode_command", t("ui.gamemodeCommand"), "gamemoderun")}
           {toggle("use_dxvk_async", "DXVK Async")}
           {toggle("disable_fsync", t("ui.useFsync"), false, true)}
           {toggle("disable_esync", t("ui.useEsync"), false, true)}

@@ -94,6 +94,7 @@ export default {
   fps: "FPS counter",
   controller: "Controller support",
   renderer: "Renderer",
+  gamemodeCommand: "GameMode command",
   systemStatus: "System",
   refreshCheck: "Check again",
   installed: "Installed",

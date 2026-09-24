@@ -94,6 +94,7 @@ export default {
   fps: "Счётчик FPS",
   controller: "Поддержка контроллеров",
   renderer: "Рендерер",
+  gamemodeCommand: "Команда GameMode",
   systemStatus: "Система",
   refreshCheck: "Проверить снова",
   installed: "Установлен",
