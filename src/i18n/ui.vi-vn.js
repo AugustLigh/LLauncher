@@ -93,6 +93,7 @@ export default {
   fps: "Bộ đếm FPS",
   controller: "Hỗ trợ tay cầm",
   renderer: "Trình kết xuất",
+  gamemodeCommand: "Lệnh GameMode",
   systemStatus: "Hệ thống",
   refreshCheck: "Kiểm tra lại",
   installed: "Đã cài đặt",

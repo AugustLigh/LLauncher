@@ -94,6 +94,7 @@ export default {
   fps: "FPSカウンター",
   controller: "コントローラーサポート",
   renderer: "レンダラー",
+  gamemodeCommand: "GameMode のコマンド",
   systemStatus: "システム",
   refreshCheck: "再確認",
   installed: "インストール済み",

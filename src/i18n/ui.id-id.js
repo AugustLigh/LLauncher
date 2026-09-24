@@ -94,6 +94,7 @@ export default {
   fps: "Penghitung FPS",
   controller: "Dukungan kontroler",
   renderer: "Penyaji",
+  gamemodeCommand: "Perintah GameMode",
   systemStatus: "Sistem",
   refreshCheck: "Periksa lagi",
   installed: "Terinstal",

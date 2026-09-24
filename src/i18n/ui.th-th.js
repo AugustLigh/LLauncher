@@ -93,6 +93,7 @@ export default {
   fps: "ตัวนับ FPS",
   controller: "รองรับจอยคอนโทรลเลอร์",
   renderer: "ตัวเรนเดอร์",
+  gamemodeCommand: "คำสั่ง GameMode",
   systemStatus: "ระบบ",
   refreshCheck: "ตรวจสอบอีกครั้ง",
   installed: "ติดตั้งแล้ว",

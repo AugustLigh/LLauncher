@@ -94,6 +94,7 @@ export default {
   fps: "Compteur de FPS",
   controller: "Prise en charge de la manette",
   renderer: "Moteur de rendu",
+  gamemodeCommand: "Commande GameMode",
   systemStatus: "Système",
   refreshCheck: "Vérifier à nouveau",
   installed: "Installé",

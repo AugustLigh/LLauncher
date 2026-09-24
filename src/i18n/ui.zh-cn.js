@@ -94,6 +94,7 @@ export default {
   fps: "FPS 计数器",
   controller: "控制器支持",
   renderer: "渲染器",
+  gamemodeCommand: "GameMode 命令",
   systemStatus: "系统",
   refreshCheck: "再次检查",
   installed: "已安装",
