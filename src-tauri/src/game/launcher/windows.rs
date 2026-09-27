@@ -362,4 +362,3 @@ mod tests {
         assert_eq!(priority_flags(&s), ABOVE_NORMAL_PRIORITY_CLASS);
     }
 }
-

@@ -377,4 +377,3 @@ mod tests {
         assert!(resolve_wine(&settings).is_none());
     }
 }
-

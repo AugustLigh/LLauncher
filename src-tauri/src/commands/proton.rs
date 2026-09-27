@@ -195,5 +195,3 @@ pub async fn download_dwproton(
     );
     result
 }
-
-

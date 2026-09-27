@@ -279,4 +279,3 @@ pub struct UpdateRequired {
     pub installed_version: String,
     pub latest_version: String,
 }
-

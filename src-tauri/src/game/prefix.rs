@@ -210,4 +210,3 @@ pub fn restore(_compat_data: &std::path::Path, _archive: &std::path::Path) -> Re
 pub fn reset(_compat_data: &std::path::Path) -> Result<(), AppError> {
     Err(AppError::Unsupported("prefix reset".to_string()))
 }
-

@@ -692,4 +692,3 @@ mod tests {
         assert!(!s.installed);
     }
 }
-

@@ -645,4 +645,3 @@ mod tests {
         assert_eq!(parse_guid("+c5e7fda-e8bf-4a96-9a85-a6e23a8c635c"), None);
     }
 }
-

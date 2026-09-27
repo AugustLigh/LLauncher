@@ -314,4 +314,3 @@ impl AppSettings {
             .map_err(|e| crate::error::AppError::Api(format!("settings save task failed: {}", e)))?
     }
 }
-

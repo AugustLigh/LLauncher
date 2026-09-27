@@ -93,5 +93,3 @@ pub async fn uninstall_optiscaler(state: State<'_, AppState>) -> Result<(), AppE
         .await
         .map_err(|e| AppError::Api(format!("OptiScaler uninstall task failed: {}", e)))?
 }
-
-

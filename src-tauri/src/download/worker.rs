@@ -286,4 +286,3 @@ pub async fn download_file(
 
     Ok(())
 }
-

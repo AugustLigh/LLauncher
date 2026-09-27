@@ -141,4 +141,3 @@ mod tests {
         assert_eq!(disks[0].required, 120);
     }
 }
-

@@ -219,5 +219,3 @@ pub async fn read_launch_log() -> Result<String, AppError> {
     .await
     .map_err(|e| AppError::Api(format!("read log task failed: {}", e)))?
 }
-
-

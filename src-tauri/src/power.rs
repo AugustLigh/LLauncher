@@ -383,4 +383,3 @@ mod tests {
         inhibitor.release();
     }
 }
-

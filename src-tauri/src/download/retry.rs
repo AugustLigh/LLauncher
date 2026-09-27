@@ -117,4 +117,3 @@ mod tests {
         assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 }
-

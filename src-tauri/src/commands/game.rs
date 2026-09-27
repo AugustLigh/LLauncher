@@ -389,5 +389,3 @@ pub async fn get_game_sessions() -> Result<Vec<crate::config::sessions::GameSess
         .await
         .map_err(|e| AppError::Api(format!("sessions load task failed: {}", e)))
 }
-
-

@@ -67,4 +67,3 @@ pub async fn determine_game_state(
         version: installed_version.to_string(),
     })
 }
-

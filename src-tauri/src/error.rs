@@ -78,4 +78,3 @@ impl Serialize for AppError {
         serializer.serialize_str(&self.to_string())
     }
 }
-

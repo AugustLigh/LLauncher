@@ -45,4 +45,3 @@ pub fn append(session: GameSession) {
         }
     }
 }
-

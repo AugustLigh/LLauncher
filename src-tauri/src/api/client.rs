@@ -154,4 +154,3 @@ pub async fn get_launcher_content(
 
     Ok(content)
 }
-

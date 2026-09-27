@@ -683,4 +683,3 @@ mod tests {
         assert_eq!(idx.files[0].size, 12);
     }
 }
-

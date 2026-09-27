@@ -114,5 +114,3 @@ pub async fn reset_prefix(state: State<'_, AppState>) -> Result<(), AppError> {
         .await
         .map_err(|e| AppError::Api(format!("Reset task failed: {}", e)))?
 }
-
-
