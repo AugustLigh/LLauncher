@@ -1,11 +1,11 @@
-import { commands, InstalledProton, ProtonReleaseInfo, SystemCheck } from '../../../bindings';
 import { useState, useEffect, useCallback } from "react";
+import { commands, InstalledProton, ProtonReleaseInfo, SystemCheck } from "../../../bindings";
 import { useTranslation } from "../../../i18n";
-import { useTaskStore, taskActive } from "../../../stores/taskStore";
 import { Button, Status } from "../../common/Controls";
 import ErrorNotice from "../../common/ErrorNotice";
 import PathSelector from "../PathSelector";
 import ProgressBar from "../../home/ProgressBar";
+import { useTaskStore, taskActive } from "../../../stores/taskStore";
 import { formatSize } from "../../../utils/format";
 
 export interface RuntimeSettingsProps {
@@ -51,8 +51,8 @@ export default function RuntimeSettings({
       ]);
       if (r.status === "error") throw new Error(r.error);
       if (i.status === "error") throw new Error(i.error);
-      setReleases(r.data);
-      setInstalled(i.data);
+      setReleases(r.data || []);
+      setInstalled(i.data || []);
       setRecommended(tag);
     } catch (e) {
       setError(e);
@@ -84,7 +84,7 @@ export default function RuntimeSettings({
             {release.tag_name === recommended
               ? t("ui.recommended")
               : release.published_at}
-            {release.size && release.size > 0 && ` · ${formatSize(release.size)}`}
+            {(release.size ?? 0) > 0 && ` · ${formatSize(release.size ?? 0)}`}
           </small>
         </div>
         {existing ? (
@@ -128,47 +128,61 @@ export default function RuntimeSettings({
                 ? "ui.selected"
                 : systemCheck?.has_proton
                   ? "ui.runtimeReady"
-                  : "ui.runtimeNeeded",
-              { runtime: runtimeName },
+                  : "ui.notFound",
             )}
           </Status>
-          <span className="runtime-summary__name">
+          <small title={form[field]}>
             {selected?.name ||
-              (form[field]
-                ? form[field].split(/[/\\]/).filter(Boolean).pop()
-                : null) ||
-              t("ui.noRuntimeSelected", { runtime: runtimeName })}
-          </span>
-          {pending && (
-            <small className="runtime-summary__note">
-              {t("ui.runtimePending", { runtime: runtimeName })}
-            </small>
-          )}
+              form[field]?.split(/[\\/]/).filter(Boolean).pop() ||
+              runtimeName}
+          </small>
         </div>
-        <Button
-          variant="secondary"
-          onClick={() => {
-            setOpen((v: boolean) => !v);
-            if (!open) load();
-          }}
-        >
-          {t(open ? "ui.hidePicker" : "ui.chooseRuntime", {
-            runtime: runtimeName,
-          })}
+        <Button onClick={() => setOpen(!open)} aria-expanded={open}>
+          {t(open ? "ui.lessNews" : "ui.manage")}
         </Button>
       </div>
-      {taskActive(task) && (
-        <ProgressBar progress={task?.progress} proton paused={false} />
-      )}
-      {task?.status === "completed" && (
-        <Status kind="success">
-          {t("settings.runtimeDownloaded", { runtime: runtimeName })}
-        </Status>
+      {task && taskActive(task) && <ProgressBar progress={task.progress} proton />}
+      {task?.error && (
+        <ErrorNotice
+          title={t("errors.protonDownloadFailed")}
+          error={task.error}
+        />
       )}
       {open && (
-        <div className="runtime-picker">
-          <div className="runtime-picker__heading">
-            <h4>{t("ui.availableBuilds")}</h4>
+        <div className="runtime-body">
+          {loading && !releases.length && <small>{t("common.loading")}</small>}
+          {error && (
+            <ErrorNotice
+              title={t("ui.protonReleasesFailed")}
+              error={error}
+              onRetry={load}
+            />
+          )}
+          {installed.map((p) => (
+            <div className="runtime-row" key={p.path}>
+              <div>
+                <strong>{p.name}</strong>
+                <small>
+                  {t(
+                    form[field] === p.path ? "ui.selected" : "ui.installed",
+                  )}
+                  {mac && p.wine_patch && ` · ${p.wine_patch}`}
+                  {mac && p.dxmt && ` · DXMT ${p.dxmt}`}
+                  {mac && !p.wine_patch && ` · ${t("ui.wineUnpatched")}`}
+                </small>
+              </div>
+              <Button
+                disabled={busy || form[field] === p.path}
+                onClick={() => onChange(field, p.path)}
+              >
+                {t("settings.use")}
+              </Button>
+            </div>
+          ))}
+          {recommendedRelease && row(recommendedRelease)}
+          <details className="ui-details">
+            <summary>{t("ui.otherVersions")}</summary>
+            {releases.filter((r) => r.tag_name !== recommended).map(row)}
             <Button
               variant="ghost"
               icon="refresh"
@@ -177,58 +191,21 @@ export default function RuntimeSettings({
             >
               {t("common.refresh")}
             </Button>
-          </div>
-          {loading && !releases.length && (
-            <Status busy>{t("common.loading")}</Status>
-          )}
-          {error && (
-            <ErrorNotice
-              title={t("ui.runtimeListFailed", { runtime: runtimeName })}
-              error={error}
-              onRetry={load}
-            />
-          )}
-          {recommendedRelease && row(recommendedRelease)}
-          {releases
-            .filter((r) => r.tag_name !== recommended)
-            .map((r) => row(r))}
-          {installed
-            .filter(
-              (p) =>
-                !releases.some(
-                  (r) =>
-                    p.name === r.tag_name ||
-                    p.name.startsWith(r.tag_name + "-"),
-                ),
-            )
-            .map((p) => (
-              <div className="runtime-row" key={p.path}>
-                <div>
-                  <strong>{p.name}</strong>
-                  <small className="selectable">{p.path}</small>
-                </div>
-                <Button
-                  disabled={busy || form[field] === p.path}
-                  onClick={() => onChange(field, p.path)}
-                >
-                  {t(
-                    form[field] === p.path
-                      ? "ui.selected"
-                      : "settings.use",
-                  )}
-                </Button>
-              </div>
-            ))}
+          </details>
           <details className="ui-details">
-            <summary>{t("ui.customRuntime", { runtime: runtimeName })}</summary>
-            <div className="ui-details__body">
-              <PathSelector
-                label={t("ui.runtimeDirectory", { runtime: runtimeName })}
-                value={form[field]}
-                onChange={(v) => onChange(field, v)}
-                disabled={busy}
-              />
-            </div>
+            <summary>{t("ui.manualPaths")}</summary>
+            <PathSelector
+              label={t(mac ? "settings.wineDir" : "settings.activeProton")}
+              value={form[field]}
+              onChange={(v) => onChange(field, v)}
+              disabled={busy}
+            />
+            <PathSelector
+              label={t("settings.prefixDir")}
+              value={form.proton_prefix_dir}
+              onChange={(v) => onChange("proton_prefix_dir", v)}
+              disabled={busy}
+            />
           </details>
         </div>
       )}

@@ -1,11 +1,11 @@
-import { commands } from '../../../bindings';
 import { useState } from "react";
+import { commands } from "../../../bindings";
 import { useTranslation } from "../../../i18n";
-import { useTaskStore, taskActive } from "../../../stores/taskStore";
 import { Button, Field, Status, Switch } from "../../common/Controls";
 import PathSelector from "../PathSelector";
 import ProgressBar from "../../home/ProgressBar";
 import ErrorNotice from "../../common/ErrorNotice";
+import { useTaskStore, taskActive } from "../../../stores/taskStore";
 
 export interface FilesSettingsProps {
   form: Record<string, any>;
@@ -34,9 +34,9 @@ export default function FilesSettings({
     setError(null);
     try {
       const res = await commands.uninstallGame();
-      if (res.status === 'error') throw new Error(res.error);
+      if (res.status === "error") throw new Error(res.error);
       await onSync();
-    } catch (e: any) {
+    } catch (e) {
       setError(e);
     } finally {
       setWorking(false);
@@ -45,14 +45,13 @@ export default function FilesSettings({
   const check = async () => {
     setError(null);
     try {
-      const latestRes = await commands.getGameVersion();
-      if (latestRes.status === "error") throw new Error(latestRes.error);
-      const latest = latestRes.data;
+      const res = await commands.getGameVersion();
+      if (res.status === "error") throw new Error(res.error);
       confirm({
         title: t("settings.integrity.name"),
         message: t("settings.integrity.confirm", {
           installed: form.installed_version || "—",
-          latest: latest?.version || "—",
+          latest: res.data?.version || "—",
         }),
         label: t("settings.integrity.button"),
         run: () => start("integrity"),
@@ -61,6 +60,7 @@ export default function FilesSettings({
       setError(e);
     }
   };
+  const repaired = Number(task?.result?.repaired) || 0;
   return (
     <>
       <PathSelector
@@ -75,108 +75,86 @@ export default function FilesSettings({
         <div className="settings-speed">
           <select
             aria-label={t("settings.speedLimit")}
-            value={
-              form.download_speed_limit > 0
-                ? form.download_speed_limit >= 1048576
-                  ? `${Math.round(form.download_speed_limit / 1048576)}M`
-                  : `${Math.round(form.download_speed_limit / 1024)}K`
-                : "none"
-            }
-            onChange={(e) => {
-              const v = e.target.value;
+            value={form.download_speed_limit > 0 ? "limited" : "unlimited"}
+            onChange={(e) =>
               onChange(
                 "download_speed_limit",
-                v === "none"
-                  ? 0
-                  : v.endsWith("M")
-                    ? parseInt(v, 10) * 1048576
-                    : parseInt(v, 10) * 1024,
-              );
-            }}
+                e.target.value === "unlimited" ? 0 : 10 * 1024 * 1024,
+              )
+            }
           >
-            <option value="none">{t("settings.unlimited")}</option>
-            <option value="1M">1 MB/s</option>
-            <option value="5M">5 MB/s</option>
-            <option value="10M">10 MB/s</option>
-            <option value="25M">25 MB/s</option>
-            <option value="50M">50 MB/s</option>
+            <option value="unlimited">{t("ui.unlimited")}</option>
+            <option value="limited">{t("ui.limit")}</option>
           </select>
+          {form.download_speed_limit > 0 && (
+            <>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                aria-label={t("settings.speedLimit")}
+                value={+(form.download_speed_limit / 1024 / 1024).toFixed(2)}
+                onChange={(e) =>
+                  onChange(
+                    "download_speed_limit",
+                    Math.max(
+                      1,
+                      Math.round(
+                        (Number(e.target.value) || 0.01) * 1024 * 1024,
+                      ),
+                    ),
+                  )
+                }
+              />
+              <small>MB/s</small>
+            </>
+          )}
         </div>
       </div>
       <Switch
-        label={t("settings.keepPacks.name")}
-        note={t("settings.keepPacks.desc")}
-        checked={form.keep_download_packs}
-        onChange={(v) => onChange("keep_download_packs", v)}
-      />
-      <Switch
-        label={t("settings.verifyAfter.name")}
-        note={t("settings.verifyAfter.desc")}
-        checked={form.verify_after_download}
-        onChange={(v) => onChange("verify_after_download", v)}
+        label={t("settings.inhibitSleep.name")}
+        note={t("settings.inhibitSleep.desc")}
+        checked={form.inhibit_sleep_on_download !== false}
+        onChange={(v) => onChange("inhibit_sleep_on_download", v)}
       />
       <div className="setting-row">
-        <div className="setting-row__label">
-          <span>{t("settings.integrity.name")}</span>
-          <small>{t("settings.integrity.desc")}</small>
-        </div>
+        <span>{t("settings.integrity.name")}</span>
         <Button
-          disabled={
-            busy || pathsChanged || working || !form.installed_version
-          }
+          icon="refresh"
           onClick={check}
+          disabled={busy || pathsChanged || working || !form.installed_version}
         >
-          {t("settings.integrity.button")}
+          {t("settings.integrity.button")}…
         </Button>
       </div>
-      {taskActive(task) && task?.kind === "integrity" && (
-        <ProgressBar
-          progress={task.progress}
-          paused={task.status === "paused"}
-          stopping={task.status === "pausing"}
-          onResume={() => start("integrity")}
-          onPause={() => stop("game")}
-          onCancel={() => stop("game", true)}
-        />
+      {task && (taskActive(task) || task.status === "paused") && (
+        <div className="settings-transfer">
+          <ProgressBar
+            progress={task.progress}
+            paused={task.status === "paused"}
+            stopping={["pausing", "cancelling"].includes(task.status)}
+            onResume={
+              task.status === "paused" && !pathsChanged
+                ? () => start(task.kind)
+                : undefined
+            }
+            onPause={
+              taskActive(task) && task.progress?.stage !== "extracting"
+                ? () => stop("game").catch(setError)
+                : undefined
+            }
+          />
+        </div>
       )}
-      {task?.status === "completed" && task.kind === "integrity" && (
-        <Status
-          kind={
-            Number(task.result?.corrupted) > 0 || Number(task.result?.missing) > 0
-              ? "warning"
-              : "success"
-          }
-        >
-          {t(
-            Number(task.result?.corrupted) > 0 || Number(task.result?.missing) > 0
-              ? "settings.integrity.issuesFound"
-              : "settings.integrity.clean",
-            {
-              missing: Number(task.result?.missing) || 0,
-              corrupted: Number(task.result?.corrupted) || 0,
-              checked: Number(task.result?.files_checked) || 0,
-            },
-          )}
-        </Status>
-      )}
-      {taskActive(task) && task?.kind === "repair" && (
-        <ProgressBar
-          progress={task.progress}
-          paused={task.status === "paused"}
-          stopping={task.status === "pausing"}
-          onResume={() => start("repair")}
-          onPause={() => stop("game")}
-          onCancel={() => stop("game", true)}
-        />
-      )}
-      {task?.status === "completed" && task.kind === "repair" && (
+      {task?.kind === "integrity" && task.status === "completed" && (
         <Status kind="success">
           {t(
-            Number(task.result?.repaired) > 0
-              ? "settings.repair.done"
-              : "settings.repair.clean",
+            repaired > 0
+              ? "settings.integrity.resultRepaired"
+              : "settings.integrity.resultOk",
             {
-              repaired: Number(task.result?.repaired) || 0,
+              checked: Number(task.result?.checked) || 0,
+              repaired,
             },
           )}
         </Status>
