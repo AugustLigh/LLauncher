@@ -98,10 +98,6 @@ export default function App() {
               dismissFailure();
               openSettings("proton");
             }}
-            onOpenDiagnosticsSettings={() => {
-              dismissFailure();
-              openSettings("diagnostics");
-            }}
           />
         )}
       </MainLayout>

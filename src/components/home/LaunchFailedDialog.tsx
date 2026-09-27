@@ -8,26 +8,21 @@ import "./LaunchFailedDialog.css";
 // Known-failure signature ids from the backend (game::diagnose) mapped to
 // their translated advice. `proton` marks the ones a different Proton build
 // fixes, which are the only ones the shortcut into those settings helps with.
-const HINTS: Record<string, { key: string; proton?: boolean; diagnostics?: boolean }> = {
+const HINTS: Record<string, { key: string; proton?: boolean }> = {
   "dwproton11-ntoskrnl": { key: "launchFailed.hintDwproton11", proton: true },
-  "ntoskrnl-generic": { key: "launchFailed.hintNtoskrnl", proton: true },
   "x-clients-exhausted": { key: "launchFailed.hintXClients" },
-  "xalia-crash": { key: "launchFailed.hintXalia" },
-  "prefix-corrupted": { key: "launchFailed.hintPrefixCorrupted", diagnostics: true },
 };
 
 export interface LaunchFailedDialogProps {
   failure: LaunchFailed | null;
   onClose: () => void;
   onOpenProtonSettings?: () => void;
-  onOpenDiagnosticsSettings?: () => void;
 }
 
 export default function LaunchFailedDialog({
   failure,
   onClose,
   onOpenProtonSettings,
-  onOpenDiagnosticsSettings,
 }: LaunchFailedDialogProps) {
   const { t } = useTranslation();
   const [showFullLog, setShowFullLog] = useState(false);
@@ -77,14 +72,6 @@ export default function LaunchFailedDialog({
                     onClick={onOpenProtonSettings}
                   >
                     {t("launchFailed.openProtonSettings")}
-                  </button>
-                )}
-                {hint.diagnostics && onOpenDiagnosticsSettings && (
-                  <button
-                    className="launch-failed__btn launch-failed__btn--primary"
-                    onClick={onOpenDiagnosticsSettings}
-                  >
-                    {t("launchFailed.openDiagnosticsSettings")}
                   </button>
                 )}
               </div>

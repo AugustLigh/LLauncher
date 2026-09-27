@@ -262,14 +262,14 @@ struct Package {
     bytes: Vec<u8>,
 }
 
-#[derive(Debug, Deserialize, specta::Type)]
+#[derive(Debug, Deserialize)]
 struct GhRelease {
     tag_name: String,
     #[serde(default)]
     assets: Vec<GhAsset>,
 }
 
-#[derive(Debug, Deserialize, specta::Type)]
+#[derive(Debug, Deserialize)]
 struct GhAsset {
     name: String,
     browser_download_url: String,
@@ -292,21 +292,12 @@ pub async fn install_loader(
         )));
     }
 
-    crate::logging::info(format!(
-        "mods: installing mod loader into {}",
-        game_dir.display()
-    ));
-
     let libs = fetch_package(client, LIBS_REPO).await?;
     let efmi = fetch_package(client, EFMI_REPO).await?;
 
     let game_dir = game_dir.to_path_buf();
     let version = efmi.tag.clone();
     let libs_version = libs.tag.clone();
-    crate::logging::info(format!(
-        "mods: unpacking 3DMigoto {} and EFMI {}...",
-        libs_version, version
-    ));
     let files = tokio::task::spawn_blocking(move || -> Result<usize, AppError> {
         // Stale scripts are worse than missing ones: EFMI moves ini files
         // between releases, and 3DMigoto happily loads whatever is left over
@@ -331,85 +322,28 @@ pub async fn install_loader(
 
 /// Fetch a repository's latest release and download its `.zip` asset.
 async fn fetch_package(client: &reqwest::Client, repo: &str) -> Result<Package, AppError> {
-    crate::logging::info(format!("mods: fetching latest release for {}", repo));
-
-    let api_url = format!("https://api.github.com/repos/{}/releases/latest", repo);
-    let api_res = client
-        .get(&api_url)
+    let release: GhRelease = client
+        .get(format!(
+            "https://api.github.com/repos/{}/releases/latest",
+            repo
+        ))
         .header("User-Agent", "LLauncher")
         .send()
-        .await;
-
-    if let Ok(resp) = api_res {
-        if resp.status().is_success() {
-            if let Ok(release) = resp.json::<GhRelease>().await {
-                if let Some(asset) = release
-                    .assets
-                    .iter()
-                    .find(|a| a.name.to_lowercase().ends_with(".zip"))
-                {
-                    crate::logging::info(format!(
-                        "mods: downloading asset '{}' ({})",
-                        asset.name, asset.browser_download_url
-                    ));
-
-                    let bytes = client
-                        .get(&asset.browser_download_url)
-                        .header("User-Agent", "LLauncher")
-                        .send()
-                        .await?
-                        .error_for_status()?
-                        .bytes()
-                        .await?;
-
-                    return Ok(Package {
-                        tag: release.tag_name,
-                        bytes: bytes.to_vec(),
-                    });
-                }
-            }
-        }
-    }
-
-    // Fallback: GitHub API might be rate-limited (403/429) or unavailable.
-    // Query https://github.com/{repo}/releases/latest which redirects to the tag.
-    crate::logging::warn(format!(
-        "mods: GitHub API unavailable for {}, attempting release redirect fallback",
-        repo
-    ));
-    let latest_url = format!("https://github.com/{}/releases/latest", repo);
-    let resp = client
-        .get(&latest_url)
-        .header("User-Agent", "LLauncher")
-        .send()
+        .await?
+        .error_for_status()?
+        .json()
         .await?;
 
-    let final_url = resp.url().as_str();
-    let tag = final_url
-        .rsplit('/')
-        .next()
-        .filter(|t| !t.is_empty() && *t != "latest")
+    let asset = release
+        .assets
+        .iter()
+        .find(|a| a.name.to_lowercase().ends_with(".zip"))
         .ok_or_else(|| {
-            AppError::Api(format!("Could not resolve latest release tag for {}", repo))
+            AppError::Api(format!("The latest {} release has no .zip asset", repo))
         })?;
 
-    // Assets follow standard naming: XXMI-PACKAGE-{tag}.zip or EFMI-PACKAGE-{tag}.zip
-    let pkg_name = if repo.contains("XXMI") {
-        "XXMI-PACKAGE"
-    } else {
-        "EFMI-PACKAGE"
-    };
-    let download_url = format!(
-        "https://github.com/{}/releases/download/{}/{}-{}.zip",
-        repo, tag, pkg_name, tag
-    );
-    crate::logging::info(format!(
-        "mods: downloading package via fallback url: {}",
-        download_url
-    ));
-
     let bytes = client
-        .get(&download_url)
+        .get(&asset.browser_download_url)
         .header("User-Agent", "LLauncher")
         .send()
         .await?
@@ -418,7 +352,7 @@ async fn fetch_package(client: &reqwest::Client, repo: &str) -> Result<Package, 
         .await?;
 
     Ok(Package {
-        tag: tag.to_string(),
+        tag: release.tag_name,
         bytes: bytes.to_vec(),
     })
 }
@@ -441,11 +375,9 @@ fn clear_loader_files(game_dir: &Path) -> Result<(), AppError> {
             std::fs::remove_dir_all(&path)?;
         }
     }
-    for file in [LOADER_DLL, LOADER_INI] {
-        let path = game_dir.join(file);
-        if path.is_file() {
-            std::fs::remove_file(&path)?;
-        }
+    let ini = game_dir.join(LOADER_INI);
+    if ini.is_file() {
+        std::fs::remove_file(&ini)?;
     }
     Ok(())
 }
@@ -792,4 +724,3 @@ mod tests {
         assert!(!s.loader_installed);
     }
 }
-
