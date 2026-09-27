@@ -141,55 +141,7 @@ pub fn run() {
     // straight away and stay in the tray instead of showing the window.
     let play_requested = std::env::args().any(|a| a == "--play");
 
-        let builder = tauri_specta::Builder::<tauri::Wry>::new()
-        .commands(tauri_specta::collect_commands![
-            commands::settings::get_settings,
-            tasks::get_transfers,
-            tasks::stop_transfer,
-            install_plan::get_install_plan,
-            commands::settings::save_settings,
-            commands::game::get_game_version,
-            commands::settings::get_launcher_content,
-            commands::game::check_game_state,
-            commands::download::start_download,
-            commands::download::cancel_download,
-            commands::download::clear_download_cache,
-            commands::download::verify_game_integrity,
-            commands::download::start_update,
-            commands::game::launch_game,
-            commands::mods::get_mods_status,
-            commands::mods::install_mod_loader,
-            commands::mods::uninstall_mod_loader,
-            commands::mods::open_mods_folder,
-            commands::mods::get_optiscaler_status,
-            commands::mods::install_optiscaler,
-            commands::mods::uninstall_optiscaler,
-            commands::game::stop_game,
-            commands::game::is_game_running,
-            commands::game::import_existing_game,
-            commands::game::uninstall_game,
-            commands::diagnostics::get_debug_info,
-            commands::diagnostics::read_launch_log,
-            commands::download::repair_game,
-            commands::game::update_installed_version,
-            commands::proton::check_system_requirements,
-            commands::proton::get_dwproton_latest,
-            commands::proton::list_dwproton_releases,
-            commands::proton::recommended_proton_tag,
-            commands::proton::list_installed_protons,
-            commands::proton::set_active_proton,
-            commands::proton::download_dwproton,
-            commands::proton::cancel_proton_download,
-            commands::game::get_game_sessions,
-            commands::prefix::get_prefix_info,
-            commands::prefix::open_prefix_folder,
-            commands::prefix::run_prefix_tool,
-            commands::prefix::clear_shader_cache,
-            commands::prefix::backup_prefix,
-            commands::prefix::restore_prefix,
-            commands::prefix::reset_prefix,
-            commands::settings::turn_off_screen,
-        ]);
+    let builder = specta_builder();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
@@ -331,64 +283,72 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
+/// Every IPC command the frontend can call. `src/bindings.ts` is generated
+/// from this list by the `export_bindings` test.
+fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
+    tauri_specta::Builder::<tauri::Wry>::new().commands(tauri_specta::collect_commands![
+        commands::settings::get_settings,
+        tasks::get_transfers,
+        tasks::stop_transfer,
+        install_plan::get_install_plan,
+        commands::settings::save_settings,
+        commands::game::get_game_version,
+        commands::settings::get_launcher_content,
+        commands::game::check_game_state,
+        commands::download::start_download,
+        commands::download::cancel_download,
+        commands::download::clear_download_cache,
+        commands::download::verify_game_integrity,
+        commands::download::start_update,
+        commands::game::launch_game,
+        commands::mods::get_mods_status,
+        commands::mods::install_mod_loader,
+        commands::mods::uninstall_mod_loader,
+        commands::mods::open_mods_folder,
+        commands::mods::get_optiscaler_status,
+        commands::mods::install_optiscaler,
+        commands::mods::uninstall_optiscaler,
+        commands::game::stop_game,
+        commands::game::is_game_running,
+        commands::game::import_existing_game,
+        commands::game::uninstall_game,
+        commands::diagnostics::get_debug_info,
+        commands::diagnostics::read_launch_log,
+        commands::download::repair_game,
+        commands::game::update_installed_version,
+        commands::proton::check_system_requirements,
+        commands::proton::get_dwproton_latest,
+        commands::proton::list_dwproton_releases,
+        commands::proton::recommended_proton_tag,
+        commands::proton::list_installed_protons,
+        commands::proton::set_active_proton,
+        commands::proton::download_dwproton,
+        commands::proton::cancel_proton_download,
+        commands::game::get_game_sessions,
+        commands::prefix::get_prefix_info,
+        commands::prefix::open_prefix_folder,
+        commands::prefix::run_prefix_tool,
+        commands::prefix::clear_shader_cache,
+        commands::prefix::backup_prefix,
+        commands::prefix::restore_prefix,
+        commands::prefix::reset_prefix,
+        commands::settings::turn_off_screen,
+    ])
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Regenerates `src/bindings.ts`; commit the result with any command or
+    /// type change so the frontend stays in sync.
     #[test]
     fn export_bindings() {
-        let builder = tauri_specta::Builder::<tauri::Wry>::new()
-            .commands(tauri_specta::collect_commands![
-                commands::settings::get_settings,
-                tasks::get_transfers,
-                tasks::stop_transfer,
-                install_plan::get_install_plan,
-                commands::settings::save_settings,
-                commands::game::get_game_version,
-                commands::settings::get_launcher_content,
-                commands::game::check_game_state,
-                commands::download::start_download,
-                commands::download::cancel_download,
-                commands::download::clear_download_cache,
-                commands::download::verify_game_integrity,
-                commands::download::start_update,
-                commands::game::launch_game,
-                commands::mods::get_mods_status,
-                commands::mods::install_mod_loader,
-                commands::mods::uninstall_mod_loader,
-                commands::mods::open_mods_folder,
-                commands::mods::get_optiscaler_status,
-                commands::mods::install_optiscaler,
-                commands::mods::uninstall_optiscaler,
-                commands::game::stop_game,
-                commands::game::is_game_running,
-                commands::game::import_existing_game,
-                commands::game::uninstall_game,
-                commands::diagnostics::get_debug_info,
-                commands::diagnostics::read_launch_log,
-                commands::download::repair_game,
-                commands::game::update_installed_version,
-                commands::proton::check_system_requirements,
-                commands::proton::get_dwproton_latest,
-                commands::proton::list_dwproton_releases,
-                commands::proton::recommended_proton_tag,
-                commands::proton::list_installed_protons,
-                commands::proton::set_active_proton,
-                commands::proton::download_dwproton,
-                commands::proton::cancel_proton_download,
-                commands::game::get_game_sessions,
-                commands::prefix::get_prefix_info,
-                commands::prefix::open_prefix_folder,
-                commands::prefix::run_prefix_tool,
-                commands::prefix::clear_shader_cache,
-                commands::prefix::backup_prefix,
-                commands::prefix::restore_prefix,
-                commands::prefix::reset_prefix,
-                commands::settings::turn_off_screen,
-            ]);
-        builder.export(
-            specta_typescript::Typescript::default(),
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/bindings.ts"),
-        ).unwrap();
+        specta_builder()
+            .export(
+                specta_typescript::Typescript::default(),
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/bindings.ts"),
+            )
+            .unwrap();
     }
 }
