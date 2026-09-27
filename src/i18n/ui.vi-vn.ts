@@ -142,5 +142,4 @@ export default {
   recommendedBuild: "Bản dựng đề xuất",
   gameSpace: "Các tệp của trò chơi",
   transferBusy: "Vui lòng đợi hoạt động hiện tại kết thúc.",
-  refresh: "Refresh Launcher",
 };

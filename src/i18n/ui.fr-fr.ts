@@ -143,5 +143,4 @@ export default {
   recommendedBuild: "Version recommandée",
   gameSpace: "Fichiers du jeu",
   transferBusy: "Veuillez patienter jusqu'à la fin de l'opération en cours.",
-  refresh: "Refresh Launcher",
 };

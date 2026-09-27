@@ -143,5 +143,4 @@ export default {
   recommendedBuild: "Recommended build",
   gameSpace: "Game files",
   transferBusy: "Wait for the current operation to finish.",
-  refresh: "Refresh Launcher",
 };

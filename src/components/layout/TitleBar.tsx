@@ -32,24 +32,14 @@ export default function TitleBar({ onOpenSettings, settingsOpen }: TitleBarProps
           </button>
         )}
         {!settingsOpen && (
-          <>
-            <button
-              className="titlebar__settings"
-              onClick={() => window.location.reload()}
-              aria-label={t("ui.refresh") || "Reload Launcher"}
-              title={t("ui.refresh") || "Reload Launcher"}
-            >
-              <Icon name="refresh" />
-            </button>
-            <button
-              className="titlebar__settings"
-              onClick={onOpenSettings}
-              aria-label={t("settings.title")}
-              title={t("settings.title")}
-            >
-              <Icon name="settings" />
-            </button>
-          </>
+          <button
+            className="titlebar__settings"
+            onClick={onOpenSettings}
+            aria-label={t("settings.title")}
+            title={t("settings.title")}
+          >
+            <Icon name="settings" />
+          </button>
         )}
         <button
           className="titlebar__btn"

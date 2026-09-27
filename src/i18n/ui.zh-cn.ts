@@ -143,5 +143,4 @@ export default {
   recommendedBuild: "推荐版本",
   gameSpace: "游戏文件",
   transferBusy: "请等待当前操作完成。",
-  refresh: "Refresh Launcher",
 };

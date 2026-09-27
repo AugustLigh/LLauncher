@@ -143,5 +143,4 @@ export default {
   recommendedBuild: "권장 빌드",
   gameSpace: "게임 파일",
   transferBusy: "현재 작업이 완료될 때까지 기다리십시오.",
-  refresh: "Refresh Launcher",
 };
