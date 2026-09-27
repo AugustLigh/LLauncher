@@ -25,7 +25,7 @@ export function formatEta(bytesRemaining: number | null | undefined, speedBps: n
   const isKo = typeof locale === "string" && locale.startsWith("ko");
   const isVi = typeof locale === "string" && locale.startsWith("vi");
   const isTh = typeof locale === "string" && locale.startsWith("th");
-  const units = locale === "ru" ? ["ч", "мин", "с"] : isZh ? ["小时", "分", "秒"] : isJa ? ["時間", "分", "秒"] : isId ? ["jam", "mnt", "dtk"] : isKo ? ["시간", "分", "秒"] : isVi ? ["giờ", "phút", "giây"] : isTh ? ["ชม.", "นาที", "วิ."] : ["h", "m", "s"];
+  const units = locale === "ru" ? ["ч", "мин", "с"] : isZh ? ["小时", "分", "秒"] : isJa ? ["時間", "分", "秒"] : isId ? ["jam", "mnt", "dtk"] : isKo ? ["시간", "분", "초"] : isVi ? ["giờ", "phút", "giây"] : isTh ? ["ชม.", "นาที", "วิ."] : ["h", "m", "s"];
   if (h > 0) return `${h} ${units[0]} ${m} ${units[1]}`;
   if (m > 0) return `${m} ${units[1]} ${s} ${units[2]}`;
   return `${s} ${units[2]}`;
