@@ -72,6 +72,12 @@ pub fn run() {
             std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
         }
 
+        // NVIDIA's H.264 decoder stops producing frames after the background
+        // video loops back to the start; VA-API or software decoding don't.
+        if std::env::var_os("GST_PLUGIN_FEATURE_RANK").is_none() {
+            std::env::set_var("GST_PLUGIN_FEATURE_RANK", "nvh264dec:NONE");
+        }
+
         // Point GIO at the system TLS backend module (glib-networking). The
         // AppImage does not bundle libgio{gnutls,openssl}.so, so without this
         // WebKit falls back to GDummyTlsBackend, every HTTPS request fails
