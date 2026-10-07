@@ -37,9 +37,6 @@ pub fn append(session: GameSession) {
     }
     // Temp file + rename so an interrupted write cannot truncate the journal.
     if let Ok(content) = serde_json::to_string(&sessions) {
-        let tmp = path.with_extension("json.tmp");
-        if std::fs::write(&tmp, content).is_ok() {
-            let _ = std::fs::rename(&tmp, &path);
-        }
+        let _ = crate::util::write_atomic(&path, content.as_bytes());
     }
 }

@@ -295,10 +295,7 @@ impl AppSettings {
         let dir = path.parent().unwrap();
         std::fs::create_dir_all(dir)?;
         let content = serde_json::to_string_pretty(self)?;
-        let tmp = path.with_extension("json.tmp");
-        std::fs::write(&tmp, content)?;
-        std::fs::rename(&tmp, &path)?;
-        Ok(())
+        Ok(crate::util::write_atomic(&path, content.as_bytes())?)
     }
 
     /// Persist without blocking the async runtime thread. Use this from

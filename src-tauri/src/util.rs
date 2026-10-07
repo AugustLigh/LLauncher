@@ -23,6 +23,29 @@ pub async fn send_with_stall_timeout(
         .map_err(AppError::Http)
 }
 
+/// Write via a sibling `.tmp` and rename, so a crash never truncates `path`.
+pub fn write_atomic(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::sync::{Arc, Mutex, PoisonError};
+    // ponytail: per-path locks, never removed; fine for a handful of files.
+    static LOCKS: Mutex<std::collections::BTreeMap<std::path::PathBuf, Arc<Mutex<()>>>> =
+        Mutex::new(std::collections::BTreeMap::new());
+    let lock = LOCKS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .entry(path.to_path_buf())
+        .or_default()
+        .clone();
+    let _guard = lock.lock().unwrap_or_else(PoisonError::into_inner);
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(".tmp");
+    // ponytail: no fsync, it would stall on the game's dirty pages mid-download.
+    std::fs::write(&tmp, bytes)
+        .and_then(|()| std::fs::rename(&tmp, path))
+        .inspect_err(|_| {
+            let _ = std::fs::remove_file(&tmp);
+        })
+}
+
 /// Strip AppImage-injected dynamic-linker paths from a child process's
 /// environment.
 ///
