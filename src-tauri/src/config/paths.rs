@@ -63,6 +63,11 @@ pub fn config_dir() -> PathBuf {
         .join("llauncher")
 }
 
+/// Cache directory: `~/.cache/llauncher/` on Linux.
+pub fn cache_dir() -> Option<PathBuf> {
+    dirs::cache_dir().map(|dir| dir.join("llauncher"))
+}
+
 /// Settings file path
 pub fn settings_path() -> PathBuf {
     config_dir().join("settings.json")

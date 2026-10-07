@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { createBackgroundPlayback } from "../../utils/backgroundPlayback";
 import "./MainLayout.css";
@@ -16,12 +17,31 @@ function Background({ background, gameRunning }) {
     videoRef = useRef(null);
   const imageUrl = background?.url,
     videoUrl = !reduced ? background?.video_url : null;
+  const [video, setVideo] = useState(null),
+    videoSrc = video?.src;
+  useEffect(() => {
+    // Never streamed: WebKitGTK re-buffers remote media on every loop.
+    setVideo(null);
+    if (!videoUrl) return;
+    let cancelled = false;
+    invoke("get_background_video", { url: videoUrl })
+      .then((bytes) => {
+        if (cancelled) return;
+        const blob = new Blob([bytes], { type: "video/mp4" });
+        setVideo({ src: URL.createObjectURL(blob), url: videoUrl });
+      })
+      .catch((e) => console.warn("No background video:", e));
+    return () => {
+      cancelled = true;
+    };
+  }, [videoUrl]);
+  useEffect(() => () => videoSrc && URL.revokeObjectURL(videoSrc), [videoSrc]);
   useEffect(() => {
     // A cached image can load before this effect runs, particularly in WebKit.
     const image = imageRef.current;
     setImageLoaded(Boolean(image?.complete && image.naturalWidth > 0));
     setVideoLoaded(false);
-  }, [imageUrl, videoUrl]);
+  }, [imageUrl, videoSrc]);
   useEffect(() => {
     let disposed = false,
       checkId = 0;
@@ -108,7 +128,7 @@ function Background({ background, gameRunning }) {
       clearInterval(watchdog);
       playback.stop();
     };
-  }, [videoUrl, shouldPause, epoch]);
+  }, [videoSrc, shouldPause, epoch]);
   return (
     <div
       className="main-layout__background"
@@ -125,10 +145,10 @@ function Background({ background, gameRunning }) {
           onError={() => setImageLoaded(false)}
         />
       )}
-      {videoUrl && (
+      {videoSrc && (
         <video
           ref={videoRef}
-          src={videoUrl}
+          src={videoSrc}
           poster={imageUrl || undefined}
           className={videoLoaded ? "loaded" : ""}
           preload="metadata"
@@ -136,7 +156,16 @@ function Background({ background, gameRunning }) {
           muted
           playsInline
           onPlaying={() => setVideoLoaded(true)}
-          onError={() => setVideoLoaded(false)}
+          onError={(e) => {
+            setVideoLoaded(false);
+            // Only a format error is final; the watchdog reloads after others.
+            const notSupported =
+              e.currentTarget.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED;
+            if (!notSupported) return;
+            const { url } = video;
+            invoke("forget_background_video", { url }).catch(() => {});
+            setVideo((v) => (v?.src === videoSrc ? null : v));
+          }}
         />
       )}
     </div>
