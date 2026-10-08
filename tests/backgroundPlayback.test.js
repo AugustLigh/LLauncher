@@ -8,6 +8,7 @@ function setup({ frames = false, abort = false } = {}) {
     currentTime = 12;
     duration = 30;
     paused = true;
+    ended = false;
     calls = [];
     frames = 10;
     play() {
@@ -98,4 +99,12 @@ test("persistent media errors back off and cleanup cancels metadata recovery", (
   tick(60000);
   assert.equal(video.calls.length, before);
   assert.equal(video.paused, true);
+});
+
+test("an ended video is left alone, neither replayed nor reloaded", () => {
+  const { video, tick, playback } = setup();
+  video.paused = video.ended = true;
+  for (let i = 0; i < 10; i++) tick(1500);
+  assert.deepEqual(video.calls, ["play"]);
+  playback.stop();
 });

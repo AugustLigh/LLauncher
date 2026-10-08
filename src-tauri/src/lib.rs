@@ -284,6 +284,8 @@ pub fn run() {
             commands::save_settings,
             commands::get_game_version,
             commands::get_launcher_content,
+            commands::get_background_video,
+            commands::forget_background_video,
             commands::check_game_state,
             commands::start_download,
             commands::cancel_download,

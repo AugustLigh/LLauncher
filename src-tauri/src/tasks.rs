@@ -46,6 +46,8 @@ impl Transfers {
         Self::from_path(crate::config::paths::config_dir().join("transfers.json"))
     }
     fn from_path(path: PathBuf) -> Self {
+        // Before write_atomic, the temp file was `transfers.tmp`.
+        let _ = std::fs::remove_file(path.with_extension("tmp"));
         let mut data: BTreeMap<String, Transfer> = std::fs::read(&path)
             .ok()
             .and_then(|s| serde_json::from_slice(&s).ok())
@@ -67,10 +69,7 @@ impl Transfers {
             let _ = std::fs::create_dir_all(parent);
         }
         if let Ok(bytes) = serde_json::to_vec(data) {
-            let temp = self.path.with_extension("tmp");
-            if std::fs::write(&temp, bytes).is_ok() {
-                let _ = std::fs::rename(temp, &self.path);
-            }
+            let _ = crate::util::write_atomic(&self.path, &bytes);
         }
     }
     pub fn snapshot(&self) -> BTreeMap<String, Transfer> {
