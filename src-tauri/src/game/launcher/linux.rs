@@ -5,7 +5,10 @@ use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use super::{parse_custom_env_vars, shell_escape, GameProcess, LaunchedGame};
+use super::{
+    parse_custom_env_vars, shell_escape, to_wine_path, GameProcess, LaunchedGame,
+    INJECT_TIMEOUT_SECS,
+};
 use crate::config::paths;
 use crate::config::settings::AppSettings;
 use crate::error::AppError;
@@ -95,18 +98,12 @@ fn build_env_script(settings: &AppSettings, compat_data: &Path, with_mods: bool)
         );
     }
 
-    // A modded launch needs Wine to load the game's own d3d11.dll — the
-    // 3DMigoto proxy — ahead of its builtin. Without the override Wine picks
-    // DXVK directly and the proxy never runs, which looks exactly like "the
-    // mods do nothing". `n,b` keeps the builtin as fallback, and the proxy
-    // chains to it for the real D3D11 work. Placed before the user's own
-    // variables so a hand-written WINEDLLOVERRIDES still overrides it.
-    // `dxgi` rides along unconditionally: it is where ReShade installs itself
-    // (d3d11 being taken by 3DMigoto), and `n,b` falls back to the builtin
-    // when no native DLL is there, so listing it costs nothing when it is not.
+    // `dxgi` is where ReShade installs itself, and `n,b` falls back to the
+    // builtin when no native DLL is there, so listing it costs nothing when it
+    // is not. Placed before the user's own variables so a hand-written
+    // WINEDLLOVERRIDES still overrides it.
     let mut dll_overrides: Vec<&str> = Vec::new();
     if with_mods {
-        dll_overrides.push("d3d11=n,b");
         dll_overrides.push("dxgi=n,b");
     }
     // OptiScaler is the same kind of proxy: `winmm.dll` next to the game,
@@ -208,8 +205,7 @@ fn build_gamescope_args(settings: &AppSettings) -> String {
 }
 
 /// Start the game. `with_mods` swaps the native Vulkan renderer for the D3D11
-/// path and lets the 3DMigoto proxy in — see `crate::game::mods` for why the
-/// two are inseparable.
+/// path and injects 3DMigoto — see `crate::game::mods`.
 pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGame, AppError> {
     let game_path = Path::new(&settings.game_dir);
     let exe_path = game_path.join("Endfield.exe");
@@ -229,8 +225,10 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
         )));
     }
 
-    // Convert Linux path to Wine Z: path
-    let wine_path = format!("Z:{}", exe_path.to_string_lossy().replace('/', "\\"));
+    let wine_path = to_wine_path(&exe_path);
+    let injection = with_mods
+        .then(|| crate::game::mods::prepare_injection(game_path))
+        .transpose()?;
 
     let compat_data = resolve_prefix_dir(settings, game_path);
     std::fs::create_dir_all(&compat_data)?;
@@ -245,6 +243,31 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
 
     // Build the launch command with optional wrappers
     let proton_escaped = shell_escape(&proton_path.to_string_lossy());
+    let log_escaped = shell_escape(&log_path.to_string_lossy());
+    script.push_str(&format!(": > {}\n", log_escaped));
+    if let Some(inj) = &injection {
+        let proton_dir = proton_path.parent().unwrap_or(Path::new("/"));
+        let wine = ["files", "dist"]
+            .iter()
+            .map(|d| proton_dir.join(d).join("bin").join("wine"))
+            .find(|w| w.is_file())
+            .unwrap_or_else(|| proton_dir.join("files/bin/wine"));
+        script.push_str(&format!(
+            "(for i in $(seq {ticks}); do for c in $(grep -lsxF -e steam.exe -e {game} /proc/[0-9]*/comm); do \
+             e=${{c%comm}}environ; grep -qsFxz \"WINEPREFIX=$STEAM_COMPAT_DATA_PATH/pfx/\" \"$e\" \
+             && mapfile -d '' -t vars < \"$e\" \
+             && exec env -i \"${{vars[@]}}\" {wine} {exe} {injector} {dll} {game} {secs}; \
+             done; sleep 0.1; done) >> {log} 2>&1 &\n",
+            ticks = INJECT_TIMEOUT_SECS * 10,
+            game = crate::game::mods::GAME_PROCESS,
+            wine = shell_escape(&wine.to_string_lossy()),
+            exe = shell_escape(&to_wine_path(&inj.exe)),
+            injector = shell_escape(&to_wine_path(&inj.injector)),
+            dll = shell_escape(&to_wine_path(&inj.dll)),
+            secs = INJECT_TIMEOUT_SECS,
+            log = log_escaped,
+        ));
+    }
     let wine_escaped = shell_escape(&wine_path);
 
     let mut launch_cmd = String::new();
@@ -273,10 +296,10 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
     }
     launch_cmd.push_str(&format!("{} run {}", proton_escaped, wine_escaped));
 
-    // Native Vulkan renderer. Suppressed for a modded launch: 3DMigoto hooks
-    // D3D11 and has no Vulkan equivalent, so `-vulkan` would leave every mod
-    // silently inert.
-    if settings.use_native_vulkan && !with_mods {
+    // 3DMigoto hooks D3D11 only, and a bare launch still comes up on Vulkan.
+    if with_mods {
+        launch_cmd.push_str(" -force-d3d11");
+    } else if settings.use_native_vulkan {
         launch_cmd.push_str(" -vulkan");
     }
 
@@ -287,11 +310,7 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
     }
 
     // Redirect output to log file
-    script.push_str(&format!(
-        "exec {} > {} 2>&1\n",
-        launch_cmd,
-        shell_escape(&log_path.to_string_lossy())
-    ));
+    script.push_str(&format!("exec {} >> {} 2>&1\n", launch_cmd, log_escaped));
 
     let mut cmd = Command::new("bash");
     cmd.arg("-c").arg(&script);

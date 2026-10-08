@@ -27,7 +27,9 @@ use windows_sys::Win32::System::Threading::{
 use windows_sys::Win32::UI::Shell::{ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW};
 use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-use super::{parse_custom_env_vars, ExitInfo, GameProcess, LaunchedGame, SessionCleanup};
+use super::{
+    parse_custom_env_vars, ExitInfo, GameProcess, LaunchedGame, SessionCleanup, INJECT_TIMEOUT_SECS,
+};
 use crate::config::paths;
 use crate::config::settings::AppSettings;
 use crate::error::AppError;
@@ -44,8 +46,7 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const ERROR_ELEVATION_REQUIRED: i32 = 740;
 
 /// A modded launch stays on D3D11 whatever the renderer toggle says: the
-/// loader's `d3d11.dll` hooks that API and nothing else, and it wins the DLL
-/// search order from the game directory without any further help.
+/// loader's `d3d11.dll` hooks that API and nothing else.
 pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGame, AppError> {
     let game_path = Path::new(&settings.game_dir);
     let exe_path = game_path.join("Endfield.exe");
@@ -61,6 +62,9 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
     if let Some(dir) = log_path.parent() {
         std::fs::create_dir_all(dir)?;
     }
+    let injection = with_mods
+        .then(|| crate::game::mods::prepare_injection(game_path))
+        .transpose()?;
 
     // Host-side tweaks go first: Windows reads the graphics entry when the
     // process is created, and the power plan should be in place before the
@@ -77,12 +81,22 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
 
     let args = build_launch_args(settings, with_mods);
     match spawn(settings, &exe_path, game_path, &args, &log_path) {
-        Ok(process) => Ok(LaunchedGame {
-            process,
-            log_path,
-            on_exit: power_plan
-                .map(|plan| Box::new(move || plan.restore()) as SessionCleanup),
-        }),
+        Ok(process) => {
+            let mut injector = injection.and_then(|inj| start_injector(&inj, &log_path));
+            Ok(LaunchedGame {
+                process,
+                log_path,
+                on_exit: Some(Box::new(move || {
+                    if let Some(child) = injector.as_mut() {
+                        child.kill().ok();
+                        child.wait().ok();
+                    }
+                    if let Some(plan) = power_plan {
+                        plan.restore();
+                    }
+                }) as SessionCleanup),
+            })
+        }
         Err(e) => {
             // Nothing to wait for, so nothing to restore later: do it now.
             if let Some(plan) = power_plan {
@@ -99,7 +113,9 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
 /// the user typed a command line, not a list of pre-split arguments.
 fn build_launch_args(settings: &AppSettings, with_mods: bool) -> String {
     let mut args = String::new();
-    if settings.windows_use_vulkan && !with_mods {
+    if with_mods {
+        args.push_str("-force-d3d11");
+    } else if settings.windows_use_vulkan {
         args.push_str("-vulkan");
     }
     let extra = settings.custom_launch_args.trim();
@@ -110,6 +126,26 @@ fn build_launch_args(settings: &AppSettings, with_mods: bool) -> String {
         args.push_str(extra);
     }
     args
+}
+
+fn start_injector(
+    inj: &crate::game::mods::Injection,
+    log_path: &Path,
+) -> Option<std::process::Child> {
+    let mut cmd = Command::new(&inj.exe);
+    cmd.arg(&inj.injector)
+        .arg(&inj.dll)
+        .arg(crate::game::mods::GAME_PROCESS)
+        .arg(INJECT_TIMEOUT_SECS.to_string())
+        .creation_flags(CREATE_NO_WINDOW);
+    if let Ok(log) = std::fs::OpenOptions::new().append(true).open(log_path) {
+        if let Ok(err) = log.try_clone() {
+            cmd.stdout(log).stderr(err);
+        }
+    }
+    cmd.spawn()
+        .inspect_err(|e| crate::logging::warn(format!("mods: injector did not start: {}", e)))
+        .ok()
 }
 
 /// Above normal rather than high: `HIGH_PRIORITY_CLASS` outranks the audio
@@ -351,7 +387,10 @@ mod tests {
 
     #[test]
     fn modded_launch_stays_on_d3d11() {
-        assert_eq!(build_launch_args(&settings(true, "-log"), true), "-log");
+        assert_eq!(
+            build_launch_args(&settings(true, "-log"), true),
+            "-force-d3d11 -log"
+        );
     }
 
     #[test]

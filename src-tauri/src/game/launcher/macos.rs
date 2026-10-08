@@ -19,7 +19,10 @@ use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use super::{parse_custom_env_vars, shell_escape, GameProcess, LaunchedGame};
+use super::{
+    parse_custom_env_vars, shell_escape, to_wine_path, GameProcess, LaunchedGame,
+    INJECT_TIMEOUT_SECS,
+};
 use crate::config::paths;
 use crate::config::settings::AppSettings;
 use crate::error::AppError;
@@ -129,11 +132,9 @@ fn build_env_script(settings: &AppSettings, prefix: &Path, with_mods: bool) -> S
         script.push_str("export MTL_HUD_ENABLED=1\n");
     }
 
-    // Same reason as on Linux: a modded launch needs Wine to load the game's
-    // own d3d11.dll — the 3DMigoto proxy — ahead of its builtin, and `dxgi`
-    // rides along for ReShade. See `crate::game::mods`.
+    // `dxgi` is where ReShade installs itself.
     if with_mods {
-        script.push_str("export WINEDLLOVERRIDES='d3d11=n,b;dxgi=n,b'\n");
+        script.push_str("export WINEDLLOVERRIDES='dxgi=n,b'\n");
     }
 
     // Custom env vars (KEY=VALUE per line), last so they can override ours.
@@ -157,8 +158,8 @@ fn renderer_args(settings: &AppSettings, with_mods: bool) -> &'static str {
     }
 }
 
-/// Start the game. `with_mods` keeps the D3D11 path and lets the 3DMigoto
-/// proxy in — see `crate::game::mods`.
+/// Start the game. `with_mods` keeps the D3D11 path and injects 3DMigoto —
+/// see `crate::game::mods`.
 pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGame, AppError> {
     let game_path = Path::new(&settings.game_dir);
     let exe_path = game_path.join("Endfield.exe");
@@ -171,6 +172,9 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
     }
 
     let wine = resolve_wine(settings).ok_or_else(|| AppError::WineNotFound(wine_hint(settings)))?;
+    let injection = with_mods
+        .then(|| crate::game::mods::prepare_injection(game_path))
+        .transpose()?;
 
     // Every Wine build for macOS is x86-64. Without Rosetta the loader dies
     // with "Bad CPU type in executable" before writing a line of log, which
@@ -197,6 +201,21 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
         shell_escape(&game_path.to_string_lossy())
     ));
 
+    let log_escaped = shell_escape(&log_path.to_string_lossy());
+    script.push_str(&format!(": > {}\n", log_escaped));
+    if let Some(inj) = &injection {
+        script.push_str(&format!(
+            "{} {} {} {} {} {} >> {} 2>&1 &\n",
+            shell_escape(&wine.wine.to_string_lossy()),
+            shell_escape(&inj.exe.to_string_lossy()),
+            shell_escape(&to_wine_path(&inj.injector)),
+            shell_escape(&to_wine_path(&inj.dll)),
+            crate::game::mods::GAME_PROCESS,
+            INJECT_TIMEOUT_SECS,
+            log_escaped
+        ));
+    }
+
     // Wine takes a Unix path for the executable and translates it itself, so
     // unlike the Linux side there is no Z: drive path to build.
     let mut launch_cmd = format!(
@@ -211,11 +230,7 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
         launch_cmd.push_str(&settings.custom_launch_args);
     }
 
-    script.push_str(&format!(
-        "exec {} > {} 2>&1\n",
-        launch_cmd,
-        shell_escape(&log_path.to_string_lossy())
-    ));
+    script.push_str(&format!("exec {} >> {} 2>&1\n", launch_cmd, log_escaped));
 
     let mut cmd = Command::new("bash");
     cmd.arg("-c").arg(&script);
@@ -348,12 +363,10 @@ mod tests {
     }
 
     #[test]
-    fn modded_launch_overrides_the_renderer_dlls() {
-        // Without the override Wine loads its builtin d3d11 and the 3DMigoto
-        // proxy never runs, which looks exactly like "the mods do nothing".
+    fn modded_launch_lets_reshade_in() {
         let settings = AppSettings::default();
         let script = build_env_script(&settings, Path::new("/tmp/pfx"), true);
-        assert!(script.contains("export WINEDLLOVERRIDES='d3d11=n,b;dxgi=n,b'\n"));
+        assert!(script.contains("export WINEDLLOVERRIDES='dxgi=n,b'\n"));
     }
 
     #[test]
