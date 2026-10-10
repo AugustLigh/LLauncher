@@ -88,6 +88,13 @@ pub fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
+pub const INJECT_TIMEOUT_SECS: u32 = 120;
+
+#[cfg(unix)]
+pub fn to_wine_path(path: &Path) -> String {
+    format!("Z:{}", path.to_string_lossy().replace('/', "\\"))
+}
+
 /// A POSIX environment variable name: letters, digits, underscore, not
 /// starting with a digit. Custom env vars are user-typed `KEY=VALUE` lines;
 /// on Linux they end up in `export NAME=value`, which requires `NAME` to be a

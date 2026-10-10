@@ -10,7 +10,11 @@ pub async fn get_mods_status(
     state: State<'_, AppState>,
 ) -> Result<crate::game::mods::ModsStatus, AppError> {
     let game_dir = state.settings.lock().await.game_dir.clone();
-    Ok(crate::game::mods::status(std::path::Path::new(&game_dir)))
+    let game_dir = std::path::Path::new(&game_dir);
+    if let Err(e) = crate::game::mods::migrate_legacy_install(game_dir) {
+        crate::logging::warn(format!("mods: could not move the old loader: {}", e));
+    }
+    Ok(crate::game::mods::status(game_dir))
 }
 
 /// Download and install EFMI (and the 3DMigoto build it runs on) into the

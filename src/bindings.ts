@@ -376,13 +376,13 @@ export type LoaderInstallResult = {
 	 *  notes with a mod author cares about.
 	 */
 	version: string,
-	/**  Number of files written into the game directory. */
+	/**  Number of files written into the loader directory. */
 	files: number | null,
 };
 
 /**  What the launcher knows about the mod setup in the game directory. */
 export type ModsStatus = {
-	/**  A `d3d11.dll` proxy is present next to the game executable. */
+	/**  3DMigoto's `d3d11.dll` is in the loader directory. */
 	loader_installed: boolean,
 	/**
 	 *  `d3dx.ini` is there too — without it 3DMigoto loads but does nothing,
