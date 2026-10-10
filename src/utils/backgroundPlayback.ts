@@ -67,6 +67,11 @@ export function createBackgroundPlayback(
   }
   function check() {
     if (stopped) return;
+    // Not replayed: the page mounts a fresh <video> for the next loop.
+    if (video.ended) {
+      lastMovement = now();
+      return;
+    }
     if (video.error) {
       reload();
       return;

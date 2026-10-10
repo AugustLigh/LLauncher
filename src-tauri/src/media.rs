@@ -8,6 +8,7 @@
 //! the plugins up front and serve the static background image instead when
 //! they are absent.
 
+use std::path::Path;
 #[cfg(target_os = "linux")]
 use std::path::PathBuf;
 
@@ -72,6 +73,99 @@ fn dirs_have_plugins(dirs: &[PathBuf], names: &[&str]) -> bool {
     names
         .iter()
         .all(|name| dirs.iter().any(|dir| dir.join(name).is_file()))
+}
+
+// The backdrop video cache: `background.mp4`, overwritten by each new patch's
+// video, and `background.meta` with its size, ETag and source URL.
+
+/// The cached entry's (size, ETag), when it was downloaded from `url`.
+fn cached_meta(dir: &Path, url: &str) -> Option<(u64, String)> {
+    let meta = std::fs::read_to_string(dir.join("background.meta")).ok()?;
+    let mut lines = meta.lines();
+    let (size, etag, from) = (lines.next()?, lines.next()?, lines.next()?);
+    if from != url {
+        return None;
+    }
+    Some((size.parse().ok()?, etag.to_string()))
+}
+
+/// The video cached from `url` and its ETag, if whole.
+pub fn read_cached_video(dir: &Path, url: &str) -> Option<(Vec<u8>, String)> {
+    let (size, etag) = cached_meta(dir, url)?;
+    if std::fs::metadata(dir.join("background.mp4")).ok()?.len() != size {
+        return None;
+    }
+    let bytes = std::fs::read(dir.join("background.mp4")).ok()?;
+    (bytes.len() as u64 == size).then_some((bytes, etag))
+}
+
+pub fn part_path(dir: &Path) -> std::path::PathBuf {
+    dir.join("background.mp4.part")
+}
+
+/// Move a finished download of `size` bytes into the cache.
+pub fn commit_cached_video(dir: &Path, etag: &str, size: u64, url: &str) -> std::io::Result<()> {
+    // Meta first: the new video must never pass under the old ETag.
+    match std::fs::remove_file(dir.join("background.meta")) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e),
+        _ => {}
+    }
+    std::fs::rename(part_path(dir), dir.join("background.mp4"))?;
+    crate::util::write_atomic(
+        &dir.join("background.meta"),
+        format!("{size}\n{etag}\n{url}").as_bytes(),
+    )
+}
+
+/// Drop the video cached from `url` that the webview couldn't play, and mark
+/// the URL so it isn't downloaded again on every launch.
+// ponytail: the mark lasts until the URL changes; store the ETag if the
+// server ever fixes a file in place.
+pub fn forget_cached_video(dir: &Path, url: &str) {
+    if cached_meta(dir, url).is_some() {
+        let _ = std::fs::remove_file(dir.join("background.meta"));
+        let _ = std::fs::remove_file(dir.join("background.mp4"));
+    }
+    let _ = crate::util::write_atomic(&dir.join("background.unplayable"), url.as_bytes());
+}
+
+pub fn is_unplayable(dir: &Path, url: &str) -> bool {
+    std::fs::read_to_string(dir.join("background.unplayable")).is_ok_and(|u| u == url)
+}
+
+#[cfg(test)]
+mod video_cache_tests {
+    use super::*;
+
+    fn store(dir: &Path, etag: &str, url: &str, bytes: &[u8]) {
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::write(part_path(dir), bytes).unwrap();
+        commit_cached_video(dir, etag, bytes.len() as u64, url).unwrap();
+    }
+
+    #[test]
+    fn roundtrip_overwrite_and_corruption() {
+        let dir = std::env::temp_dir().join(format!("llauncher-video-{}", std::process::id()));
+        let (a, b) = ("https://cdn/a.mp4", "https://cdn/b.mp4");
+        let _ = std::fs::remove_dir_all(&dir); // left over by a failed run
+        assert!(read_cached_video(&dir, a).is_none());
+        store(&dir, "\"e1\"", a, b"one");
+        assert_eq!(read_cached_video(&dir, a).unwrap(), (b"one".to_vec(), "\"e1\"".into()));
+        assert!(read_cached_video(&dir, b).is_none());
+        store(&dir, "\"e2\"", b, b"two");
+        assert_eq!(read_cached_video(&dir, b).unwrap(), (b"two".to_vec(), "\"e2\"".into()));
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
+        std::fs::write(dir.join("background.mp4"), b"tw").unwrap(); // truncated
+        assert!(read_cached_video(&dir, b).is_none());
+        store(&dir, "\"e3\"", b, b"three");
+        forget_cached_video(&dir, b);
+        assert!(read_cached_video(&dir, b).is_none());
+        assert!(is_unplayable(&dir, b) && !is_unplayable(&dir, a));
+        store(&dir, "\"e4\"", b, b"four");
+        forget_cached_video(&dir, a);
+        assert!(read_cached_video(&dir, b).is_some());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
 
 #[cfg(all(test, target_os = "linux"))]

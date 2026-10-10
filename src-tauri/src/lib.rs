@@ -278,7 +278,19 @@ pub fn run() {
                 let _ = window.hide();
             }
         })
-        .invoke_handler(builder.invoke_handler())
+        .invoke_handler({
+            // The background video goes out as raw bytes, which specta can't
+            // describe, so its commands sit outside the generated bindings.
+            let typed = builder.invoke_handler();
+            let raw: fn(tauri::ipc::Invoke) -> bool = tauri::generate_handler![
+                commands::settings::get_background_video,
+                commands::settings::forget_background_video,
+            ];
+            move |invoke| match invoke.message.command() {
+                "get_background_video" | "forget_background_video" => raw(invoke),
+                _ => typed(invoke),
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

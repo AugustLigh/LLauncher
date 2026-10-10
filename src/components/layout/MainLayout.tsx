@@ -1,12 +1,20 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { BackgroundImage } from "../../bindings";
 import { createBackgroundPlayback } from "../../utils/backgroundPlayback";
 import "./MainLayout.css";
 
+const LOOP_REST = 5000;
+
 interface BackgroundProps {
   background?: BackgroundImage;
   gameRunning?: boolean;
+}
+
+interface CachedVideo {
+  src: string;
+  url: string;
 }
 
 function Background({ background, gameRunning }: BackgroundProps) {
@@ -20,15 +28,48 @@ function Background({ background, gameRunning }: BackgroundProps) {
   const [imageLoaded, setImageLoaded] = useState(false),
     [videoLoaded, setVideoLoaded] = useState(false);
   const imageRef = useRef<HTMLImageElement | null>(null),
-    videoRef = useRef<HTMLVideoElement | null>(null);
+    videoRef = useRef<HTMLVideoElement | null>(null),
+    playedSrc = useRef<string | null>(null);
   const imageUrl = background?.url,
     videoUrl = !reduced ? background?.video_url : null;
+  const [video, setVideo] = useState<CachedVideo | null>(null),
+    videoSrc = video?.src;
+  const [resting, setResting] = useState(false);
+  useEffect(() => {
+    if (!resting) return;
+    const id = setTimeout(() => setResting(false), LOOP_REST);
+    return () => clearTimeout(id);
+  }, [resting]);
+  useEffect(() => {
+    // Never streamed: WebKitGTK re-buffers remote media on every loop.
+    setVideo(null);
+    setResting(false);
+    if (!videoUrl) return;
+    let cancelled = false;
+    invoke<ArrayBuffer>("get_background_video", { url: videoUrl })
+      .then((bytes) => {
+        if (cancelled) return;
+        const blob = new Blob([bytes], { type: "video/mp4" });
+        setVideo({ src: URL.createObjectURL(blob), url: videoUrl });
+        setResting(true); // the first play waits LOOP_REST too
+      })
+      .catch((e) => console.warn("No background video:", e));
+    return () => {
+      cancelled = true;
+    };
+  }, [videoUrl]);
+  useEffect(
+    () => () => {
+      if (videoSrc) URL.revokeObjectURL(videoSrc);
+    },
+    [videoSrc],
+  );
   useEffect(() => {
     // A cached image can load before this effect runs, particularly in WebKit.
     const image = imageRef.current;
     setImageLoaded(Boolean(image?.complete && image.naturalWidth > 0));
     setVideoLoaded(false);
-  }, [imageUrl, videoUrl]);
+  }, [imageUrl, videoSrc]);
   useEffect(() => {
     let disposed = false,
       checkId = 0;
@@ -115,7 +156,7 @@ function Background({ background, gameRunning }: BackgroundProps) {
       clearInterval(watchdog);
       playback.stop();
     };
-  }, [videoUrl, shouldPause, epoch]);
+  }, [videoSrc, shouldPause, epoch, resting]);
   return (
     <div
       className="main-layout__background"
@@ -132,18 +173,39 @@ function Background({ background, gameRunning }: BackgroundProps) {
           onError={() => setImageLoaded(false)}
         />
       )}
-      {videoUrl && (
+      {videoSrc && !resting && (
         <video
           ref={videoRef}
-          src={videoUrl}
-          poster={imageUrl || undefined}
+          src={videoSrc}
           className={videoLoaded ? "loaded" : ""}
           preload="metadata"
-          loop
           muted
           playsInline
-          onPlaying={() => setVideoLoaded(true)}
-          onError={() => setVideoLoaded(false)}
+          // No `loop`: WebKitGTK stalls seeking a blob back to the start and
+          // flashes the first frame at the end whatever the opacity. So the
+          // video fades out and unmounts just before its end, the image shows
+          // for LOOP_REST, and a fresh <video> plays from the start.
+          onTimeUpdate={(e) => {
+            const left = e.currentTarget.duration - e.currentTarget.currentTime;
+            if (left <= 1) setVideoLoaded(false);
+            if (left <= 0.3) setResting(true);
+          }}
+          onEnded={() => setResting(true)}
+          onPlaying={() => {
+            playedSrc.current = videoSrc;
+            setVideoLoaded(true);
+          }}
+          onError={(e) => {
+            setVideoLoaded(false);
+            // Only a format error on a copy that never played is final; the
+            // watchdog reloads after others.
+            const notSupported =
+              e.currentTarget.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED;
+            if (!notSupported || playedSrc.current === videoSrc) return;
+            if (!video) return;
+            invoke("forget_background_video", { url: video.url }).catch(() => {});
+            setVideo((v) => (v?.src === videoSrc ? null : v));
+          }}
         />
       )}
     </div>
