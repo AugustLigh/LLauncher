@@ -1,0 +1,229 @@
+import { ReactNode, useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { BackgroundImage } from "../../bindings";
+import { createBackgroundPlayback } from "../../utils/backgroundPlayback";
+import "./MainLayout.css";
+
+const LOOP_REST = 5000;
+
+interface BackgroundProps {
+  background?: BackgroundImage;
+  gameRunning?: boolean;
+}
+
+interface CachedVideo {
+  src: string;
+  url: string;
+}
+
+function Background({ background, gameRunning }: BackgroundProps) {
+  const [hidden, setHidden] = useState(document.hidden),
+    [visible, setVisible] = useState<boolean | null>(null),
+    [focused, setFocused] = useState(document.hasFocus()),
+    [epoch, setEpoch] = useState(0);
+  const [reduced, setReduced] = useState(
+    () => matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
+  const [imageLoaded, setImageLoaded] = useState(false),
+    [videoLoaded, setVideoLoaded] = useState(false);
+  const imageRef = useRef<HTMLImageElement | null>(null),
+    videoRef = useRef<HTMLVideoElement | null>(null),
+    playedSrc = useRef<string | null>(null);
+  const imageUrl = background?.url,
+    videoUrl = !reduced ? background?.video_url : null;
+  const [video, setVideo] = useState<CachedVideo | null>(null),
+    videoSrc = video?.src;
+  const [resting, setResting] = useState(false);
+  useEffect(() => {
+    if (!resting) return;
+    const id = setTimeout(() => setResting(false), LOOP_REST);
+    return () => clearTimeout(id);
+  }, [resting]);
+  useEffect(() => {
+    // Never streamed: WebKitGTK re-buffers remote media on every loop.
+    setVideo(null);
+    setResting(false);
+    if (!videoUrl) return;
+    let cancelled = false;
+    invoke<ArrayBuffer>("get_background_video", { url: videoUrl })
+      .then((bytes) => {
+        if (cancelled) return;
+        const blob = new Blob([bytes], { type: "video/mp4" });
+        setVideo({ src: URL.createObjectURL(blob), url: videoUrl });
+        setResting(true); // the first play waits LOOP_REST too
+      })
+      .catch((e) => console.warn("No background video:", e));
+    return () => {
+      cancelled = true;
+    };
+  }, [videoUrl]);
+  useEffect(
+    () => () => {
+      if (videoSrc) URL.revokeObjectURL(videoSrc);
+    },
+    [videoSrc],
+  );
+  useEffect(() => {
+    // A cached image can load before this effect runs, particularly in WebKit.
+    const image = imageRef.current;
+    setImageLoaded(Boolean(image?.complete && image.naturalWidth > 0));
+    setVideoLoaded(false);
+  }, [imageUrl, videoSrc]);
+  useEffect(() => {
+    let disposed = false,
+      checkId = 0;
+    const win = getCurrentWindow();
+    const sync = async () => {
+      const id = ++checkId;
+      try {
+        const [shown, minimized, nativeFocused] = await Promise.all([
+          win.isVisible(),
+          win.isMinimized(),
+          win.isFocused(),
+        ]);
+        if (!disposed && id === checkId) {
+          if (typeof shown === "boolean" && typeof minimized === "boolean")
+            setVisible(shown && !minimized);
+          if (typeof nativeFocused === "boolean") setFocused(nativeFocused);
+        }
+      } catch {
+        /* Browser previews don't implement native visibility. */
+      }
+    };
+    const resume = () => {
+      setEpoch((v) => v + 1);
+      sync();
+    };
+    const onVisibility = () => {
+      setHidden(document.hidden);
+      setVisible(null);
+      if (!document.hidden) resume();
+      else sync();
+    };
+    const onFocus = () => {
+      setFocused(true);
+      resume();
+    };
+    const onBlur = () => {
+      setFocused(false);
+      sync();
+    };
+    const media = matchMedia("(prefers-reduced-motion: reduce)");
+    const onMotion = () => setReduced(media.matches);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
+    media.addEventListener("change", onMotion);
+    const pending = win.onFocusChanged(({ payload }) => {
+      if (disposed) return;
+      setFocused(payload);
+      if (payload) resume();
+      else sync();
+    });
+    // WebKitGTK can omit a visibility event when a tray-hidden window is shown.
+    // This lightweight probe is a fallback; focus still resumes immediately.
+    const timer = setInterval(() => {
+      if (!disposed) sync();
+    }, 2000);
+    sync();
+    return () => {
+      disposed = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("blur", onBlur);
+      media.removeEventListener("change", onMotion);
+      pending.then((fn) => fn()).catch(() => {});
+    };
+  }, []);
+  // Native window state also handles WebKit's stale document.hidden value
+  // after restoring a tray-hidden window. DOM visibility remains a fallback.
+  const shouldPause =
+    (visible === null ? hidden : !visible) || (gameRunning && !focused);
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (shouldPause) {
+      video.pause();
+      return;
+    }
+    const playback = createBackgroundPlayback(video, {
+      onRecover: () => setVideoLoaded(false),
+    });
+    const watchdog = setInterval(playback.check, 1500);
+    return () => {
+      clearInterval(watchdog);
+      playback.stop();
+    };
+  }, [videoSrc, shouldPause, epoch, resting]);
+  return (
+    <div
+      className="main-layout__background"
+      data-loaded={imageLoaded || videoLoaded}
+      aria-hidden="true"
+    >
+      {imageUrl && (
+        <img
+          ref={imageRef}
+          src={imageUrl}
+          alt=""
+          className={imageLoaded ? "loaded" : ""}
+          onLoad={() => setImageLoaded(true)}
+          onError={() => setImageLoaded(false)}
+        />
+      )}
+      {videoSrc && !resting && (
+        <video
+          ref={videoRef}
+          src={videoSrc}
+          className={videoLoaded ? "loaded" : ""}
+          preload="metadata"
+          muted
+          playsInline
+          // No `loop`: WebKitGTK stalls seeking a blob back to the start and
+          // flashes the first frame at the end whatever the opacity. So the
+          // video fades out and unmounts just before its end, the image shows
+          // for LOOP_REST, and a fresh <video> plays from the start.
+          onTimeUpdate={(e) => {
+            const left = e.currentTarget.duration - e.currentTarget.currentTime;
+            if (left <= 1) setVideoLoaded(false);
+            if (left <= 0.3) setResting(true);
+          }}
+          onEnded={() => setResting(true)}
+          onPlaying={() => {
+            playedSrc.current = videoSrc;
+            setVideoLoaded(true);
+          }}
+          onError={(e) => {
+            setVideoLoaded(false);
+            // Only a format error on a copy that never played is final; the
+            // watchdog reloads after others.
+            const notSupported =
+              e.currentTarget.error?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED;
+            if (!notSupported || playedSrc.current === videoSrc) return;
+            if (!video) return;
+            invoke("forget_background_video", { url: video.url }).catch(() => {});
+            setVideo((v) => (v?.src === videoSrc ? null : v));
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+export interface MainLayoutProps {
+  background?: BackgroundImage;
+  paused?: boolean;
+  children?: ReactNode;
+}
+
+export default function MainLayout({ background, paused, children }: MainLayoutProps) {
+  return (
+    <div className="main-layout">
+      <Background background={background} gameRunning={paused} />
+      <div className="main-layout__overlay" />
+      <div className="main-layout__content">{children}</div>
+    </div>
+  );
+}

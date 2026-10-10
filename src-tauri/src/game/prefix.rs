@@ -14,9 +14,11 @@ use serde::Serialize;
 
 use crate::error::AppError;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 pub struct ShaderCacheResult {
+    #[specta(type = f64)]
     pub files_removed: u64,
+    #[specta(type = f64)]
     pub bytes_freed: u64,
 }
 

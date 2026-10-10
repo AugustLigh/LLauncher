@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { launcherState } from "../src/utils/launcherState.js";
+import { launcherState } from "../src/utils/launcherState.ts";
 
 const ready = {
   gameState: { status: "ready" },
@@ -48,6 +48,18 @@ test("active and paused work survives version refreshes and takes priority over 
   assert.equal(
     launcherState({ ...ready, protonTask: { status: "running" } }),
     "protonDownloading",
+  );
+  assert.equal(
+    launcherState({ ...ready, protonTask: { status: "error" } }),
+    "ready",
+  );
+  assert.equal(
+    launcherState({
+      ...ready,
+      systemCheck: { platform: "linux", has_proton: false },
+      protonTask: { status: "error" },
+    }),
+    "protonError",
   );
 });
 test("launch cannot be offered during startup, launch or unknown task state", () => {

@@ -73,7 +73,7 @@ const SWAP_EFFECT_UPGRADE_ON: &str = "1";
 /// say who wrote a value: "High performance" set from Windows Settings looks
 /// exactly like "High performance" set from here, and switching a toggle off
 /// must never throw away the user's own choice.
-#[derive(Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Default, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct OwnedEntries {
     /// The executable the keys below were written for. A game directory that
     /// has since moved leaves its old entry alone rather than reaching into

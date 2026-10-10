@@ -11,6 +11,7 @@ use crate::api::constants::DOWNLOAD_STALL_TIMEOUT;
 use crate::api::types::{DownloadProgress, PackFile};
 use crate::error::AppError;
 
+#[allow(clippy::too_many_arguments)]
 pub async fn download_file(
     app: &tauri::AppHandle,
     client: &reqwest::Client,

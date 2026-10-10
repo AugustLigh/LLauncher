@@ -42,7 +42,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: yarn
 
       - uses: dtolnay/rust-toolchain@stable
@@ -54,11 +54,39 @@ jobs:
       - name: Frontend
         run: |
           yarn install --frozen-lockfile
-          yarn test
           yarn build
+          yarn test
 
       # The Tauri context embeds ../dist at compile time, so the frontend
       # build above must come first.
+      - name: Build Rust tests
+        run: cargo test --no-run --manifest-path src-tauri/Cargo.toml
+
+      - name: Resolve Windows DLLs & Manifests for Rust tests
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $src = "src-tauri/target/debug"
+          $dest = "src-tauri/target/debug/deps"
+          if (Test-Path $src) {
+            Copy-Item "$src/*.dll" -Destination $dest -ErrorAction SilentlyContinue
+          }
+          # Write a side-by-side manifest for the test executable to load comctl32.dll v6
+          # which prevents STATUS_ENTRYPOINT_NOT_FOUND when Tauri UI components initialize.
+          $manifest = @"
+          <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+          <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+            <dependency>
+              <dependentAssembly>
+                <assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls" version="6.0.0.0" processorArchitecture="*" publicKeyToken="6595b64144ccf1df" language="*" />
+              </dependentAssembly>
+            </dependency>
+          </assembly>
+          "@
+          Get-ChildItem -Path $dest -Filter "*.exe" | ForEach-Object {
+            Set-Content -Path "$($_.FullName).manifest" -Value $manifest
+          }
+
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
 

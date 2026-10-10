@@ -431,7 +431,8 @@ LLauncher/
 │   │   ├── home/               #   HomePage, ActionButton, GameStatus, ProgressBar, ...
 │   │   ├── settings/           #   SettingsModal, PathSelector, LanguageSelector
 │   │   └── common/             #   SystemWarning, GlassCard, IconButton
-│   ├── hooks/                  #   useDownload, useGameState, useSettings, ...
+│   ├── stores/                 #   Zustand state (gameStore, settingsStore, systemStore, taskStore)
+│   ├── hooks/                  #   Miscellaneous hooks
 │   ├── styles/                 #   CSS variables, animations, global styles
 │   └── utils/                  #   Formatting helpers
 ├── src-tauri/                  # Rust backend
@@ -440,7 +441,7 @@ LLauncher/
 │       ├── config/             #   Settings persistence, path management
 │       ├── download/           #   Download manager, workers, extraction, verification
 │       ├── game/               #   Game state detection, launching (launcher/{linux,macos,windows}.rs), mods
-│       ├── commands.rs         #   Tauri command handlers
+│       ├── commands/           #   Modularized Tauri command handlers (game.rs, settings.rs, etc)
 │       └── lib.rs              #   App setup and plugin registration
 ├── package.json
 └── vite.config.js
@@ -448,10 +449,10 @@ LLauncher/
 
 ## Tech Stack
 
-| Layer    | Technology                    |
-| -------- | ----------------------------- |
-| Frontend | React 18, Vite 6, CSS3       |
-| Backend  | Rust, Tauri v2                |
+| Layer    | Technology                                  |
+| -------- | ------------------------------------------- |
+| Frontend | React 18, TypeScript, Zustand, Vite 6, CSS3 |
+| Backend  | Rust, Tauri v2, tauri-specta                |
 | HTTP     | reqwest (async, streaming)    |
 | Crypto   | md-5 (file verification)      |
 | Runtime  | Tokio (async, multi-threaded) |

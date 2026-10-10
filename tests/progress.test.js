@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { progressDetails } from '../src/utils/progress.js';
+import { progressDetails } from '../src/utils/progress.ts';
 
 test('VFS verification advances without byte totals', () => {
   const p = progressDetails({ stage: 'verifying', files_done: 32, total_files: 64, bytes_total: 0, bytes_downloaded: 0 });

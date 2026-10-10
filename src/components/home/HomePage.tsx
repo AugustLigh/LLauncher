@@ -1,0 +1,657 @@
+import { commands } from '../../bindings';
+import { useState, useCallback, useEffect, useRef } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { open } from "@tauri-apps/plugin-dialog";
+import ActionButton from "./ActionButton";
+import ProgressBar from "./ProgressBar";
+import NewsPanel from "./NewsPanel";
+import BannerCarousel from "./BannerCarousel";
+import ActionMenu from "./ActionMenu";
+import ConfirmDialog from "../common/ConfirmDialog";
+import ErrorNotice from "../common/ErrorNotice";
+import { Button, Status } from "../common/Controls";
+import Icon from "../common/Icon";
+import { useSettingsStore } from "../../stores/settingsStore";
+import { useSystemStore } from "../../stores/systemStore";
+import { useGameStore } from "../../stores/gameStore";
+import { useTaskStore, taskActive } from "../../stores/taskStore";
+import { InstallPlan } from "../../bindings";
+import useGameStats from "../../hooks/useGameStats";
+import { launcherState } from "../../utils/launcherState";
+import { formatSize, formatPlaytime, formatDate } from "../../utils/format";
+import { useTranslation } from "../../i18n";
+import "./HomePage.css";
+
+interface HomePageProps {
+  hidden?: boolean;
+  onOpenSettings: (tab?: string) => void;
+}
+
+export default function HomePage({ hidden, onOpenSettings }: HomePageProps) {
+  const { t, locale } = useTranslation();
+  const stats = useGameStats();
+
+  const settings = useSettingsStore((s) => s.settings);
+  const saveSettings = useSettingsStore((s) => s.saveSettings);
+  const reloadSettings = useSettingsStore((s) => s.reload);
+
+  const systemCheck = useSystemStore((s) => s.systemCheck);
+  const systemLoading = useSystemStore((s) => s.loading);
+  const systemError = useSystemStore((s) => s.error);
+  const refreshSystem = useSystemStore((s) => s.refresh);
+
+  const gameState = useGameStore((s) => s.gameState);
+  const gameLoading = useGameStore((s) => s.stateLoading);
+  const gameError = useGameStore((s) => s.stateError);
+  const refreshGameState = useGameStore((s) => s.refreshGameState);
+  const gameRunning = useGameStore((s) => s.running);
+  const markRunning = useGameStore((s) => s.markRunning);
+
+  const content = useGameStore((s) => s.content);
+  const contentLoading = useGameStore((s) => s.contentLoading);
+  const contentError = useGameStore((s) => s.contentError);
+  const refreshContent = useGameStore((s) => s.refreshContent);
+
+  const tasks = useTaskStore((s) => s.tasks);
+  const tasksLoading = useTaskStore((s) => s.loading);
+  const tasksError = useTaskStore((s) => s.loadError);
+  const start = useTaskStore((s) => s.start);
+  const stop = useTaskStore((s) => s.stop);
+  const refreshTasks = useTaskStore((s) => s.refresh);
+  const busy = useTaskStore((s) => s.busy);
+
+  const onSync = useCallback(() => {
+    return Promise.all([reloadSettings(), refreshSystem(), refreshGameState()]);
+  }, [reloadSettings, refreshSystem, refreshGameState]);
+
+  const onRetryContent = useCallback(() => refreshContent(settings?.language), [refreshContent, settings?.language]);
+
+  const [launching, setLaunching] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [localError, setLocalError] = useState<{title: string; error: any} | null>(null);
+  const [confirmation, setConfirmation] = useState<{title: string; message: string; label: string; run: () => void} | null>(null);
+  const [plan, setPlan] = useState<InstallPlan | null>(null);
+  const [planError, setPlanError] = useState<any>(null);
+  const [planLoading, setPlanLoading] = useState(false);
+
+  const launchLock = useRef(false);
+  const installLock = useRef(false);
+  const planRequest = useRef(0);
+  const latestSync = useRef(onSync);
+  const installDetails = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const close = (event: PointerEvent) => {
+      const details = installDetails.current;
+      if (details?.open && !details.contains(event.target as Node))
+        details.open = false;
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, []);
+  useEffect(() => {
+    if (hidden && installDetails.current) installDetails.current.open = false;
+  }, [hidden]);
+  latestSync.current = onSync;
+  const task =
+    tasks.game &&
+    (!tasks.game.game_dir ||
+      tasks.game.game_dir === settings?.game_dir ||
+      taskActive(tasks.game))
+      ? tasks.game
+      : null;
+  const protonTask = tasks.proton?.status === "completed" ? null : tasks.proton;
+  const state = launcherState({
+    running: gameRunning,
+    launching,
+    importing,
+    gameLoading,
+    gameError,
+    systemLoading,
+    systemError,
+    systemCheck,
+    gameState,
+    task,
+    protonTask,
+    tasksLoading,
+    tasksError,
+  });
+  const isLinux = systemCheck?.platform !== "windows";
+  const needsProton = isLinux && systemCheck && !systemCheck.has_proton;
+  // The runtime step reads "Proton" on Linux and "Wine" on macOS; the flow
+  // behind it (install it for me / pick one) is the same.
+  const isMac = systemCheck?.platform === "macos";
+  const runtimeName = isMac ? "Wine" : "Proton";
+  const rt = (key) => t(isMac ? `ui.${key}Mac` : `ui.${key}`);
+  const loadPlan = useCallback(async () => {
+    const id = ++planRequest.current;
+    setPlanLoading(true);
+    setPlanError(null);
+    setPlan(null);
+    try {
+      const next = await commands.getInstallPlan();
+      if (id === planRequest.current) {
+        if (next.status === "ok") {
+          setPlan(next.data);
+        } else {
+          setPlanError(next.error);
+        }
+      }
+    } catch (e) {
+      if (id === planRequest.current) setPlanError(e);
+    } finally {
+      if (id === planRequest.current) setPlanLoading(false);
+    }
+  }, [settings?.game_dir, settings?.download_dir]);
+  useEffect(() => {
+    if (gameState?.status === "not_installed" && settings) loadPlan();
+    return () => {
+      planRequest.current++;
+    };
+  }, [gameState?.status, loadPlan]);
+  useEffect(() => {
+    const pending = listen("launch://update-required", () =>
+      latestSync.current(),
+    );
+    return () => {
+      pending.then((u) => u());
+    };
+  }, []);
+  const chooseFolder = async (existing = false) => {
+    if (busy || importing) return;
+    setLocalError(null);
+    try {
+      const dir = await open({
+        directory: true,
+        title: t(existing ? "ui.existingGame" : "ui.chooseFolder"),
+      });
+      if (!dir) return;
+      setImporting(true);
+      if (existing) {
+        const res = await commands.importExistingGame(dir);
+        if (res.status === "error") throw new Error(res.error);
+      } else {
+        const freshRes = await commands.getSettings();
+        if (freshRes.status === "error") throw new Error(freshRes.error);
+        const fresh = freshRes.data;
+        const sep = dir.includes("\\") ? "\\" : "/";
+        const oldDefault =
+          fresh.download_dir.replace(/\\/g, "/") ===
+          `${fresh.game_dir.replace(/\\/g, "/")}/_download`;
+        await saveSettings({
+          ...fresh,
+          game_dir: dir,
+          download_dir: oldDefault
+            ? `${dir}${sep}_download`
+            : fresh.download_dir,
+        });
+      }
+      await onSync();
+    } catch (e) {
+      setLocalError({ title: t("errors.importFailed"), error: e });
+    } finally {
+      setImporting(false);
+    }
+  };
+  const launch = async (withMods = false) => {
+    if (launchLock.current || state !== "ready") return;
+    launchLock.current = true;
+    setLaunching(true);
+    setLocalError(null);
+    try {
+      const res = await commands.launchGame(withMods);
+      if (res.status === "error") throw new Error(res.error);
+      markRunning();
+      if (["hide", "close"].includes(settings?.on_launch_action || "hide"))
+        await getCurrentWindow().hide();
+    } catch (e) {
+      setLocalError({ title: t("ui.launchFailed"), error: e });
+      await onSync();
+    } finally {
+      launchLock.current = false;
+      setLaunching(false);
+    }
+  };
+  const install = async () => {
+    if (installLock.current || busy) return;
+    installLock.current = true;
+    setLocalError(null);
+    try {
+      if (needsProton) {
+        if (!(await start("proton"))) return;
+        await onSync();
+      }
+      await start("install");
+    } finally {
+      installLock.current = false;
+    }
+  };
+  const stopTask = async (slot, discard = false) => {
+    try {
+      await stop(slot, discard);
+    } catch (e) {
+      setLocalError({ title: t("ui.downloadFailed"), error: e });
+    }
+  };
+  const confirmCancel = (slot) =>
+    setConfirmation({
+      title: slot === "proton" ? rt("protonCancel") : t("ui.cancelTitle"),
+      message: t(slot === "proton" ? "ui.protonCancelBody" : "ui.cancelBody"),
+      label: t(slot === "proton" ? "ui.stop" : "ui.cancelConfirm"),
+      run: () => stopTask(slot, true),
+    });
+  const screenOff = systemCheck?.can_turn_off_screen
+    ? () => { commands.turnOffScreen().catch(() => {}); }
+    : undefined;
+  const resume = () =>
+    start(
+      task?.kind ||
+        (gameState?.status === "update_available" ? "update" : "install"),
+    );
+  const version =
+    gameState && "version" in gameState
+      ? gameState.version
+      : gameState && "installed_version" in gameState
+        ? gameState.installed_version
+        : gameState?.latest_version;
+  const labels = {
+    versionError: "versionFailed",
+    systemError: "systemFailed",
+    downloadError: "downloadFailed",
+    protonError: "needsProton",
+    taskError: "tasksFailed",
+    update: "updateTitle",
+  };
+  const progressState = [
+    "downloading",
+    "fetching",
+    "verifying",
+    "extracting",
+    "pausing",
+    "paused",
+  ].includes(state);
+  const errorState = [
+    "versionError",
+    "systemError",
+    "downloadError",
+    "protonError",
+    "taskError",
+  ].includes(state);
+  const primaryAction =
+    state === "ready"
+      ? () => launch(false)
+      : state === "notInstalled"
+        ? install
+        : state === "update"
+          ? () => start("update")
+          : state === "needsProton" || state === "protonError"
+            ? () => start("proton")
+            : state === "downloadError"
+              ? resume
+              : state === "versionError"
+                ? refreshGameState
+                : state === "systemError"
+                  ? refreshSystem
+                  : state === "taskError"
+                    ? refreshTasks
+                    : undefined;
+  const primaryLabel =
+    state === "ready"
+      ? t("home.action.launch")
+      : state === "notInstalled"
+        ? needsProton
+          ? rt("installBoth")
+          : t("home.action.install")
+        : state === "update"
+          ? t("ui.updateAction")
+          : ["needsProton", "protonError"].includes(state)
+            ? rt("installProton")
+            : errorState
+              ? t("common.retry")
+              : t(`ui.${labels[state] || state}`);
+  const primaryIcon =
+    state === "ready"
+      ? "play"
+      : ["notInstalled", "update", "needsProton", "protonError"].includes(state)
+        ? "download"
+        : errorState
+          ? "refresh"
+          : undefined;
+  const menuItems = [
+    ...(state === "ready" && settings?.mods_enabled
+      ? [
+          {
+            label: t("home.action.launchMods"),
+            icon: "mods",
+            onSelect: () => launch(true),
+          },
+        ]
+      : []),
+    {
+      label: t("ui.gameSettings"),
+      icon: "settings",
+      onSelect: () => onOpenSettings("files"),
+    },
+    ...(state === "notInstalled"
+      ? [
+          {
+            label: t("ui.existingGame"),
+            icon: "folder",
+            onSelect: () => chooseFolder(true),
+            disabled: busy,
+          },
+        ]
+      : []),
+  ];
+  return (
+    <main className="home-page" data-state={state} hidden={hidden}>
+      <h1 className="home-page__hero">Arknights: Endfield</h1>
+      <div className="home-page__news">
+        <BannerCarousel banners={content?.banners} />
+        <NewsPanel
+          tabs={content?.news_tabs}
+          loading={contentLoading}
+          error={contentError}
+          onRetry={onRetryContent}
+        />
+      </div>
+      <section
+        className="home-page__action-area"
+        data-state={state}
+        aria-label={t("ui.gameSettings")}
+      >
+        {!progressState &&
+          !errorState &&
+          !["update", "protonDownloading"].includes(state) && (
+            <div className="home-page__card-meta">
+              <Status
+                kind={
+                  errorState
+                    ? "error"
+                    : state === "ready"
+                      ? "success"
+                      : ["needsProton", "paused", "update"].includes(state)
+                        ? "warning"
+                        : "neutral"
+                }
+                busy={[
+                  "checking",
+                  "systemChecking",
+                  "importing",
+                  "launching",
+                ].includes(state)}
+              >
+                {t(`ui.${labels[state] || state}`)}
+              </Status>
+              {version && (
+                <span className="home-page__version">v{version}</span>
+              )}
+            </div>
+          )}
+        {localError && <ErrorNotice {...localError} />}
+        {state === "notInstalled" && (
+          <details
+            ref={installDetails}
+            className="home-page__install-details"
+            open={plan?.blocked || !!planError || undefined}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && event.currentTarget.open) {
+                event.stopPropagation();
+                event.currentTarget.open = false;
+                event.currentTarget.querySelector<HTMLElement>("summary")?.focus();
+              }
+            }}
+          >
+            <summary>
+              <span>
+                {t("ui.installTitle")}
+                {plan?.download_bytes != null &&
+                  ` · ${formatSize(plan.download_bytes)}`}
+              </span>
+              <Icon name="chevron" size={14} />
+            </summary>
+            <div className="home-page__install-popover">
+              <h2>{t("ui.installTitle")}</h2>
+              <div className="home-page__folder">
+                <Icon name="folder" />
+                <div>
+                  <span>
+                    {settings?.game_dir?.split(/[\\/]/).filter(Boolean).pop()}
+                  </span>
+                  <small title={settings?.game_dir}>{settings?.game_dir}</small>
+                </div>
+                <Button
+                  variant="ghost"
+                  onClick={() => chooseFolder(false)}
+                  disabled={busy}
+                >
+                  {t("ui.change")}
+                </Button>
+              </div>
+              {planLoading && <small>{t("ui.sizeUnknown")}</small>}
+              {plan && (
+                <div className="home-page__installation">
+                  <div>
+                    <span>{t("ui.downloadSize")}</span>
+                    <span>{formatSize(plan.download_bytes)}</span>
+                  </div>
+                  {plan.unpacked_bytes != null && (
+                    <div>
+                      <span>{t("ui.gameSpace")}</span>
+                      <span>{formatSize(plan.unpacked_bytes)}</span>
+                    </div>
+                  )}
+                  {plan.disks?.map((disk, i) => (
+                    <div className="home-page__disk" key={i} title={disk.path}>
+                      <span>{t("ui.diskFree")}</span>
+                      <span>
+                        {disk.available == null
+                          ? t("ui.unknown")
+                          : formatSize(disk.available)}
+                      </span>
+                      <div className="home-page__disk-bar">
+                        <span
+                          style={{
+                            width:
+                              disk.available != null && disk.required != null && disk.available > 0
+                                ? `${Math.min(100, (disk.required / disk.available) * 100)}%`
+                                : "0%",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  {plan.unpacked_bytes == null && (
+                    <small>{t("ui.totalSpaceUnknown")}</small>
+                  )}
+                  {plan.blocked && (
+                    <span className="home-page__space-error">
+                      {t("ui.notEnoughSpace")}
+                    </span>
+                  )}
+                </div>
+              )}
+              {systemError && (
+                <ErrorNotice
+                  title={t("ui.systemFailed")}
+                  error={systemError}
+                  onRetry={refreshSystem}
+                />
+              )}
+              {planError && (
+                <ErrorNotice
+                  title={t("ui.planFailed")}
+                  error={planError}
+                  onRetry={loadPlan}
+                />
+              )}
+              {needsProton && (
+                <div className="home-page__runtime-line">
+                  <Icon name="download" size={15} />
+                  <span>{runtimeName}</span>
+                  <small>{t("ui.recommendedBuild")}</small>
+                </div>
+              )}
+            </div>
+          </details>
+        )}
+        {["needsProton", "protonError"].includes(state) && (
+          <>
+            <h2>{rt("protonTitle")}</h2>
+            <div className="home-page__checklist">
+              <Status kind="success">{t("ui.gameFound")}</Status>
+              <span>
+                {t("ui.runtime")} · {runtimeName}
+              </span>
+            </div>
+          </>
+        )}
+        {state === "update" && gameState?.status === "update_available" && (
+          <div className="home-page__update">
+            <h2>{t("ui.updateTitle")}</h2>
+            <span>
+              v{gameState.installed_version} <Icon name="arrow" size={15} /> v
+              {gameState.latest_version}
+            </span>
+          </div>
+        )}
+        {progressState && (
+          <ProgressBar
+            progress={task?.progress}
+            paused={state === "paused"}
+            stopping={state === "pausing"}
+            onResume={state === "paused" ? resume : undefined}
+            onPause={
+              taskActive(task) && task?.progress?.stage !== "extracting"
+                ? () => { stopTask("game"); }
+                : undefined
+            }
+            onCancel={
+              state !== "extracting" ? () => confirmCancel("game") : undefined
+            }
+            onScreenOff={taskActive(task) ? screenOff : undefined}
+          />
+        )}
+        {state === "protonDownloading" && (
+          <ProgressBar
+            progress={protonTask?.progress}
+            proton
+            stopping={protonTask?.status !== "running"}
+            onCancel={
+              protonTask?.progress?.stage !== "extracting"
+                ? () => confirmCancel("proton")
+                : undefined
+            }
+            onScreenOff={protonTask?.status === "running" ? screenOff : undefined}
+          />
+        )}
+        {errorState && (
+          <ErrorNotice
+            title={t(`ui.${labels[state] || state}`)}
+            error={
+              state === "versionError"
+                ? gameError
+                : state === "systemError"
+                  ? systemError
+                  : state === "taskError"
+                    ? tasksError
+                    : state === "protonError"
+                      ? protonTask?.error
+                      : task?.error
+            }
+          />
+        )}
+        {!progressState &&
+          state !== "protonDownloading" &&
+          state !== "running" && (
+            <div className="home-page__launch-controls">
+              <ActionButton
+                icon={primaryIcon}
+                attract={["ready", "notInstalled", "update"].includes(state)}
+                onClick={primaryAction}
+                disabled={
+                  !primaryAction ||
+                  (state === "notInstalled" &&
+                    (planLoading ||
+                      !!planError ||
+                      plan?.blocked ||
+                      systemLoading ||
+                      !!systemError))
+                }
+                busy={!primaryAction}
+              >
+                {primaryLabel}
+              </ActionButton>
+              <ActionMenu items={menuItems} />
+            </div>
+          )}
+        {state === "running" && (
+          <Button
+            variant="danger"
+            icon="stop"
+            onClick={() =>
+              setConfirmation({
+                title: t("home.stopGame"),
+                message: t("home.stopConfirm"),
+                label: t("home.stopGame"),
+                run: async () => {
+                  try {
+                    const res = await commands.stopGame();
+                    if (res.status === "error") throw new Error(res.error);
+                  } catch (e) {
+                    setLocalError({ title: t("errors.stopFailed"), error: e });
+                  }
+                },
+              })
+            }
+          >
+            {t("home.stopGame")}…
+          </Button>
+        )}
+        {["needsProton", "protonError"].includes(state) && (
+          <button
+            className="home-page__subaction"
+            onClick={() => onOpenSettings("proton")}
+          >
+            {rt("selectProton")}
+            <Icon name="arrow" size={14} />
+          </button>
+        )}
+      </section>
+      <footer className="home-page__footer">
+        <span>
+          {stats && stats.totalPlaytimeSecs > 0 && (
+            <>
+              {t("ui.stats", {
+                time: formatPlaytime(stats.totalPlaytimeSecs, locale),
+              })}
+              {stats.lastPlayed > 0 && (
+                <>
+                  {" "}
+                  ·{" "}
+                  {t("ui.lastPlayed", {
+                    date: formatDate(stats.lastPlayed, locale),
+                  })}
+                </>
+              )}
+            </>
+          )}
+        </span>
+      </footer>
+      {confirmation && (
+        <ConfirmDialog
+          title={confirmation.title}
+          message={confirmation.message}
+          confirmLabel={confirmation.label}
+          danger
+          onCancel={() => setConfirmation(null)}
+          onConfirm={() => {
+            const run = confirmation.run;
+            setConfirmation(null);
+            run();
+          }}
+        />
+      )}
+    </main>
+  );
+}

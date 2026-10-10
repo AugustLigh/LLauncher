@@ -13,6 +13,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+specta = "2.0.0-rc.25"
+tauri-specta = { version = "2.0.0-rc.25", features = ["javascript", "typescript"] }
+specta-typescript = "0.0.12"
 # `macos-private-api`: the borderless, transparent main window needs it on
 # macOS (Tauri renders such windows through private AppKit calls there; fine
 # outside the App Store). It has to sit here, on the main dependency, with

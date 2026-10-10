@@ -17,6 +17,7 @@ fn safe_pack_file_name(url: &str) -> &str {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn start_download(
     app: tauri::AppHandle,
     client: reqwest::Client,

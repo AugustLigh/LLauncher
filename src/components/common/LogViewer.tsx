@@ -1,0 +1,90 @@
+import { commands } from '../../bindings';
+import { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from '../../i18n';
+import { copyText } from '../../utils/clipboard';
+import useModalDismiss from '../../hooks/useModalDismiss';
+import './LogViewer.css';
+
+export interface LogViewerProps {
+  initialContent?: string | null;
+  onClose: () => void;
+}
+
+export default function LogViewer({ initialContent, onClose }: LogViewerProps) {
+  const { t } = useTranslation();
+  const [content, setContent] = useState<string | null>(initialContent ?? null);
+  const [loading, setLoading] = useState(initialContent == null);
+  const [error, setError] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<string | null>(null);
+  useModalDismiss(onClose);
+
+  const loadLog = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setCopyStatus(null);
+    try {
+      const res = await commands.readLaunchLog();
+      if (res.status === 'error') throw new Error(String(res.error));
+      setContent(res.data);
+    } catch (e: any) {
+      console.error('Failed to read log:', e);
+      setError(typeof e === 'string' ? e : e?.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (initialContent == null) loadLog();
+  }, [initialContent, loadLog]);
+
+  const handleCopy = async () => {
+    const copied = await copyText(content || '');
+    setCopyStatus(copied ? 'copied' : 'copyFailed');
+  };
+
+  const trimmed = (content || '').trim();
+
+  return (
+    <div className="log-viewer-overlay" onClick={onClose}>
+      <div className="log-viewer" role="dialog" aria-modal="true" aria-labelledby="log-viewer-title" onClick={(e) => e.stopPropagation()}>
+        <div className="log-viewer__header">
+          <span className="log-viewer__title" id="log-viewer-title">{t('logViewer.title')}</span>
+          <div className="log-viewer__header-actions">
+            <button className="log-viewer__refresh" onClick={handleCopy} disabled={loading || !trimmed}>
+              {t('logViewer.copy')}
+            </button>
+            <button
+              className="log-viewer__refresh"
+              onClick={loadLog}
+              disabled={loading}
+              title={t('logViewer.refresh')}
+            >
+              {t('logViewer.refresh')}
+            </button>
+            <button className="log-viewer__close" onClick={onClose} aria-label={t('common.close')}>{'✕'}</button>
+          </div>
+        </div>
+        <div className="log-viewer__body">
+          {error && (
+            <div className="log-viewer__error selectable" role="alert">
+              {t('logViewer.readFailed')}: {error}
+            </div>
+          )}
+          {copyStatus && (
+            <div className={copyStatus === 'copyFailed' ? 'log-viewer__error' : 'log-viewer__status'} role="status">
+              {t(`logViewer.${copyStatus}`)}
+            </div>
+          )}
+          {loading ? (
+            <div className="log-viewer__empty">{t('common.loading')}</div>
+          ) : trimmed ? (
+            <pre className="log-viewer__pre">{content}</pre>
+          ) : !error ? (
+            <div className="log-viewer__empty">{t('logViewer.empty')}</div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
