@@ -160,6 +160,88 @@ pub fn ensure_mods_dir(game_dir: &Path) -> std::io::Result<PathBuf> {
     Ok(dir)
 }
 
+/// Suffixes 1.3.4 and earlier gave the files it moved aside in the game
+/// directory: the loader's, parked between modded launches, and the game's
+/// own compiler, displaced by the loader's copy.
+const LEGACY_PARKED_SUFFIX: &str = ".llauncher-off";
+const LEGACY_BACKUP_SUFFIX: &str = ".llauncher-orig";
+const LEGACY_COMPILER_DLL: &str = "d3dcompiler_47.dll";
+
+/// Loader directories earlier versions unpacked next to `Endfield.exe`.
+const LEGACY_LOADER_DIRS: [&str; 2] = ["Core", "ShaderFixes"];
+
+/// Take a loader that earlier versions installed as a proxy next to
+/// `Endfield.exe` out of the game directory, which the game would otherwise
+/// keep loading on every launch (issue #39), and give the user's mods and
+/// toggles to the loader directory. The loader itself has to be installed
+/// again: that install never kept `3dmloader.dll`. A no-op once done.
+pub fn migrate_legacy_install(game_dir: &Path) -> std::io::Result<()> {
+    let at = |name: &str| game_dir.join(name);
+    let suffixed = |name: &str, suffix: &str| game_dir.join(format!("{name}{suffix}"));
+    // The game ships no d3d11.dll, so a parked one is ours, and a live one
+    // next to 3DMigoto's ini is at least 3DMigoto's.
+    let parked_dll = suffixed(LOADER_DLL, LEGACY_PARKED_SUFFIX);
+    let live = at(LOADER_DLL).is_file() && at(LOADER_INI).is_file();
+    if !live && !parked_dll.is_file() {
+        return Ok(());
+    }
+
+    let dir = loader_dir(game_dir);
+    std::fs::create_dir_all(&dir)?;
+    move_missing(&at(MODS_SUBDIR), &mods_dir(game_dir))?;
+    move_missing(&at("d3dx_user.ini"), &dir.join("d3dx_user.ini"))?;
+
+    // After a modded launch the loader's compiler is live and the game's is
+    // backed up; after a normal one the game's is live and the loader's
+    // parked.
+    let original = suffixed(LEGACY_COMPILER_DLL, LEGACY_BACKUP_SUFFIX);
+    if original.is_file() {
+        std::fs::rename(&original, at(LEGACY_COMPILER_DLL))?;
+    }
+    for file in [
+        at(LOADER_DLL),
+        parked_dll,
+        suffixed(LEGACY_COMPILER_DLL, LEGACY_PARKED_SUFFIX),
+        at(LOADER_INI),
+    ] {
+        if file.is_file() {
+            std::fs::remove_file(&file)?;
+        }
+    }
+    for name in LEGACY_LOADER_DIRS {
+        if at(name).is_dir() {
+            std::fs::remove_dir_all(at(name))?;
+        }
+    }
+    crate::logging::info(format!(
+        "mods: moved the old mod loader out of the game directory; mods are in {}",
+        mods_dir(game_dir).display()
+    ));
+    Ok(())
+}
+
+/// Move `from` to `to`. Into an existing directory, only the entries it does
+/// not have yet go; anything left behind stays where it was.
+fn move_missing(from: &Path, to: &Path) -> std::io::Result<()> {
+    if !from.exists() {
+        return Ok(());
+    }
+    if !to.exists() {
+        return std::fs::rename(from, to);
+    }
+    if from.is_dir() && to.is_dir() {
+        for entry in std::fs::read_dir(from)?.flatten() {
+            let target = to.join(entry.file_name());
+            if !target.exists() {
+                std::fs::rename(entry.path(), target)?;
+            }
+        }
+        // Fails, and keeps the directory, when something was left behind.
+        let _ = std::fs::remove_dir(from);
+    }
+    Ok(())
+}
+
 /// The 3DMigoto binaries EFMI runs on — XXMI Launcher's own build, which is
 /// the one EFMI is developed and tested against.
 const LIBS_REPO: &str = "SpectrumQT/XXMI-Libs-Package";
@@ -233,6 +315,7 @@ pub async fn install_loader(
         // Stale scripts are worse than missing ones: EFMI moves ini files
         // between releases, and 3DMigoto happily loads whatever is left over
         // from the previous install alongside the new set.
+        migrate_legacy_install(&game_dir)?;
         let dir = loader_dir(&game_dir);
         clear_loader_files(&dir)?;
         let mut files = unpack_package(&libs.bytes, &dir)?;
@@ -394,6 +477,7 @@ fn common_root<R: std::io::Read + std::io::Seek>(
 
 /// Remove the loader, leaving the user's `Mods` directory untouched.
 pub fn uninstall_loader(game_dir: &Path) -> Result<(), AppError> {
+    migrate_legacy_install(game_dir)?;
     clear_loader_files(&loader_dir(game_dir))?;
     crate::logging::info("mods: removed the mod loader");
     Ok(())
@@ -417,6 +501,88 @@ mod tests {
         ));
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn moves_a_modded_legacy_install_out_of_the_game_dir() {
+        let dir = tempdir();
+        for d in ["Core/EFMI", "ShaderFixes", "Mods/MySkin"] {
+            std::fs::create_dir_all(dir.join(d)).unwrap();
+        }
+        for (f, body) in [
+            (LOADER_DLL, "proxy"),
+            (LOADER_INI, "ini"),
+            ("d3dx_user.ini", "toggles"),
+            ("d3dcompiler_47.dll", "loader's"),
+            ("d3dcompiler_47.dll.llauncher-orig", "game's"),
+        ] {
+            std::fs::write(dir.join(f), body).unwrap();
+        }
+        // A fresh EFMI package ships an empty Mods/ of its own.
+        std::fs::create_dir_all(mods_dir(&dir)).unwrap();
+
+        migrate_legacy_install(&dir).unwrap();
+
+        let mut left: Vec<String> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        left.sort();
+        assert_eq!(left, vec!["EFMI", "d3dcompiler_47.dll"]);
+        assert_eq!(
+            std::fs::read(dir.join("d3dcompiler_47.dll")).unwrap(),
+            b"game's"
+        );
+        assert!(mods_dir(&dir).join("MySkin").is_dir());
+        assert_eq!(
+            std::fs::read(loader_dir(&dir).join("d3dx_user.ini")).unwrap(),
+            b"toggles"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn moves_a_parked_legacy_install_out_of_the_game_dir() {
+        let dir = tempdir();
+        std::fs::create_dir_all(dir.join("Core/EFMI")).unwrap();
+        for (f, body) in [
+            ("d3d11.dll.llauncher-off", "proxy"),
+            (LOADER_INI, "ini"),
+            ("d3dcompiler_47.dll", "game's"),
+            ("d3dcompiler_47.dll.llauncher-off", "loader's"),
+        ] {
+            std::fs::write(dir.join(f), body).unwrap();
+        }
+
+        migrate_legacy_install(&dir).unwrap();
+
+        let mut left: Vec<String> = std::fs::read_dir(&dir)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        left.sort();
+        assert_eq!(left, vec!["EFMI", "d3dcompiler_47.dll"]);
+        assert_eq!(
+            std::fs::read(dir.join("d3dcompiler_47.dll")).unwrap(),
+            b"game's"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn leaves_a_game_dir_without_a_legacy_install_alone() {
+        let dir = tempdir();
+        std::fs::create_dir_all(dir.join("Mods/Other")).unwrap();
+        std::fs::write(dir.join(LOADER_DLL), b"someone else's").unwrap();
+
+        migrate_legacy_install(&dir).unwrap();
+
+        assert!(dir.join(LOADER_DLL).is_file());
+        assert!(dir.join("Mods/Other").is_dir());
+        assert!(!loader_dir(&dir).exists());
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

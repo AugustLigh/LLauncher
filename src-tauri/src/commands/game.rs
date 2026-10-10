@@ -101,6 +101,15 @@ pub async fn launch_and_watch(app: tauri::AppHandle, with_mods: bool) -> Result<
         settings_clone.use_gamescope,
         with_mods
     ));
+    // A loader 1.3.4 left next to Endfield.exe loads into every launch.
+    if let Err(e) =
+        crate::game::mods::migrate_legacy_install(std::path::Path::new(&settings_clone.game_dir))
+    {
+        if with_mods {
+            return Err(e.into());
+        }
+        crate::logging::warn(format!("mods: could not move the old loader: {}", e));
+    }
     let mut launched = crate::game::launcher::launch_game(&settings_clone, with_mods)?;
     let game_running = state.game_running.clone();
     let game_pid = state.game_pid.clone();
