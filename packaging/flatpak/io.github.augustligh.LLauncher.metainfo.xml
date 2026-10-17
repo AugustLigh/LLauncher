@@ -82,6 +82,19 @@
   </content_rating>
 
   <releases>
+    <release version="1.3.5" date="2026-10-17">
+      <url>https://github.com/AugustLigh/LLauncher/releases/tag/1.3.5</url>
+      <description>
+        <p>
+          Endfield 1.6 starts again. The game now only runs when the official
+          launcher is its parent process, so LLauncher starts it with
+          GRYPHLINK's signed Games.exe as the parent; GRYPHLINK itself never
+          runs and nothing is installed into the prefix. DWProton 11.0-14 is
+          the new recommended build: the anti-cheat driver in 1.6 does not
+          load on 10.0-26, and the launch failure dialog now says so.
+        </p>
+      </description>
+    </release>
     <release version="1.3.4" date="2026-09-24">
       <url>https://github.com/AugustLigh/LLauncher/releases/tag/1.3.4</url>
       <description>
