@@ -26,6 +26,7 @@ use super::{
 use crate::config::paths;
 use crate::config::settings::AppSettings;
 use crate::error::AppError;
+use crate::game::gryphlink::Starter;
 
 /// A usable Wine install: the loader that runs the game, and — when it sits
 /// next to the loader, which it does in every build we know of — the server
@@ -159,8 +160,13 @@ fn renderer_args(settings: &AppSettings, with_mods: bool) -> &'static str {
 }
 
 /// Start the game. `with_mods` keeps the D3D11 path and injects 3DMigoto —
-/// see `crate::game::mods`.
-pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGame, AppError> {
+/// see `crate::game::mods`. `starter` puts GRYPHLINK's `Games.exe` in as the
+/// game's parent — see `crate::game::gryphlink`.
+pub fn launch_game(
+    settings: &AppSettings,
+    with_mods: bool,
+    starter: Option<&Starter>,
+) -> Result<LaunchedGame, AppError> {
     let game_path = Path::new(&settings.game_dir);
     let exe_path = game_path.join("Endfield.exe");
 
@@ -217,11 +223,21 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
     }
 
     // Wine takes a Unix path for the executable and translates it itself, so
-    // unlike the Linux side there is no Z: drive path to build.
+    // unlike the Linux side there is no Z: drive path to build — except for
+    // the shim's arguments, which it hands to CreateProcess as they are.
+    let target = match starter {
+        Some(starter) => format!(
+            "{} {} {}",
+            shell_escape(&starter.shim.to_string_lossy()),
+            shell_escape(&to_wine_path(&starter.starter)),
+            shell_escape(&to_wine_path(&exe_path))
+        ),
+        None => shell_escape(&exe_path.to_string_lossy()),
+    };
     let mut launch_cmd = format!(
         "{} {} {}",
         shell_escape(&wine.wine.to_string_lossy()),
-        shell_escape(&exe_path.to_string_lossy()),
+        target,
         renderer_args(settings, with_mods)
     );
 

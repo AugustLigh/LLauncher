@@ -25,7 +25,7 @@ pub struct CdEntry {
     pub unpacked_size: Option<u64>,
 }
 
-fn read_u32(b: &[u8], off: usize) -> Option<u32> {
+pub(crate) fn read_u32(b: &[u8], off: usize) -> Option<u32> {
     b.get(off..off + 4)
         .map(|s| u32::from_le_bytes(s.try_into().unwrap()))
 }
@@ -33,12 +33,12 @@ fn read_u64(b: &[u8], off: usize) -> Option<u64> {
     b.get(off..off + 8)
         .map(|s| u64::from_le_bytes(s.try_into().unwrap()))
 }
-fn read_u16(b: &[u8], off: usize) -> Option<u16> {
+pub(crate) fn read_u16(b: &[u8], off: usize) -> Option<u16> {
     b.get(off..off + 2)
         .map(|s| u16::from_le_bytes(s.try_into().unwrap()))
 }
 
-async fn range(
+pub(crate) async fn range(
     client: &reqwest::Client,
     url: &str,
     start: u64,

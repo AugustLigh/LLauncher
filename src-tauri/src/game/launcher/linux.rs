@@ -12,6 +12,7 @@ use super::{
 use crate::config::paths;
 use crate::config::settings::AppSettings;
 use crate::error::AppError;
+use crate::game::gryphlink::Starter;
 
 /// Resolve the Proton prefix (STEAM_COMPAT_DATA_PATH) directory.
 ///
@@ -205,8 +206,14 @@ fn build_gamescope_args(settings: &AppSettings) -> String {
 }
 
 /// Start the game. `with_mods` swaps the native Vulkan renderer for the D3D11
-/// path and injects 3DMigoto — see `crate::game::mods`.
-pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGame, AppError> {
+/// path and injects 3DMigoto — see `crate::game::mods`. `starter` puts
+/// GRYPHLINK's `Games.exe` in as the game's parent — see
+/// `crate::game::gryphlink`.
+pub fn launch_game(
+    settings: &AppSettings,
+    with_mods: bool,
+    starter: Option<&Starter>,
+) -> Result<LaunchedGame, AppError> {
     let game_path = Path::new(&settings.game_dir);
     let exe_path = game_path.join("Endfield.exe");
 
@@ -294,7 +301,15 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
     } else if settings.use_mangohud {
         launch_cmd.push_str("mangohud ");
     }
-    launch_cmd.push_str(&format!("{} run {}", proton_escaped, wine_escaped));
+    launch_cmd.push_str(&format!("{} run ", proton_escaped));
+    if let Some(starter) = starter {
+        launch_cmd.push_str(&format!(
+            "{} {} ",
+            shell_escape(&to_wine_path(&starter.shim)),
+            shell_escape(&to_wine_path(&starter.starter))
+        ));
+    }
+    launch_cmd.push_str(&wine_escaped);
 
     // 3DMigoto hooks D3D11 only, and a bare launch still comes up on Vulkan.
     if with_mods {

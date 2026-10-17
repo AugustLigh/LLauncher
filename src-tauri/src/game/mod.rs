@@ -1,5 +1,6 @@
 pub mod diagnose;
 pub mod discord;
+pub mod gryphlink;
 pub mod launcher;
 pub mod mods;
 pub mod optiscaler;

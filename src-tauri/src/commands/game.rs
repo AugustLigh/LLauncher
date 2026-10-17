@@ -110,7 +110,18 @@ pub async fn launch_and_watch(app: tauri::AppHandle, with_mods: bool) -> Result<
         }
         crate::logging::warn(format!("mods: could not move the old loader: {}", e));
     }
-    let mut launched = crate::game::launcher::launch_game(&settings_clone, with_mods)?;
+    // Since 1.6 the game only runs with GRYPHLINK's `Games.exe` as its
+    // parent. Without one it shows its own error, which is still the most
+    // telling outcome — so a failed fetch is logged, not fatal.
+    let starter = match crate::game::gryphlink::ensure_starter(&state.http_client).await {
+        Ok(starter) => Some(starter),
+        Err(e) => {
+            crate::logging::warn(format!("gryphlink: no Games.exe to start the game with: {}", e));
+            None
+        }
+    };
+    let mut launched =
+        crate::game::launcher::launch_game(&settings_clone, with_mods, starter.as_ref())?;
     let game_running = state.game_running.clone();
     let game_pid = state.game_pid.clone();
     game_running.store(true, std::sync::atomic::Ordering::SeqCst);

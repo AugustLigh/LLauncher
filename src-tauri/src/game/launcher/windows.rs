@@ -33,6 +33,7 @@ use super::{
 use crate::config::paths;
 use crate::config::settings::AppSettings;
 use crate::error::AppError;
+use crate::game::gryphlink::Starter;
 use crate::game::windows_tweaks;
 
 /// Keep the game out of the launcher's console signal handling, so closing
@@ -47,7 +48,14 @@ const ERROR_ELEVATION_REQUIRED: i32 = 740;
 
 /// A modded launch stays on D3D11 whatever the renderer toggle says: the
 /// loader's `d3d11.dll` hooks that API and nothing else.
-pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGame, AppError> {
+///
+/// `starter` puts GRYPHLINK's `Games.exe` in as the game's parent — see
+/// `crate::game::gryphlink`.
+pub fn launch_game(
+    settings: &AppSettings,
+    with_mods: bool,
+    starter: Option<&Starter>,
+) -> Result<LaunchedGame, AppError> {
     let game_path = Path::new(&settings.game_dir);
     let exe_path = game_path.join("Endfield.exe");
 
@@ -80,7 +88,22 @@ pub fn launch_game(settings: &AppSettings, with_mods: bool) -> Result<LaunchedGa
     };
 
     let args = build_launch_args(settings, with_mods);
-    match spawn(settings, &exe_path, game_path, &args, &log_path) {
+    // Windows paths cannot contain quotes, so plain quoting is safe here.
+    let (program, args) = match starter {
+        Some(starter) => (
+            starter.shim.clone(),
+            format!(
+                "\"{}\" \"{}\" {}",
+                starter.starter.display(),
+                exe_path.display(),
+                args
+            )
+            .trim_end()
+            .to_string(),
+        ),
+        None => (exe_path.clone(), args),
+    };
+    match spawn(settings, &program, game_path, &args, &log_path) {
         Ok(process) => {
             let mut injector = injection.and_then(|inj| start_injector(&inj, &log_path));
             Ok(LaunchedGame {
