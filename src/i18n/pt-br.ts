@@ -375,7 +375,7 @@ export default {
     exitCodeUnknown: 'O processo encerrou inesperadamente',
     viewLog: 'Visualizar o Registro Completo',
     noLog: 'Nenhuma saída de registro foi capturada.',
-    hintDwproton11: 'O DWProton (11.x) não é compatível com Endfield: O anti-cheat depende de mecânicas essenciais do sistema operacional ausentes em sistemas operacionais mais recentes e implementações experimentais, ocasionando quebras durante as chamadas da inicialização. Favor reajustar via Configurações para a plataforma endossada e validada, como as listadas em recomendadas.',
+    hintDwprotonOutdated: 'Sua versão do DWProton é antiga demais para a versão atual de Endfield: o anti-cheat precisa de funções do kernel que só o DWProton 11.0-14 ou mais recente oferece, então o jogo fecha imediatamente. Abra as configurações do Proton e instale a versão recomendada (11.0-14).',
     hintXClients: 'Os sockets do servidor X estão negando entrada à requisição de inicialização: todos os pontos-de-conexão ("X clients slots") encontram-se travados/sobrecarregados ou sem qualquer fôlego e com limite exaurido! Encerre totalmente a sessão, refaça seu login inicial ou restarte a sua distribuição Linux por completa a fim de forçar uma descarga.',
     openProtonSettings: 'Abrir Configurações do Proton',
   },

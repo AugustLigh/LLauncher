@@ -375,7 +375,7 @@ export default {
     exitCodeUnknown: 'Prozess unerwartet beendet',
     viewLog: 'Ganzes Protokoll anzeigen',
     noLog: 'Keine Protokollausgabe aufgezeichnet.',
-    hintDwproton11: 'Ihre installierte DWProton-Version (11.x Serie) ist nicht mit Endfield kompatibel: Anti-Cheat ruft Kernelfunktionen auf, die Wine 11 noch nicht implementiert hat, und das Spiel bleibt hängen. Öffnen Sie die Proton-Einstellungen und installieren Sie den empfohlenen Build (10.0-26).',
+    hintDwprotonOutdated: 'Ihre DWProton-Version ist zu alt für die aktuelle Version von Endfield: Der Anti-Cheat benötigt Kernelfunktionen, die erst DWProton 11.0-14 und neuer bereitstellt, daher schließt sich das Spiel sofort. Öffnen Sie die Proton-Einstellungen und installieren Sie die empfohlene Version (11.0-14).',
     hintXClients: 'X-Server hat Verbindung verweigert — Clients haben keine Slots mehr, sodass das Spiel einfriert, bevor es ein Fenster öffnen kann. Melden Sie sich ab und wieder an (oder starten Sie neu), um diese freizugeben. Der Launcher beendet nun nach jeder Sitzung das Wine-Prefix des Spiels, was verhindert, dass sich solche Absturzreste ansammeln.',
     openProtonSettings: 'Proton-Einstellungen öffnen',
   },

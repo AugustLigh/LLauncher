@@ -375,7 +375,7 @@ export default {
     exitCodeUnknown: 'Proses dihentikan secara tak terduga',
     viewLog: 'Lihat log penuh',
     noLog: 'Tidak ada output log yang ditangkap.',
-    hintDwproton11: 'Versi DWProton Anda yang terinstal (seri 11.x) tidak kompatibel dengan Endfield: anti-cheat memanggil fungsi kernel yang belum diterapkan Wine 11, dan game terhenti. Buka pengaturan Proton dan instal build yang direkomendasikan (10.0-26).',
+    hintDwprotonOutdated: 'Versi DWProton Anda terlalu lama untuk versi Endfield saat ini: anti-cheat membutuhkan fungsi kernel yang hanya tersedia di DWProton 11.0-14 ke atas, sehingga game langsung tertutup. Buka pengaturan Proton dan instal versi yang direkomendasikan (11.0-14).',
     hintXClients: 'Server X menolak koneksi — klien telah kehabisan slot, sehingga game membeku sebelum dapat membuka jendela. Keluar dan masuk kembali (atau restart) untuk membersihkannya. Peluncur sekarang mematikan prefix Wine game setelah setiap sesi, yang menghentikan sisa-sisa crash menumpuk seperti ini.',
     openProtonSettings: 'Buka pengaturan Proton',
   },

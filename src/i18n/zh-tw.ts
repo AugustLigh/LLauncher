@@ -375,7 +375,7 @@ export default {
     exitCodeUnknown: '處理程序意外終止',
     viewLog: '檢視完整日誌',
     noLog: '沒有擷取到任何日誌輸出。',
-    hintDwproton11: '您目前安裝的 DWProton 版本 (11.x 系列) 與 Endfield 不相容：反作弊系統呼叫了 Wine 11 尚未實作的作業系統核心功能，導致遊戲在啟動時當機。請開啟 Proton 設定並安裝推薦版本 (10.0-26)。',
+    hintDwprotonOutdated: '您安裝的 DWProton 版本對目前版本的 Endfield 而言太舊：反作弊系統需要只有 DWProton 11.0-14 及更新版本才提供的核心功能，因此遊戲會立即關閉。請開啟 Proton 設定並安裝推薦版本 (11.0-14)。',
     hintXClients: 'X 伺服器拒絕連線 — 客戶端連線數 (slots) 已耗盡，導致遊戲在開啟任何視窗前就卡住。請登出再重新登入（或重新啟動電腦）以清除這些連線。在未來的更新後，啟動器會在每次遊戲結束後強制關閉遊戲的 Wine prefix，以幫助防止這種情況累積。',
     openProtonSettings: '開啟 Proton 設定',
   },

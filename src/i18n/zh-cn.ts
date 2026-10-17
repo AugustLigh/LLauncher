@@ -382,7 +382,7 @@ export default {
     exitCodeUnknown: '进程意外终止',
     viewLog: '查看完整日志',
     noLog: '未捕获到日志输出。',
-    hintDwproton11: '您安装的 DWProton 版本 (11.x 系列) 与 Endfield 不兼容: 反作弊调用了 Wine 11 尚未实现的内核函数，游戏终止。打开 Proton 设置并安装推荐版本 (10.0-26)。',
+    hintDwprotonOutdated: '您安装的 DWProton 版本对当前版本的 Endfield 来说太旧：反作弊需要只有 DWProton 11.0-14 及更新版本才提供的内核函数，因此游戏会立即关闭。请打开 Proton 设置并安装推荐版本 (11.0-14)。',
     hintXClients: 'X server 拒绝连接 — 客户端槽位已耗尽，导致游戏在能打开窗口前冻结。注销并重新登录 (或重启) 以清除它们。启动器现在会在每次会话后关闭游戏的 Wine 容器，这可以防止崩溃遗留物像这样堆积。',
     openProtonSettings: '打开 Proton 设置',
   },

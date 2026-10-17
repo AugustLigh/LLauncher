@@ -25,12 +25,13 @@ const DWPROTON_MIRROR_DOWNLOAD_URL: &str =
 
 /// The DWProton release we install by default and flag as recommended.
 ///
-/// We deliberately do **not** track upstream `/latest`. The 11.x series (built
-/// on wine-11) regressed badly for Endfield: a hard abort on the unimplemented
-/// `ntoskrnl.exe.PsGetProcessExitStatus` stub plus a rendering collapse to
-/// single-digit FPS with missing textures (GitHub issue #20). 10.0-26 is the
-/// last stable 10.x build and is what a first-run user should get.
-pub const RECOMMENDED_DWPROTON_TAG: &str = "dwproton-10.0-26";
+/// We deliberately do **not** track upstream `/latest`: a new build has
+/// broken Endfield before. 11.0-11 and 11.0-12 aborted on unimplemented
+/// ntoskrnl stubs and collapsed to single-digit FPS (GitHub issue #20), so
+/// 10.0-26 stayed the default until the game's 1.6 update brought a new
+/// anti-cheat driver that 10.x cannot load — the game exits with code 222.
+/// 11.0-14 carries the wine fixes that driver needs (issue #48).
+pub const RECOMMENDED_DWPROTON_TAG: &str = "dwproton-11.0-14";
 
 fn parse_release(release: &serde_json::Value) -> Option<ProtonReleaseInfo> {
     parse_release_with(release, |name| name.contains("x86_64") && name.ends_with(".tar.xz"))

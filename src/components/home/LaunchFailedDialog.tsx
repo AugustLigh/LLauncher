@@ -9,7 +9,7 @@ import "./LaunchFailedDialog.css";
 // their translated advice. `proton` marks the ones a different Proton build
 // fixes, which are the only ones the shortcut into those settings helps with.
 const HINTS: Record<string, { key: string; proton?: boolean }> = {
-  "dwproton11-ntoskrnl": { key: "launchFailed.hintDwproton11", proton: true },
+  "dwproton-outdated": { key: "launchFailed.hintDwprotonOutdated", proton: true },
   "x-clients-exhausted": { key: "launchFailed.hintXClients" },
 };
 

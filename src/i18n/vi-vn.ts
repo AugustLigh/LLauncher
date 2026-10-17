@@ -375,7 +375,7 @@ export default {
     exitCodeUnknown: 'Tiến trình kết thúc bất ngờ',
     viewLog: 'Xem Toàn bộ Nhật ký',
     noLog: 'Không có đầu ra nhật ký nào được ghi lại.',
-    hintDwproton11: 'Phiên bản DWProton bạn đang cài đặt (dòng 11.x) không tương thích với Endfield: anti-cheat gọi các tính năng nhân hệ điều hành mà Wine 11 chưa hoàn thiện, gây ra việc trò chơi bị treo. Hãy mở mục Cài đặt Proton và cài bản dựng đề xuất (10.0-26).',
+    hintDwprotonOutdated: 'Phiên bản DWProton của bạn quá cũ so với phiên bản Endfield hiện tại: anti-cheat cần các hàm nhân hệ điều hành mà chỉ DWProton 11.0-14 trở lên mới có, nên trò chơi đóng ngay lập tức. Hãy mở cài đặt Proton và cài phiên bản được đề xuất (11.0-14).',
     hintXClients: 'X server từ chối kết nối — Clients đã hết luồng (slots), làm trò chơi bị kẹt trước khi kịp mở bất kỳ cửa sổ nào. Đăng xuất rồi đăng nhập lại (hoặc khởi động lại máy) để xóa hết những luồng này. Sau mỗi phiên bản, Launcher giờ đây sẽ diệt gọn Wine prefix của trò chơi, giúp tránh bị tồn đọng các dữ liệu lỗi hỏng như trên.',
     openProtonSettings: 'Mở Cài đặt Proton',
   },

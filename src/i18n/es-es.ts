@@ -375,7 +375,7 @@ export default {
     exitCodeUnknown: 'El proceso finalizó inesperadamente',
     viewLog: 'Ver registro completo',
     noLog: 'No se ha capturado ninguna salida de registro.',
-    hintDwproton11: 'Tu versión instalada de DWProton (serie 11.x) es incompatible con Endfield: el antitrampas llama a funciones del kernel que Wine 11 aún no ha implementado, y el juego se bloquea. Abre los ajustes de Proton e instala la versión recomendada (10.0-26).',
+    hintDwprotonOutdated: 'Tu versión de DWProton es demasiado antigua para la versión actual de Endfield: el antitrampas necesita funciones del kernel que solo ofrecen DWProton 11.0-14 y posteriores, así que el juego se cierra al instante. Abre los ajustes de Proton e instala la versión recomendada (11.0-14).',
     hintXClients: 'El servidor X rechazó la conexión — los clientes se han quedado sin huecos, por lo que el juego se congela antes de poder abrir una ventana. Cierra sesión y vuelve a iniciarla (o reinicia) para borrarlos. El lanzador ahora finaliza el prefijo Wine del juego después de cada sesión, lo que evita que se acumulen restos de fallos como estos.',
     openProtonSettings: 'Abrir ajustes de Proton',
   },

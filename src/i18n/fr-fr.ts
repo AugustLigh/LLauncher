@@ -375,7 +375,7 @@ export default {
     exitCodeUnknown: 'Le processus s\'est terminé de manière inattendue',
     viewLog: 'Voir le journal complet',
     noLog: 'Aucune sortie de journal capturée.',
-    hintDwproton11: 'Votre version de DWProton installée (série 11.x) est incompatible avec Endfield : l\'anti-triche appelle des fonctions du noyau que Wine 11 n\'a pas encore implémentées, et le jeu s\'arrête. Ouvrez les paramètres de Proton et installez la version recommandée (10.0-26).',
+    hintDwprotonOutdated: 'Votre version de DWProton est trop ancienne pour la version actuelle d\'Endfield : l\'anti-triche a besoin de fonctions du noyau que seuls DWProton 11.0-14 et versions ultérieures fournissent, le jeu se ferme donc aussitôt. Ouvrez les paramètres Proton et installez la version recommandée (11.0-14).',
     hintXClients: 'Le serveur X a refusé la connexion — les clients ont manqué d\'emplacements, de sorte que le jeu se fige avant de pouvoir ouvrir une fenêtre. Déconnectez-vous et reconnectez-vous (ou redémarrez) pour les effacer. Le lanceur tue désormais le préfixe Wine du jeu après chaque session, ce qui empêche l\'accumulation des restes de crash de ce type.',
     openProtonSettings: 'Ouvrir les paramètres Proton',
   },
